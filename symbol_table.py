@@ -1,13 +1,22 @@
-from collections import deque
+from custom_types import Type
 
 
-class SymbolTable:
+class Env:  # store str: Type -- Type is custom defined in this project
     def __init__(self):
-        self.cache = {}
+        self.env = []
+        self.push()
 
-    def declare(self, name, vartype):
-        if name not in self.cache:
-            self.cache[name] = vartype
+    def push(self) -> None:
+        self.env.append({})
 
-    # def push(self):
-    #     self.cache
+    def pop(self) -> None:
+        self.env.pop()
+
+    def declare(self, name: str, type: Type) -> None:
+        self.env[-1][name] = type
+
+    def lookup(self, name: str) -> Type:
+        for frame in reversed(self.env):
+            if name in frame:
+                return frame[name]
+        raise KeyError(name)

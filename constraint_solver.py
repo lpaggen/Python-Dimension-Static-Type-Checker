@@ -1,20 +1,18 @@
-from z3 import Int, simplify
+from z3 import Int, sat, Solver, IntVal, AstRef
 from dimension import KnownDim, Dim, BinaryDim, binop_tostr, DimDecl
 from tensor_decl import TensorDecl
-import ast
+from rules import Rules
+from custom_literals import *
 
-
-from z3 import *
 
 class ConstraintSolver:
-    def __init__(self):
+    def __init__(self, env, report_errors=True, crash_if_error=False):
         self.solver = Solver()
+        self.errors = []  # append errors as we go, inform the user and crash at the end only if provided crash=true arg?
+        self.rules = Rules()
+        self.env = env  # shared context
 
-    def to_z3(self, expr):  # fold simple constants
-        if isinstance(expr, int):
-            return IntVal(expr)
-        if isinstance(expr, str):
-            return Int(expr)
+    def to_z3(self, expr: Dim) -> AstRef:  # fold simple constants
         if isinstance(expr, KnownDim):
             return IntVal(expr.value)
         if isinstance(expr, Dim):
@@ -32,21 +30,41 @@ class ConstraintSolver:
             elif op == "/":
                 return lhs / rhs
         raise TypeError(f"Unsupported expr: {expr}")
+    
+    def get_var(self, name):
+        return Int(name)
 
     def solve(self, semantic_ir) -> bool:
         for node in semantic_ir:
+
             if isinstance(node, DimDecl) and node.value is not None:
-                z3_expr = self.to_z3(node.value)  # can be BinaryDim or just int, fix
-                var = self.to_z3(node.name)
+                z3_expr = self.to_z3(node.value)
+                var = self.get_var(node.name)
                 self.solver.add(var == z3_expr)
                 self.solver.add(var > 0)
-            if isinstance(node, TensorDecl) and isinstance(node.value, ast.Call):
-                if isinstance(node.value.args, list) and isinstance(node.value.args[0], ast.List):
-                    matrix = node.value.args[0].elts
-                    found_rows = len(matrix)
-                    found_cols = len(matrix[0].elts)
-                    self.solver.add(self.to_z3(node.shape[0]) == found_rows)
-                    self.solver.add(self.to_z3(node.shape[1]) == found_cols)
+
+            # type hint shapes and runtime shapes must align via z3
+            if isinstance(node, TensorDecl) and isinstance(node.value, TensorLiteralExpr):  # declared tensor with elements, ex: torch.tensor([[...]])
+                shape_val = node.value.shape
+                rows_val = self.to_z3(KnownDim(shape_val[0]))  # operate on the assumption that shape must contain int, this always holds true
+                cols_val = self.to_z3(KnownDim(shape_val[1]))
+                rows_hint = self.to_z3(node.shape[0])
+                cols_hint = self.to_z3(node.shape[1])
+                self.solver.add(rows_hint == rows_val)
+                self.solver.add(cols_hint == cols_val)
+
+            if isinstance(node, TensorDecl) and isinstance(node.value, MatMulExpr):
+                ltype = self.env.lookup(node.value.left)
+                rtype = self.env.lookup(node.value.right) 
+                self.solver.add(  # will dispatch this back to Rules eventually, fow now it's fine, this works
+                    self.to_z3(ltype.cols) == self.to_z3(rtype.rows)
+                )
+                self.solver.add(
+                    self.to_z3(node.shape[0]) == self.to_z3(ltype.rows)
+                )
+                self.solver.add(
+                    self.to_z3(node.shape[1]) == self.to_z3(rtype.cols)
+                )
 
         result = self.solver.check()
         return result == sat

@@ -1,27 +1,32 @@
 import ast
-from dimension import BinaryDim, DimDecl
+from dimension import BinaryDim, DimDecl, Dim, KnownDim, binop_tostr
 from tensor_decl import TensorDecl
+from torch_parser import TorchOpParser
+from symbol_table import Env
+from custom_types import MatrixType
 
 
-class SemanticBuilder(ast.NodeVisitor):  # for now only support torch.tensor
-    def __init__(self):
-        self.ir = []
+class SemanticBuilder(ast.NodeVisitor):  # for now only support torch.tensor and int, extend to include other things
+    def __init__(self, env: Env):
+        self.ir = []  # just a list of nodes (declarations for now, can extend later)
+        self.env = env  # !! env is passed to EVERY visitor, this, constraint, IR, everyone needs the SAME one
+        self.torchParser = TorchOpParser()
 
-    def visit_AnnAssign(self, node):
+    def visit_FunctionDef(self, node: ast.FunctionDef):  # ensure new scope !!!!!!!!
+        self.env.push()
+        self.generic_visit(node)  # recursive, comes back to parse inside of function params
+        self.env.pop()
+
+    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
         annotation = node.annotation
         identifier = node.target.id
         value = node.value
 
         # only parse that which is claimed to be integer, ignore the rest, they can't represent dimensions
         if isinstance(annotation, ast.Name) and (annotation.id == "int"):  # we are in a 'x: int = 4' type of statement
-            value = None
-
-            if isinstance(node.value, ast.Constant):  # when rvalue is int
-                value = node.value.value
-
-            if isinstance(node.value, ast.BinOp): # n + ... + m
-                value = BinaryDim(identifier, node.value.op, node.value.left, node.value.right)
+            value = self.toDim(node.value)
             self.ir.append(DimDecl(identifier, value))
+            self.env.declare(identifier, value)  # is this valid? Dim not really a type
             return
 
         if (
@@ -30,7 +35,22 @@ class SemanticBuilder(ast.NodeVisitor):  # for now only support torch.tensor
         and annotation.value.attr == "Tensor"
         and isinstance(annotation.value.value, ast.Name)
         and annotation.value.value.id == "torch"
-        ):
-            dims = [i.id for i in annotation.slice.elts]  # List(elts...) -> [str, str]
-            self.ir.append(TensorDecl(identifier, (dims[0], dims[1]), value))
+        ):  # to do fix this to rely on Dim rather than int and str
+            dims = [self.toDim(i) for i in annotation.slice.elts]  # List(elts...) -> [Dim, Dim]
+            tensorValue = self.torchParser.parse(value)
+            self.ir.append(TensorDecl(identifier, (dims[0], dims[1]), tensorValue))  # tensorValue encodes information relevant for constraints, shapes
+            self.env.declare(identifier, MatrixType(dims[0], dims[1]))
             return
+
+    def toDim(self, node) -> Dim:
+        if isinstance(node, ast.Name):
+            return Dim(node.id)
+        if isinstance(node, ast.Constant):
+            return KnownDim(node.value)
+        if isinstance(node, ast.BinOp):
+            return BinaryDim(
+                binop_tostr(node.op),
+                self.toDim(node.left),
+                self.toDim(node.right)
+            )
+        raise TypeError(f"Unsupported dimension node: {node}")

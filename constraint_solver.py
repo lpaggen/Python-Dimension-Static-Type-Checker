@@ -1,5 +1,7 @@
 from z3 import Int, simplify
-from dimension import KnownDim, Dim, BinaryDim, binop_tostr
+from dimension import KnownDim, Dim, BinaryDim, binop_tostr, DimDecl
+from tensor_decl import TensorDecl
+import ast
 
 
 from z3 import *
@@ -9,9 +11,10 @@ class ConstraintSolver:
         self.solver = Solver()
 
     def to_z3(self, expr):  # fold simple constants
-        print(type(expr))
         if isinstance(expr, int):
             return IntVal(expr)
+        if isinstance(expr, str):
+            return Int(expr)
         if isinstance(expr, KnownDim):
             return IntVal(expr.value)
         if isinstance(expr, Dim):
@@ -34,15 +37,16 @@ class ConstraintSolver:
         for node in semantic_ir:
             if isinstance(node, DimDecl) and node.value is not None:
                 z3_expr = self.to_z3(node.value)  # can be BinaryDim or just int, fix
-                var = Int(node.name)
+                var = self.to_z3(node.name)
                 self.solver.add(var == z3_expr)
                 self.solver.add(var > 0)
-
             if isinstance(node, TensorDecl) and isinstance(node.value, ast.Call):
-                if isinstance(node.value.args, list):
-                    found_cols = len(node.value.args[0].elts[0].elts)
-                    found_rows = len(node.value.args[0].elts[0])
-
+                if isinstance(node.value.args, list) and isinstance(node.value.args[0], ast.List):
+                    matrix = node.value.args[0].elts
+                    found_rows = len(matrix)
+                    found_cols = len(matrix[0].elts)
+                    self.solver.add(self.to_z3(node.shape[0]) == found_rows)
+                    self.solver.add(self.to_z3(node.shape[1]) == found_cols)
 
         result = self.solver.check()
         return result == sat

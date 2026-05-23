@@ -6,7 +6,7 @@ class TorchOpParser:
     def __init__(self):
         self.rules = {
             "tensor": self._parse_tensor,
-            # "randn": self.parse_randn,
+            "randn": self._parse_randn,
             "matmul": self._parse_matmul,
         }
 
@@ -29,6 +29,9 @@ class TorchOpParser:
                 )
 
         return TensorLiteralExpr((rows, cols))
+    
+    def _parse_randn(self, node):
+        print(node)
 
     def parse(self, node):
         if not isinstance(node, ast.Call):
@@ -44,6 +47,7 @@ class TorchOpParser:
             return None
 
         op = node.func.attr
+        print(type(op))
 
         if op not in self.rules:
             raise TypeError(f"Unsupported torch op: {op}")

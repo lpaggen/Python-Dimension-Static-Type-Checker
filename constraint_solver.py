@@ -1,5 +1,5 @@
 from z3 import Int, sat, Solver, IntVal, AstRef
-from dimension import KnownDim, Dim, BinaryDim, binop_tostr, DimDecl
+from dimension import KnownDim, Dim, BinaryDim, binop_tostr, DimDecl, SymDim
 from tensor_decl import TensorDecl
 from rules import Rules
 from custom_literals import *
@@ -15,12 +15,12 @@ class ConstraintSolver:
     def to_z3(self, expr: Dim) -> AstRef:  # fold simple constants
         if isinstance(expr, KnownDim):
             return IntVal(expr.value)
-        if isinstance(expr, Dim):
+        elif isinstance(expr, SymDim):  # Dim should actually be the interface, SymbolicDim should inherit, else this is too fragile
             return Int(expr.name)
-        if isinstance(expr, BinaryDim):
+        elif isinstance(expr, BinaryDim):
             lhs = self.to_z3(expr.left)
             rhs = self.to_z3(expr.right)
-            op = binop_tostr(expr.operator)
+            op = expr.operator
             if op == "+":
                 return lhs + rhs
             elif op == "-":
@@ -55,7 +55,7 @@ class ConstraintSolver:
 
             if isinstance(node, TensorDecl) and isinstance(node.value, MatMulExpr):
                 ltype = self.env.lookup(node.value.left)
-                rtype = self.env.lookup(node.value.right) 
+                rtype = self.env.lookup(node.value.right)
                 self.solver.add(  # will dispatch this back to Rules eventually, fow now it's fine, this works
                     self.to_z3(ltype.cols) == self.to_z3(rtype.rows)
                 )
@@ -66,5 +66,13 @@ class ConstraintSolver:
                     self.to_z3(node.shape[1]) == self.to_z3(rtype.cols)
                 )
 
-        result = self.solver.check()
-        return result == sat
+            if isinstance(node, TensorDecl) and isinstance(node.value, RandnExpr):
+                shape_val = node.value.shape
+                rows_val = self.to_z3(shape_val[0])
+                cols_val = self.to_z3(shape_val[1])
+                rows_hint = self.to_z3(node.shape[0])
+                cols_hint = self.to_z3(node.shape[1])
+                self.solver.add(rows_hint == rows_val)
+                self.solver.add(cols_hint == cols_val)
+
+        return self.solver.check() == sat

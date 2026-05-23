@@ -1,7 +1,37 @@
+from __future__ import annotations
 import ast
 
 
 class Dim:
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def toDim(node) -> Dim:
+        if isinstance(node, ast.Name):
+            return SymDim(node.id)
+        if isinstance(node, ast.Constant):
+            return KnownDim(node.value)
+        if isinstance(node, ast.BinOp):
+            return BinaryDim(
+                Dim.binop_tostr(node.op),
+                Dim.toDim(node.left),
+                Dim.toDim(node.right)
+            )
+        raise TypeError(f"Unsupported dimension node: {node}")
+    
+    @staticmethod
+    def binop_tostr(binop: ast.operator) -> str:
+        if isinstance(binop, ast.Add):
+            return "+"
+        if isinstance(binop, ast.Sub):
+            return "-"
+        if isinstance(binop, ast.Mult):
+            return "*"
+        if isinstance(binop, ast.Div):
+            return "/"
+
+class SymDim(Dim):
     def __init__(self, name):
         self.name = name
 
@@ -25,32 +55,3 @@ class DimDecl:
 
     def __repr__(self):
         return f"DimDecl({self.name}, {self.value})"
-
-def binop_tostr(binop: ast.BinOp) -> str:
-    if isinstance(binop, ast.Add):
-        return "+"
-    if isinstance(binop, ast.Sub):
-        return "-"
-    if isinstance(binop, ast.Mult):
-        return "*"
-    if isinstance(binop, ast.Div):
-        return "/"
-
-# def fold(expr):
-#     if isinstance(expr, KnownDim):
-#         return expr
-#     if isinstance(expr, BinaryDim):
-#         left = fold(expr.left)
-#         right = fold(expr.right)
-#         if isinstance(left, KnownDim) and isinstance(right, KnownDim):
-#             op = binop_tostr(expr.operator)
-#             if op == "+":
-#                 return left + right
-#             elif op == "-":
-#                 return left - right
-#             elif op == "*":
-#                 return left * right
-#             elif op == "/":
-#                 return left / right
-#         return BinaryDim(left, expr.operator, right)
-#     return expr

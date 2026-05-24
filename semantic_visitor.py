@@ -1,5 +1,5 @@
 import ast
-from dimension import BinaryDim, DimDecl, Dim, KnownDim, binop_tostr
+from dimension import DimDecl, Dim
 from tensor_decl import TensorDecl
 from torch_parser import TorchOpParser
 from symbol_table import Env

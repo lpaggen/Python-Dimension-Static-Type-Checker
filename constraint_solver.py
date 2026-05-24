@@ -1,5 +1,5 @@
 from z3 import Int, sat, Solver, IntVal, AstRef
-from dimension import KnownDim, Dim, BinaryDim, binop_tostr, DimDecl, SymDim
+from dimension import KnownDim, Dim, BinaryDim, DimDecl, SymDim
 from tensor_decl import TensorDecl
 from rules import Rules
 from custom_literals import *
@@ -64,6 +64,23 @@ class ConstraintSolver:
                 )
                 self.solver.add(
                     self.to_z3(node.shape[1]) == self.to_z3(rtype.cols)
+                )
+
+            if isinstance(node, TensorDecl) and isinstance(node.value, AddExpr):
+                ltype = self.env.lookup(node.value.left)
+                rtype = self.env.lookup(node.value.right)
+                # self.rules.apply("add", ltype, rtype, )
+                self.solver.add(
+                    self.to_z3(ltype.rows) == self.to_z3(rtype.rows)
+                )
+                self.solver.add(
+                    self.to_z3(ltype.cols) == self.to_z3(rtype.cols)
+                )
+                self.solver.add(
+                    self.to_z3(node.shape[0]) == self.to_z3(ltype.rows)
+                )
+                self.solver.add(
+                    self.to_z3(node.shape[1]) == self.to_z3(ltype.cols)
                 )
 
             if isinstance(node, TensorDecl) and isinstance(node.value, RandnExpr):

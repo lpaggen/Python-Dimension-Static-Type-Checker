@@ -10,4 +10,4 @@ p: int = 9
 A: torch.Tensor[n, m] = torch.tensor([[1, 2, 3]])
 B: torch.Tensor[m, k] = torch.tensor([[1], [2], [3]])
 
-C: torch.Tensor[n, p] = torch.matmul(A, B)  # returns a 1x1 tensor, my type checker can verify this with ease
+C: torch.Tensor[n, k] = torch.matmul(A, B)  # returns a 1x1 tensor, my type checker can verify this with ease

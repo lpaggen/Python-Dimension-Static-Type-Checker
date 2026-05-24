@@ -4,21 +4,30 @@ from custom_types import MatrixType
 class Rules:
     def __init__(self):
         self.rules = {
-            "matmul": Matmul,
+            "matmul": MatmulRule,
+            "add": AddRule
         }
 
     def apply(self, name, *args):
         rule = self.rules[name]
         return rule.apply(*args)
 
-class Matmul:
+class MatmulRule:
     @staticmethod
-    def apply(a, b):
-        if a.cols != b.rows:
-            raise TypeError(
-                f"Cannot multiply matrices with shapes "
-                f"({a.rows}, {a.cols}) and ({b.rows}, {b.cols}): "
-                f"inner dimensions must match "
-                f"({a.cols} != {b.rows})"
-            )
-        return MatrixType(a.rows, b.cols)
+    def apply(ltype, rtype, out_shape):
+        return [
+            ltype.cols == rtype.rows,
+            out_shape[0] == ltype.rows,
+            out_shape[1] == rtype.cols
+        ]
+
+class AddRule:
+    @staticmethod
+    def apply(ltype, rtype, out_shape):
+        return [
+            ltype.rows == rtype.rows,
+            ltype.cols == rtype.cols,
+            out_shape[0] == ltype.rows,
+            out_shape[1] == rtype.cols
+        ]
+

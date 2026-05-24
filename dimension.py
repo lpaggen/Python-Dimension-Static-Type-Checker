@@ -31,6 +31,10 @@ class Dim:
         if isinstance(binop, ast.Div):
             return "/"
 
+class UnknownDim(Dim):
+    def __init__(self):
+        pass
+
 class SymDim(Dim):
     def __init__(self, name):
         self.name = name

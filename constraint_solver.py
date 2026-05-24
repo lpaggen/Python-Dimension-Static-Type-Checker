@@ -1,8 +1,9 @@
 from z3 import Int, sat, Solver, IntVal, AstRef
-from dimension import KnownDim, Dim, BinaryDim, DimDecl, SymDim
+from dimension import KnownDim, Dim, BinaryDim, DimDecl, SymDim, UnknownDim
 from tensor_decl import TensorDecl
 from rules import Rules
 from custom_literals import *
+from custom_types import *
 
 
 class ConstraintSolver:
@@ -13,7 +14,9 @@ class ConstraintSolver:
         self.env = env  # shared context
 
     def to_z3(self, expr: Dim) -> AstRef:  # fold simple constants
-        if isinstance(expr, KnownDim):
+        if isinstance(expr, UnknownDim):
+            return
+        elif isinstance(expr, KnownDim):
             return IntVal(expr.value)
         elif isinstance(expr, SymDim):  # Dim should actually be the interface, SymbolicDim should inherit, else this is too fragile
             return Int(expr.name)
@@ -56,9 +59,12 @@ class ConstraintSolver:
             if isinstance(node, TensorDecl) and isinstance(node.value, MatMulExpr):
                 ltype = self.env.lookup(node.value.left)
                 rtype = self.env.lookup(node.value.right)
+                if isinstance(node.shape[0], UnknownDim):
+                    node.shape = self.env.lookup(node.name).rows, self.env.lookup(node.name).cols
                 self.solver.add(  # will dispatch this back to Rules eventually, fow now it's fine, this works
                     self.to_z3(ltype.cols) == self.to_z3(rtype.rows)
                 )
+                print(node.shape)
                 self.solver.add(
                     self.to_z3(node.shape[0]) == self.to_z3(ltype.rows)
                 )

@@ -4,6 +4,7 @@ from semantic_visitor import SemanticBuilder
 from constraint_solver import ConstraintSolver
 from symbol_table import Env
 import ast
+from type_resolver import TypeResolver
 
 
 def main():
@@ -21,6 +22,8 @@ def main():
     env = Env()  # same context to be used in all visitors
     builder = SemanticBuilder(env)
     builder.visit(tree)
+    type_resolver = TypeResolver(builder.env.unresolved, env)
+    type_resolver.resolve_types()
     c_solver = ConstraintSolver(env, True, False)
     print(c_solver.solve(builder.ir))
 

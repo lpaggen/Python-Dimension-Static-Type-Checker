@@ -1,5 +1,5 @@
 import ast
-from dimension import DimDecl, Dim
+from dimension import DimDecl, Dim, UnknownDim
 from tensor_decl import TensorDecl
 from torch_parser import TorchOpParser
 from symbol_table import Env
@@ -14,7 +14,7 @@ class SemanticBuilder(ast.NodeVisitor):  # for now only support torch.tensor and
 
     def visit_FunctionDef(self, node: ast.FunctionDef):  # ensure new scope !!!!!!!!
         self.env.push()
-        self.generic_visit(node)  # recursive, comes back to parse inside of function params
+        self.generic_visit(node)  # recursive, parse inside of function params
         self.env.pop()
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
@@ -40,4 +40,17 @@ class SemanticBuilder(ast.NodeVisitor):  # for now only support torch.tensor and
             tensorValue = self.torchParser.parse(value)
             self.ir.append(TensorDecl(identifier, (dims[0], dims[1]), tensorValue))  # tensorValue encodes information relevant for constraints, shapes
             self.env.declare(identifier, MatrixType(dims[0], dims[1]))
+            return
+
+    def visit_Assign(self, node: ast.Assign) -> None:  # no type annotation
+        """
+        Visits a node declared as follows: A = torch.tensor([[2], [4], [5]])
+        """
+        identifier = node.targets[0].id
+        value = node.value
+
+        if isinstance(value, ast.Call) and (value.func.value.id == "torch"):  # calling torch.some_method
+            tensorValue = self.torchParser.parse(value)
+            self.ir.append(TensorDecl(identifier, (UnknownDim(), UnknownDim()), tensorValue))  # shape is empty, infer it in next pass
+            self.env.declare_unresolved(identifier, tensorValue)  # ! unresolved declaration, next pass solves it
             return

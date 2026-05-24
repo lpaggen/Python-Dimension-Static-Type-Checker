@@ -24,7 +24,7 @@ def main():
     builder.visit(tree)
     type_resolver = TypeResolver(builder.env.unresolved, env)
     type_resolver.resolve_types()
-    c_solver = ConstraintSolver(env, True, False)
+    c_solver = ConstraintSolver(env)
     print(c_solver.solve(builder.ir))
 
 

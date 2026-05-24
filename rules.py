@@ -1,5 +1,13 @@
-from custom_types import MatrixType
+from custom_types import MatrixType, Type, Scalar
+from dataclasses import dataclass
+from dimension import Dim
 
+
+@dataclass
+class DimConstraint:
+    left: Dim
+    right: Dim
+    label: str
 
 class Rules:
     def __init__(self):
@@ -14,20 +22,28 @@ class Rules:
 
 class MatmulRule:
     @staticmethod
-    def apply(ltype, rtype, out_shape):
-        return [
-            ltype.cols == rtype.rows,
-            out_shape[0] == ltype.rows,
-            out_shape[1] == rtype.cols
-        ]
+    def apply(ltype: MatrixType, rtype: MatrixType):
+        if isinstance(ltype, MatrixType) and isinstance(rtype, MatrixType):
+            constraints = [
+                DimConstraint(ltype.cols, rtype.rows, "inner_dims_match")
+            ]
+            out = MatrixType(rows=ltype.rows, cols=rtype.cols)
+            return out, constraints
+        raise TypeError(...)
 
 class AddRule:
     @staticmethod
-    def apply(ltype, rtype, out_shape):
-        return [
-            ltype.rows == rtype.rows,
-            ltype.cols == rtype.cols,
-            out_shape[0] == ltype.rows,
-            out_shape[1] == rtype.cols
-        ]
-
+    def apply(ltype, rtype):
+        if isinstance(ltype, MatrixType) and isinstance(rtype, MatrixType):
+            constraints = [
+                DimConstraint(ltype.rows, rtype.rows, "rows_match"),
+                DimConstraint(ltype.cols, rtype.cols, "cols_match")
+            ]
+            out = MatrixType(rows=ltype.rows, cols=ltype.cols)
+            return out, constraints
+        elif isinstance(ltype, Scalar) or isinstance(rtype, Scalar):  # supports scalar or tensor
+            constraints = []  # none to add
+            out = MatrixType(rows=ltype.rows, cols=ltype.cols) if isinstance(ltype, MatrixType) else MatrixType(rows=rtype.rows, cols=rtype.cols)
+            return out, constraints
+        raise TypeError("Add requires both arguments to be matrices or one to be a scalar, got: "
+                f"{type(ltype).__name__} and {type(rtype).__name__}")

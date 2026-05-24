@@ -13,15 +13,13 @@ class TorchOpParser:
         }
 
     def _parse_matmul(self, node: ast.Call):
-        args = [i.id for i in node.args]
-        return MatMulExpr(args[0], args[1])  # store only identifiers, constraintSolver calls upon env to resolve shapes
+        return MatMulExpr(Dim.toDim(node.args[0]), Dim.toDim(node.args[1]))
     
     def _parse_randn(self, node: ast.Call):  # assume 2 elements, see if this scales
         return RandnExpr((Dim.toDim(node.args[0]), Dim.toDim(node.args[1])))
     
     def _parse_add(self, node: ast.Call):
-        args = [i.id for i in node.args]
-        return AddExpr(args[0], args[1])
+        return AddExpr(Dim.toDim(node.args[0]), Dim.toDim(node.args[1]))
 
     def _parse_tensor(self, node):  # here parse the tensor and get the shape of the RHS + rectangular, this is for Literal [[..]]
         rows_lit = node.args[0].elts

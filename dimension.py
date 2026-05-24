@@ -11,7 +11,7 @@ class Dim:
         if isinstance(node, ast.Name):
             return SymDim(node.id)
         if isinstance(node, ast.Constant):
-            return KnownDim(node.value)
+            return ScalarDim(node.value)
         if isinstance(node, ast.BinOp):
             return BinaryDim(
                 Dim.binop_tostr(node.op),
@@ -19,7 +19,7 @@ class Dim:
                 Dim.toDim(node.right)
             )
         raise TypeError(f"Unsupported dimension node: {node}")
-    
+
     @staticmethod
     def binop_tostr(binop: ast.operator) -> str:
         if isinstance(binop, ast.Add):
@@ -39,7 +39,18 @@ class SymDim(Dim):
     def __init__(self, name):
         self.name = name
 
+    def __str__(self):
+        return self.name
+
 class KnownDim(Dim):
+    def __init__(self, name, value):
+        self.name = name
+        self.value = value
+
+    def __str__(self):
+        return self.name
+
+class ScalarDim(Dim):
     def __init__(self, value):
         self.value = value
 

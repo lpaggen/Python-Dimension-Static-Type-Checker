@@ -12,8 +12,8 @@ class TypeResolver:
     def resolve_types(self):
         for k, v in self.unresolved_nodes.items():
             if isinstance(v, MatMulExpr):
-                ltype = self.env.lookup(v.left)
-                rtype = self.env.lookup(v.right)
+                ltype = self.env.lookup(str(v.left))
+                rtype = self.env.lookup(str(v.right))
                 inferred_type = MatrixType(
                     rows=ltype.rows,
                     cols=rtype.cols

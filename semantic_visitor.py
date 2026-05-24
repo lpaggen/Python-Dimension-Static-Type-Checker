@@ -1,5 +1,5 @@
 import ast
-from dimension import DimDecl, Dim, UnknownDim
+from dimension import DimDecl, Dim, UnknownDim, SymDim
 from tensor_decl import TensorDecl
 from torch_parser import TorchOpParser
 from symbol_table import Env
@@ -24,9 +24,9 @@ class SemanticBuilder(ast.NodeVisitor):  # for now only support torch.tensor and
 
         # only parse that which is claimed to be integer, ignore the rest, they can't represent dimensions
         if isinstance(annotation, ast.Name) and (annotation.id == "int"):  # we are in a 'x: int = 4' type of statement
-            value = Dim.toDim(node.value)
+            value = Dim.toDim(node.value) if value is not None else SymDim(identifier)
             self.ir.append(DimDecl(identifier, value))
-            self.env.declare(identifier, value)  # is this valid? Dim not really a type
+            self.env.declare(identifier, value)
             return
 
         if (  # will break if using some alias, to fix
@@ -38,7 +38,7 @@ class SemanticBuilder(ast.NodeVisitor):  # for now only support torch.tensor and
         ):  # to do fix this to rely on Dim rather than int and str
             dims = [Dim.toDim(i) for i in annotation.slice.elts]  # List(elts...) -> [Dim, Dim]
             tensorValue = self.torchParser.parse(value)
-            self.ir.append(TensorDecl(identifier, (dims[0], dims[1]), tensorValue))  # tensorValue encodes information relevant for constraints, shapes
+            self.ir.append(TensorDecl(identifier, (dims[0], dims[1]), tensorValue))  # encodes information relevant for constraints, shapes
             self.env.declare(identifier, MatrixType(dims[0], dims[1]))
             return
 

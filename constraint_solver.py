@@ -46,11 +46,11 @@ class ConstraintSolver:
     def _get_var(self, name):
         return Int(name)
 
-    def _resolve_type(self, expr) -> MatrixType | Scalar:
+    def _resolve_type(self, expr) -> MatrixType | ScalarType:
         match expr:
-            case ScalarDim(value=v):
-                return Scalar(v)
-            case SymDim(name=n):
+            case ScalarType(value=v):
+                return ScalarType(v)
+            case VarType(name=n):
                 return self.env.lookup(n)
             case _:
                 return self.env.lookup(str(expr))
@@ -111,6 +111,7 @@ class ConstraintSolver:
     def _handle_add(self, node: TensorDecl):
         ltype = self._resolve_type(node.value.left)
         rtype = self._resolve_type(node.value.right)
+        print(ltype, rtype)
         out_type, constraints = self.rules.apply("add", ltype, rtype)
         for c in constraints:
             self._add(self._to_z3(c.left) == self._to_z3(c.right), f"add_{node.name}")

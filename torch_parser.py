@@ -1,6 +1,8 @@
 from custom_literals import *
 import ast
 from dimension import *
+from custom_types import MatrixType, ScalarType, VarType
+from ast import Name, Constant
 
 
 class TorchOpParser:
@@ -12,14 +14,24 @@ class TorchOpParser:
             "add": self._parse_add
         }
 
+    def _resolve_type(self, expr) -> MatrixType | ScalarType:
+        match expr:
+            case Name(id=id):
+                return VarType(id)
+            case Constant(value=n):
+                return ScalarType(n)
+            case _:
+                raise TypeError("No")
+
+    # TODO remove all instances of Dim.toDim, this is not the right place to have it
     def _parse_matmul(self, node: ast.Call):
-        return MatMulExpr(Dim.toDim(node.args[0]), Dim.toDim(node.args[1]))
-    
+        return MatMulExpr(self._resolve_type(node.args[0]), self._resolve_type(node.args[1]))
+
     def _parse_randn(self, node: ast.Call):  # assume 2 elements, see if this scales
-        return RandnExpr((Dim.toDim(node.args[0]), Dim.toDim(node.args[1])))
-    
+        return RandnExpr((self._resolve_type(node.args[0]), self._resolve_type(node.args[1])))
+
     def _parse_add(self, node: ast.Call):
-        return AddExpr(Dim.toDim(node.args[0]), Dim.toDim(node.args[1]))
+        return AddExpr(self._resolve_type(node.args[0]), self._resolve_type(node.args[1]))
 
     def _parse_tensor(self, node):  # here parse the tensor and get the shape of the RHS + rectangular, this is for Literal [[..]]
         rows_lit = node.args[0].elts

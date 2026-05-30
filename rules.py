@@ -1,4 +1,4 @@
-from custom_types import MatrixType, Type, Scalar
+from custom_types import MatrixType, Type, ScalarType
 from dataclasses import dataclass
 from dimension import Dim
 
@@ -29,7 +29,8 @@ class MatmulRule:
             ]
             out = MatrixType(rows=ltype.rows, cols=rtype.cols)
             return out, constraints
-        raise TypeError(...)
+        raise TypeError("Add requires both arguments to be matrices: "
+                f"{type(ltype).__name__} and {type(rtype).__name__}")
 
 class AddRule:
     @staticmethod
@@ -41,7 +42,7 @@ class AddRule:
             ]
             out = MatrixType(rows=ltype.rows, cols=ltype.cols)
             return out, constraints
-        elif isinstance(ltype, Scalar) or isinstance(rtype, Scalar):  # supports scalar or tensor
+        elif isinstance(ltype, ScalarType) or isinstance(rtype, ScalarType):  # supports scalar or tensor
             constraints = []  # none to add
             out = MatrixType(rows=ltype.rows, cols=ltype.cols) if isinstance(ltype, MatrixType) else MatrixType(rows=rtype.rows, cols=rtype.cols)
             return out, constraints

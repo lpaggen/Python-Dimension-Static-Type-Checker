@@ -23,4 +23,4 @@ class Env:  # store str: Type -- Type is custom defined in this project
         for frame in reversed(self.env):
             if name in frame:
                 return frame[name]
-        raise KeyError(name)
+        return None

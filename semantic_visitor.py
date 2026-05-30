@@ -4,8 +4,10 @@ from tensor_decl import TensorDecl
 from torch_parser import TorchOpParser
 from symbol_table import Env
 from custom_types import MatrixType
+from binding import Binding
 
 
+# TODO run this on each separate file, populate a global dependency graph
 class SemanticBuilder(ast.NodeVisitor):  # for now only support torch.tensor and int, extend to include other things
     def __init__(self, env: Env):
         self.ir = []  # just a list of nodes (declarations for now, can extend later)
@@ -15,6 +17,11 @@ class SemanticBuilder(ast.NodeVisitor):  # for now only support torch.tensor and
     def visit_FunctionDef(self, node: ast.FunctionDef):  # ensure new scope !!!!!!!!
         self.env.push()
         self.generic_visit(node)  # recursive, parse inside of function params
+        self.env.pop()
+
+    def visit_ClassDef(self, node):
+        self.env.push()
+        self.generic_visit(node)
         self.env.pop()
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
@@ -50,7 +57,18 @@ class SemanticBuilder(ast.NodeVisitor):  # for now only support torch.tensor and
         value = node.value
 
         if isinstance(value, ast.Call) and (value.func.value.id == "torch"):  # calling torch.some_method
+            self._resolve_dependencies(identifier, value)
             tensorValue = self.torchParser.parse(value)
             self.ir.append(TensorDecl(identifier, (UnknownDim(), UnknownDim()), tensorValue))  # shape is empty, infer it in next pass
             self.env.declare_unresolved(identifier, tensorValue)  # ! unresolved declaration, next pass solves it
             return
+
+    def _resolve_dependencies(self, id: str, node) -> Binding:
+        is_resolved = True
+        if isinstance(node, ast.Call):
+            dependencies = set([i.id for i in node.args])
+            for name in dependencies:
+                if self.env.lookup(name) is None:
+                    is_resolved = False
+        print(id, dependencies, is_resolved)
+        return Binding(is_resolved=is_resolved, dependencies=dependencies, belongs_to=node)

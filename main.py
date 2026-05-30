@@ -5,9 +5,11 @@ from constraint_solver import ConstraintSolver
 from symbol_table import Env
 import ast
 from type_resolver import TypeResolver
+from master import parse_project
 
 
 def main():
+    parse_project("/Users/lpaggen/Documents/PythonDimensionChecker/example/")
     parser = argparse.ArgumentParser(
         description="A simple command-line tool example."
     )

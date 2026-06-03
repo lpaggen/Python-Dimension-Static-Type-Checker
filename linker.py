@@ -50,17 +50,14 @@ class Linker:
         self.project_modules = set(project_scopes.keys())
 
     def static_link_files(self):
-        # print(self.project_modules)
-
         for module, imports in self.project_imports.items():
             for importref in imports:
                 module_name = importref.module + ".py"
-
                 if module_name in self.project_modules:
                     if module not in self.dependencies:
                         self.dependencies[module] = set()
-
                     self.dependencies[module].add(module_name)
 
-        print("\ngraph import dependencies: ")
-        print(self.dependencies)
+        for module in self.dependencies:
+            print(self.dependencies[module])
+            print(self.project_scopes["ex3.py"])

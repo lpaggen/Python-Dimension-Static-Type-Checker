@@ -1,7 +1,7 @@
+from custom_types import Type
+
+
 class Symbol:
-    def __init__(self, name, node=None):
+    def __init__(self, name: str, type: Type) -> None:
         self.name = name
-        self.node = node
-        self.type = None
-        self.dependencies = set()
-        self.resolved = False
+        self.type = type

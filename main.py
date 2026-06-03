@@ -7,9 +7,11 @@ import ast
 from type_resolver import TypeResolver
 import os
 from linker import ImportCollector, Linker
+import time
 
 
 def main():
+    start = time.time()
     parser = argparse.ArgumentParser(
         description="Validate a Python project."
     )
@@ -48,7 +50,7 @@ def main():
         project_scopes[file] = builder.env
 
         type_resolver = TypeResolver(
-            builder.env.unresolved,
+            builder.env.shape_unresolved,
             env
         )
 
@@ -61,6 +63,9 @@ def main():
         
     linker = Linker(project_scopes, project_imports)
     linker.static_link_files()
+    
+    end = time.time()
+    print(f"finished in: {end - start} seconds")
 
 if __name__ == "__main__":
     main()

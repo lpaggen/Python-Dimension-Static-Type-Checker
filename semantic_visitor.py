@@ -13,16 +13,19 @@ class SemanticBuilder(ast.NodeVisitor):  # for now only support torch.tensor and
         self.ir = []  # just a list of nodes (declarations for now, can extend later)
         self.env = env  # !! env is passed to EVERY visitor, this, constraint, IR, everyone needs the SAME one
         self.torchParser = TorchOpParser()
+        self.curr_scopes = ["global"]  # keep track of scope stack during recursion
 
     def visit_FunctionDef(self, node: ast.FunctionDef):  # ensure new scope !!!!!!!!
-        self.env.push()
+        self.env.push(node.name)
+        self.curr_scopes.append(node.name)
         self.generic_visit(node)  # recursive, parse inside of function params
-        self.env.pop()
+        self.curr_scopes.pop()
 
     def visit_ClassDef(self, node):
-        self.env.push()
+        self.env.push(node.name)
+        self.curr_scopes.append(node.name)
         self.generic_visit(node)
-        self.env.pop()
+        self.curr_scopes.pop()
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
         annotation = node.annotation
@@ -33,7 +36,7 @@ class SemanticBuilder(ast.NodeVisitor):  # for now only support torch.tensor and
         if isinstance(annotation, ast.Name) and (annotation.id == "int"):  # we are in a 'x: int = 4' type of statement
             value = Dim.toDim(node.value) if value is not None else SymDim(identifier)
             self.ir.append(DimDecl(identifier, value))
-            self.env.declare(identifier, value)
+            self.env.declare(self.curr_scopes, identifier, value)
             return
 
         if (  # will break if using some alias, to fix
@@ -46,7 +49,7 @@ class SemanticBuilder(ast.NodeVisitor):  # for now only support torch.tensor and
             dims = [Dim.toDim(i) for i in annotation.slice.elts]  # List(elts...) -> [Dim, Dim]
             tensorValue = self.torchParser.parse(value)
             self.ir.append(TensorDecl(identifier, (dims[0], dims[1]), tensorValue))  # encodes information relevant for constraints, shapes
-            self.env.declare(identifier, MatrixType(dims[0], dims[1]))
+            self.env.declare(self.curr_scopes, identifier, MatrixType(dims[0], dims[1]))
             return
 
     def visit_Assign(self, node: ast.Assign) -> None:  # no type annotation
@@ -57,10 +60,20 @@ class SemanticBuilder(ast.NodeVisitor):  # for now only support torch.tensor and
         value = node.value
 
         if isinstance(value, ast.Call) and (value.func.value.id == "torch"):  # calling torch.some_method
-            self._resolve_dependencies(identifier, value)
+            binding = self._resolve_dependencies(identifier, value)
             tensorValue = self.torchParser.parse(value)
             self.ir.append(TensorDecl(identifier, (UnknownDim(), UnknownDim()), tensorValue))  # shape is empty, infer it in next pass
             self.env.declare_unresolved(identifier, tensorValue)  # ! unresolved declaration, next pass solves it
+            return
+
+        if isinstance(value, ast.Name):
+            binding = self._resolve_dependencies(identifier, value)
+            return
+
+        if isinstance(value, ast.Constant):
+            value = Dim.toDim(node.value) if value is not None else SymDim(identifier)
+            self.ir.append(DimDecl(identifier, value))
+            self.env.declare(self.curr_scopes, identifier, value)
             return
 
     def _resolve_dependencies(self, id: str, node) -> Binding:
@@ -70,5 +83,6 @@ class SemanticBuilder(ast.NodeVisitor):  # for now only support torch.tensor and
             for name in dependencies:
                 if self.env.lookup(name) is None:
                     is_resolved = False
+        print("\nbindings:")
         print(id, dependencies, is_resolved)
         return Binding(is_resolved=is_resolved, dependencies=dependencies, belongs_to=node)

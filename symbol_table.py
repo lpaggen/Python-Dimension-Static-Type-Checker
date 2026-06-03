@@ -5,16 +5,20 @@ class Env:  # store str: Type -- Type is custom defined in this project
     def __init__(self):
         self.env = []
         self.unresolved = {}  # types which must be resolved before Z3 pass
-        self.push()
+        self.push("global")
 
-    def push(self) -> None:
-        self.env.append({})
+    def push(self, scopename) -> None:
+        self.env.append({scopename: {}})
 
     def pop(self) -> None:
         self.env.pop()
 
-    def declare(self, name: str, type: Type) -> None:
-        self.env[-1][name] = type
+    def declare(self, scopestack, name: str, type: Type) -> None:
+        for key in scopestack:
+            if key not in self.env[0]:
+                raise TypeError("Err at scope .. fix")
+            data = self.env[0][key]
+        data[name] = type
 
     def declare_unresolved(self, name: str, value) -> None:
         self.unresolved[name] = value
@@ -24,3 +28,8 @@ class Env:  # store str: Type -- Type is custom defined in this project
             if name in frame:
                 return frame[name]
         return None
+    
+    def dump(self):
+        for k in self.env:
+            print(k)
+            print("\n")

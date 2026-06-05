@@ -1,8 +1,10 @@
 from __future__ import annotations
 import torch
+from ex2 import a, b
+from ex3 import z, x
 
 
-n: int = 1
+n: int = z
 m: int
 k: int
 p: int

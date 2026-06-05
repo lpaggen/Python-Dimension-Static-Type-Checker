@@ -8,7 +8,7 @@ from binding import Binding
 from symbol import Symbol
 
 
-# TODO run this on each separate file, populate a global dependency graph
+# TODO deprecate 'declare_shape_unresolved' , design is confusing
 class SemanticBuilder(ast.NodeVisitor):  # for now only support torch.tensor and int, extend to include other things
     def __init__(self, env: Env):
         self.ir = []  # list of nodes (declarations for now, can extend later)
@@ -58,7 +58,7 @@ class SemanticBuilder(ast.NodeVisitor):  # for now only support torch.tensor and
         """
         Visits a node declared as follows: A = torch.tensor([[2], [4], [5]])
         """
-        identifier = node.targets[0].id
+        identifier = node.targets[0].id  # support for now is a single variable, can do more
         value = node.value
 
         if isinstance(value, ast.Call) and (value.func.value.id == "torch"):  # calling torch.some_method

@@ -63,10 +63,3 @@ class BinaryDim(Dim):
     def __repr__(self):
         return f"BinaryDim({self.operator}, {self.left.value}, {self.right.value})"
 
-class DimDecl:
-    def __init__(self, name, value):
-        self.name = name
-        self.value = value
-
-    def __repr__(self):
-        return f"DimDecl({self.name}, {self.value})"

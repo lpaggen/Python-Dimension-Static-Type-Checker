@@ -1,4 +1,5 @@
 from typing import List, Union
+from identifier import Identifier
 
 
 class Literal:
@@ -14,5 +15,5 @@ class FloatLiteral(Literal):
         self.value=value
 
 class TensorLiteral(Literal):
-    def __init__(self, value: List[Union[IntegerLiteral, FloatLiteral, NameRef]]):
+    def __init__(self, value: List[Union[Literal, Identifier]]):
         self.value=value

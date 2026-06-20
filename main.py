@@ -1,71 +1,25 @@
 from __future__ import annotations
 import argparse
 from semantic_visitor import SemanticBuilder
-from constraint_solver import ConstraintSolver
-from symbol_table import Env
 import ast
-from type_resolver import TypeResolver
 import os
-from linker import ImportCollector, Linker
 import time
 
-
 def main():
-    start = time.time()
-    parser = argparse.ArgumentParser(
-        description="Validate a Python project."
-    )
+    for file in os.listdir("example/"):
+        start = time.time()
+        path = os.path.join("example", file)
 
-    parser.add_argument(
-        "path_to_dir",
-        help="Project directory"
-    )
+        with open(path, "r", encoding="utf-8") as f:
+            source = f.read()
 
-    args = parser.parse_args()
+        builder = SemanticBuilder(file, path)
+        tree = ast.parse(source, filename=path)
 
-    project_scopes = {}
-    project_imports = {}
+        builder.build(tree)
 
-    for file in os.listdir(args.path_to_dir):
-        if not file.endswith(".py"):
-            continue
-
-        path = os.path.join(args.path_to_dir, file)
-
-        with open(path, "r") as f:
-            code = f.read()
-
-        env = Env()
-
-        tree = ast.parse(code)
-
-        module_dependency_resolver = ImportCollector(file)
-        module_dependency_resolver.visit(tree)
-        project_imports[file] = module_dependency_resolver.imports
-
-        builder = SemanticBuilder(env)
-        builder.visit(tree)
-        # print(builder.env.dump())
-
-        project_scopes[file] = builder.env
-
-        type_resolver = TypeResolver(
-            builder.env.shape_unresolved,
-            env
-        )
-
-
-        # type_resolver.resolve_types()
-
-        # c_solver = ConstraintSolver(env)
-
-        # project_scopes[file] = scopes
-        
-    linker = Linker(project_scopes, project_imports)
-    linker.static_link_files()
-    
     end = time.time()
-    print(f"finished in: {end - start} seconds")
+    print(f"Succesfully generated Protobuf IR in: {end - start} seconds!")
 
 if __name__ == "__main__":
     main()

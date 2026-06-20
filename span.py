@@ -9,7 +9,7 @@ class SourceSpan:
         self.end_line=end_line,
         self.end_col=end_col
 
-    def span(self, node: ast.AST) -> SourceSpan:
+    def span(self, node: ast.AST):  # -> SourceSpan:
         return SourceSpan(
             file=self.file_path,
             line=getattr(node, "lineno", 0),

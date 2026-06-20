@@ -1,93 +1,67 @@
 import ast
-from dimension import DimDecl, Dim, UnknownDim, SymDim
-from tensor_decl import TensorDecl
-from torch_parser import TorchOpParser
-from symbol_table import Env
-from custom_types import MatrixType, ScalarType
-from binding import Binding
-from symbol import Symbol
+from ir_builder import IRBuilder
+from import_ir import ImportIR
 
 
-# TODO deprecate 'declare_shape_unresolved' , design is confusing
-class SemanticBuilder(ast.NodeVisitor):  # for now only support torch.tensor and int, extend to include other things
-    def __init__(self, env: Env):
-        self.ir = []  # list of nodes (declarations for now, can extend later)
-        self.unresolved_bindings = []  # resolve with Linker object
-        self.env = env  # !! env is passed to EVERY visitor, this, constraint, IR, everyone needs the SAME one
-        self.torchParser = TorchOpParser()
-        self.curr_scopes = ["global"]  # keep track of scope stack during recursion
+class SemanticBuilder(ast.NodeVisitor):
+    def __init__(self, module_name: str, file_path: str):
+        self.builder = IRBuilder(module_name, file_path)
+        self.file_path = file_path
+        self.scope_stack = [self.builder.global_scope_id]
 
-    def visit_FunctionDef(self, node: ast.FunctionDef):  # ensure new scope !!!!!!!!
-        self.env.push(node.name)
-        self.curr_scopes.append(node.name)
-        self.generic_visit(node)  # recursive, parse inside of function params
-        self.curr_scopes.pop()
+    def current_scope(self) -> int:
+        return self.scope_stack[-1]
 
-    def visit_ClassDef(self, node):
-        self.env.push(node.name)
-        self.curr_scopes.append(node.name)
-        self.generic_visit(node)
-        self.curr_scopes.pop()
+    def build(self, tree: ast.AST) -> ProgramIR:
+        self.visit(tree)
+        return self.builder.finish()
 
-    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
-        annotation = node.annotation
-        identifier = node.target.id
-        value = node.value
+    def visit_Import(self, node: ast.Import):
+        for alias in node.names:
+            module_name = alias.name
+            bound_name = alias.asname or module_name.split(".")[0]
 
-        # only parse that which is claimed to be integer, ignore the rest, they can't represent dimensions
-        if isinstance(annotation, ast.Name) and (annotation.id == "int"):  # we are in a 'x: int = 4' type of statement
-            value = Dim.toDim(node.value) if value is not None else SymDim(identifier)
-            self.ir.append(DimDecl(identifier, value))
-            self.env.declare(self.curr_scopes, identifier, Symbol(identifier, ScalarType(value)))
-            return
+            symbol_id = self.builder.declare_symbol(
+                name=bound_name,
+                kind="MODULE_ALIAS",
+                scope_id=self.current_scope,
+                span=self.span(node),
+            )
 
-        if (  # will break if using some alias, to fix
-        isinstance(annotation, ast.Subscript)
-        and isinstance(annotation.value, ast.Attribute)
-        and annotation.value.attr == "Tensor"
-        and isinstance(annotation.value.value, ast.Name)
-        and annotation.value.value.id == "torch"
-        ):  # to do fix this to rely on Dim rather than int and str
-            dims = [Dim.toDim(i) for i in annotation.slice.elts]  # List(elts...) -> [Dim, Dim]
-            tensorValue = self.torchParser.parse(value)
-            self.ir.append(TensorDecl(identifier, (dims[0], dims[1]), tensorValue))  # encodes information relevant for constraints, shapes
-            self.env.declare(self.curr_scopes, identifier, symbol=Symbol(identifier, MatrixType(dims[0], dims[1])))
-            return
+            self.builder.add_import(
+                local_symbol_id=symbol_id,
+                scope_id=self.current_scope,
+                kind="module",
+                module_name=module_name,
+                imported_name=None,
+                alias=alias.asname,
+                relative_level=0,
+                span=self.span(node),
+            )
 
-    def visit_Assign(self, node: ast.Assign) -> None:  # no type annotation
-        """
-        Visits a node declared as follows: A = torch.tensor([[2], [4], [5]])
-        """
-        identifier = node.targets[0].id  # support for now is a single variable, can do more
-        value = node.value
+    def visit_ImportFrom(self, node: ast.ImportFrom):
+        ...
 
-        if isinstance(value, ast.Call) and (value.func.value.id == "torch"):  # calling torch.some_method
-            binding = self._resolve_dependencies(identifier, value)
-            self.unresolved_bindings.append(binding)
-            tensorValue = self.torchParser.parse(value)
-            self.ir.append(TensorDecl(identifier, (UnknownDim(), UnknownDim()), tensorValue))  # shape is empty, infer in next pass
-            self.env.declare_shape_unresolved(identifier, tensorValue)  # ! unresolved shape, next pass solves it
-            self.env.declare(self.curr_scopes, identifier, symbol=Symbol(identifier, MatrixType(UnknownDim(), UnknownDim())))
-            return
+    def visit_FunctionDef(self, node: ast.FunctionDef):
+        ...
 
-        if isinstance(value, ast.Name):
-            binding = self._resolve_dependencies(identifier, value)
-            self.unresolved_bindings.append(binding)
-            return
+    def visit_ClassDef(self, node: ast.ClassDef):
+        ...
 
-        if isinstance(value, ast.Constant):
-            value = Dim.toDim(node.value) if value is not None else SymDim(identifier)
-            self.ir.append(DimDecl(identifier, value))
-            self.env.declare(self.curr_scopes, identifier, Symbol(identifier, type=ScalarType(value)))
-            return
+    def visit_AnnAssign(self, node: ast.AnnAssign):
+        ...
 
+    def visit_Assign(self, node: ast.Assign):
+        ...
 
-    # TODO move this logic to linker.py, this is not a job for this visitor
-    def _resolve_dependencies(self, id: str, node) -> Binding:
-        is_resolved = True
-        if isinstance(node, ast.Call):
-            dependencies = set([i.id for i in node.args])
-            # for name in dependencies:
-            #     if self.env.lookup(self.curr_scopes, name) is None:
-            #         is_resolved = False
-        return Binding(target=id, dependencies=dependencies)
+    def parse_expr(self, node: ast.AST) -> ExprIR:
+        ...
+
+    def parse_annotation(self, node: ast.AST) -> TypeIR:
+        ...
+
+    def parse_dim_expr(self, node: ast.AST | None) -> DimExprIR:
+        ...
+
+    def span(self, node: ast.AST) -> SourceSpan:
+        ...

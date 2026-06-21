@@ -47,7 +47,7 @@ class TorchOpParser:
                     f"Non-rectangular tensor literal: expected {cols} cols, got {len(row.elts)}"
                 )
 
-        return TensorLiteralExpr((rows, cols))
+        return TensorLiteral((rows, cols))
 
     def parse(self, node):
         if not isinstance(node, ast.Call):

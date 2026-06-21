@@ -3,9 +3,13 @@ from ir_builder import IRBuilder
 from import_ir import ImportIR
 from program_ir import ProgramIR
 from span import SourceSpan
-from type import Type, TensorType, IntegerType, FloatType
+# from type import Type, TensorType, IntegerType, FloatType
 from annotation_ir import AnnotationIR, AnnotationHeadIR
 from dimension import Dim
+from function_ir import ParamIR
+# from literal import IntegerLiteral, Literal, FloatLiteral
+from identifier_ir import IdentifierIR
+from expression_ir import ExprIR, ListIR, IntegerIR, FloatIR
 
 
 class SemanticBuilder(ast.NodeVisitor):
@@ -36,7 +40,7 @@ class SemanticBuilder(ast.NodeVisitor):
             self.builder.add_import(
                 local_symbol_id=symbol_id,
                 scope_id=self.current_scope(),
-                kind="module",
+                kind="MODULE",
                 module_name=module_name,
                 imported_name=None,
                 alias=alias.asname,
@@ -59,7 +63,7 @@ class SemanticBuilder(ast.NodeVisitor):
             self.builder.add_import(
                 local_symbol_id=symbol_id,
                 scope_id=self.current_scope(),
-                kind="module",
+                kind="MODULE",
                 module_name=module_name,
                 imported_name=None,
                 alias=alias.asname,
@@ -67,9 +71,95 @@ class SemanticBuilder(ast.NodeVisitor):
                 span=self.span(node),
             )
 
-    def visit_FunctionDef(self, node: ast.FunctionDef): ...
+    def visit_FunctionDef(self, node: ast.FunctionDef):
+        parent_scope = self.current_scope()
 
-    def visit_ClassDef(self, node: ast.ClassDef): ...
+        fn_symbol_id = self.builder.declare_symbol(
+            name=node.name,
+            kind="FUNCTION",
+            scope_id=parent_scope,
+            span=self.span(node),
+        )
+
+        body_scope_id = self.builder.new_scope(
+            name=node.name,
+            kind="FUNCTION",
+            parent_id=parent_scope,
+            span=self.span(node),
+        )
+
+        self.scope_stack.append(body_scope_id)
+
+        params = []
+
+        for arg in node.args.args:
+            param_symbol_id = self.builder.declare_symbol(
+                name=arg.arg,
+                kind="PARAM",
+                scope_id=self.current_scope(),
+                span=self.span(arg),
+            )
+
+            params.append(
+                ParamIR(
+                    symbol_id=param_symbol_id,
+                    name=arg.arg,
+                    annotation=self.lower_annotation(arg.annotation) if arg.annotation else None,
+                    default=None,
+                    span=self.span(arg),
+                )
+            )
+
+        # now visit function body while inside function scope
+        for stmt in node.body:
+            self.visit(stmt)
+
+        self.scope_stack.pop()
+
+        self.builder.add_function(
+            symbol_id=fn_symbol_id,
+            name=node.name,
+            scope_id=parent_scope,
+            body_scope_id=body_scope_id,
+            params=params,
+            returns=self.lower_annotation(node.returns) if node.returns else None,
+            decorators=[self.parse_expr(d) for d in node.decorator_list],
+            span=self.span(node),
+        )
+
+    def visit_ClassDef(self, node: ast.ClassDef):
+        parent_scope = self.current_scope()
+
+        class_symbol_id = self.builder.declare_symbol(
+            name=node.name,
+            kind="CLASS",
+            scope_id=parent_scope,
+            span=self.span(node),
+        )
+
+        class_scope_id = self.builder.new_scope(
+            name=node.name,
+            kind="CLASS",
+            parent_id=parent_scope,
+            span=self.span(node),
+        )
+
+        self.scope_stack.append(class_scope_id)
+
+        for stmt in node.body:
+            self.visit(stmt)
+
+        self.scope_stack.pop()
+
+        self.builder.add_class(
+            symbol_id=class_symbol_id,
+            name=node.name,
+            scope_id=parent_scope,
+            body_scope_id=class_scope_id,
+            bases=[self.parse_expr(base) for base in node.bases],
+            decorators=[self.parse_expr(d) for d in node.decorator_list],
+            span=self.span(node),
+        )
 
     def visit_AnnAssign(self, node: ast.AnnAssign):
         annotation = node.annotation
@@ -125,7 +215,7 @@ class SemanticBuilder(ast.NodeVisitor):
     def visit_Assign(self, node: ast.Assign):
         self.lower_assignment(target=node.targets[0], value=node.value, kind="ASSIGN", annotation=None, span=self.span(node=node))
 
-    def lower_assignment(self, target: ast.AST, value: ast.AST, kind: str, annotation: Type, span: SourceSpan):
+    def lower_assignment(self, target: ast.AST, value: ast.AST, kind: str, annotation: AnnotationIR, span: SourceSpan):
         if isinstance(target, ast.Name):  # x = 5
             symbol_id = self.builder.declare_symbol(
                 name=target.id, kind="UNKNOWN", scope_id=self.current_scope(), span=span
@@ -158,9 +248,19 @@ class SemanticBuilder(ast.NodeVisitor):
             for left, right in zip(target.elts, value.elts):
                 self.lower_assignment(target=left, value=right, kind=kind, annotation=annotation, span=span)
 
-    def parse_expr(self, node: ast.AST): ...
-
-    def parse_annotation(self, node: ast.AST): ...
+    def parse_expr(self, node: ast.AST):
+        """
+        Parse RHS in expressions of the form: A (: annotation) = torch.tensor[[2, 3, 4]]
+        """
+        if isinstance(node, ast.Constant):  # ie A = 55 , B = 7253.4928
+            return IntegerIR(node.value) if str(type(node.value)) == "int" else FloatIR(node.value)
+        
+        if isinstance(node, ast.Name):  # ie A = z, B = A
+            return IdentifierIR(name=node.id, use_scope_id=self.current_scope(), span=self.span(node=node))
+        
+        if isinstance(node, ast.Call):  # ie A = torch.tensor[[...]] , B = np.ndarray[[...]]
+            ...
+            
 
     def parse_dim_expr(self, node: ast.AST): ...
 

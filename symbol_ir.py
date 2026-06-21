@@ -1,9 +1,6 @@
 from span import SourceSpan
+from ir_node import IRNode
 
-
-class IRNode:
-    def __init__(self):
-        pass
 
 class SymbolIR(IRNode):
     def __init__(self, id: int, name: str, kind: str, scope_id: id, span: SourceSpan):

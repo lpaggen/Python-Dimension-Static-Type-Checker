@@ -1,0 +1,223 @@
+syntax = "proto3";
+
+package pdc.ir;
+
+message SourceSpan {
+  string file = 1;
+  int64 line = 2;
+  int64 col = 3;
+  int64 end_line = 4;
+  int64 end_col = 5;
+}
+
+message ProgramIR {
+  string module_name = 1;
+  string file_path = 2;
+
+  repeated ScopeIR scopes = 3;
+  repeated SymbolIR symbols = 4;
+  repeated ImportIR imports = 5;
+  repeated DeclIR decls = 6;
+}
+
+message ScopeIR {
+  int64 id = 1;
+  string name = 2;
+  ScopeKind kind = 3;
+  optional int64 parent_id = 4;
+  optional SourceSpan span = 5;
+}
+
+enum ScopeKind {
+  SCOPE_UNKNOWN = 0;
+  SCOPE_MODULE = 1;
+  SCOPE_FUNCTION = 2;
+  SCOPE_CLASS = 3;
+}
+
+message SymbolIR {
+  int64 id = 1;
+  string name = 2;
+  SymbolKind kind = 3;
+  int64 scope_id = 4;
+  optional SourceSpan span = 5;
+}
+
+enum SymbolKind {
+  SYMBOL_UNKNOWN = 0;
+  SYMBOL_VARIABLE = 1;
+  SYMBOL_FUNCTION = 2;
+  SYMBOL_CLASS = 3;
+  SYMBOL_PARAM = 4;
+  SYMBOL_MODULE_ALIAS = 5;
+}
+
+message ImportIR {
+  int64 id = 1;
+  int64 local_symbol_id = 2;
+  int64 scope_id = 3;
+
+  ImportKind kind = 4;
+  string module_name = 5;
+  optional string imported_name = 6;
+  optional string alias = 7;
+  int64 relative_level = 8;
+
+  optional SourceSpan span = 9;
+}
+
+enum ImportKind {
+  IMPORT_UNKNOWN = 0;
+  IMPORT_MODULE = 1;
+  IMPORT_FROM = 2;
+}
+
+message DeclIR {
+  oneof kind {
+    BindingIR binding = 1;
+    FunctionIR function = 2;
+    ClassIR class_decl = 3;
+  }
+}
+
+message BindingIR {
+  int64 id = 1;
+  int64 target_id = 2;
+  optional AnnotationIR annotation = 3;
+  BindingKind kind = 4;
+  ExprIR value = 5;
+  int64 scope_id = 6;
+  optional SourceSpan span = 7;
+}
+
+enum BindingKind {
+  BINDING_UNKNOWN = 0;
+  BINDING_ASSIGN = 1;
+  BINDING_ANNASSIGN = 2;
+}
+
+message FunctionIR {
+  int64 id = 1;
+  int64 symbol_id = 2;
+  string name = 3;
+
+  int64 scope_id = 4;
+  int64 body_scope_id = 5;
+
+  repeated ParamIR params = 6;
+  optional AnnotationIR returns = 7;
+  repeated ExprIR decorators = 8;
+
+  optional SourceSpan span = 9;
+}
+
+message ParamIR {
+  int64 symbol_id = 1;
+  string name = 2;
+  optional AnnotationIR annotation = 3;
+  optional ExprIR default_value = 4;
+  optional SourceSpan span = 5;
+}
+
+message ClassIR {
+  int64 id = 1;
+  int64 symbol_id = 2;
+  string name = 3;
+
+  int64 scope_id = 4;
+  int64 body_scope_id = 5;
+
+  repeated ExprIR bases = 6;
+  repeated ExprIR decorators = 7;
+
+  optional SourceSpan span = 8;
+}
+
+message ExprIR {
+  oneof kind {
+    IdentifierIR identifier = 1;
+    IntegerIR integer = 2;
+    FloatIR float_lit = 3;
+    ListIR list = 4;
+    CallExprIR call = 5;
+    AttributeExprIR attribute = 6;
+  }
+}
+
+message IdentifierIR {
+  string name = 1;
+  int64 use_scope_id = 2;
+  optional SourceSpan span = 3;
+}
+
+message IntegerIR {
+  int64 value = 1;
+  optional SourceSpan span = 2;
+}
+
+message FloatIR {
+  double value = 1;
+  optional SourceSpan span = 2;
+}
+
+message ListIR {
+  repeated ExprIR elements = 1;
+  optional SourceSpan span = 2;
+}
+
+message CallExprIR {
+  ExprIR callee = 1;
+  repeated ExprIR args = 2;
+  optional SourceSpan span = 3;
+}
+
+message AttributeExprIR {
+  ExprIR base = 1;
+  string attr = 2;
+  optional SourceSpan span = 3;
+}
+
+message AnnotationIR {
+  AnnotationHeadIR head = 1;
+  repeated DimIR args = 2;
+}
+
+message AnnotationHeadIR {
+  string root = 1;
+  repeated string attrs = 2;
+  int64 scope_id = 3;
+  optional SourceSpan span = 4;
+}
+
+message DimIR {
+  oneof kind {
+    UnknownDimIR unknown = 1;
+    SymDimIR symbol = 2;
+    ScalarDimIR scalar = 3;
+    BinaryDimIR binary = 4;
+  }
+}
+
+message UnknownDimIR {}
+
+message SymDimIR {
+  string name = 1;
+}
+
+message ScalarDimIR {
+  int64 value = 1;
+}
+
+message BinaryDimIR {
+  DimOperator operator = 1;
+  DimIR left = 2;
+  DimIR right = 3;
+}
+
+enum DimOperator {
+  DIM_OP_UNKNOWN = 0;
+  DIM_OP_ADD = 1;
+  DIM_OP_SUB = 2;
+  DIM_OP_MUL = 3;
+  DIM_OP_DIV = 4;
+}

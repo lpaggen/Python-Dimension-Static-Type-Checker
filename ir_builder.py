@@ -10,7 +10,6 @@ from binding_ir import BindingIR
 from function_ir import FunctionIR
 from class_ir import ClassIR
 from annotation_ir import AnnotationIR
-from expression_ir import ExprIR
 
 
 class IRBuilder:

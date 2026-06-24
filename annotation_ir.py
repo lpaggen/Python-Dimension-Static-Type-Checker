@@ -1,6 +1,6 @@
 import ast
 from typing import List
-from dimension import Dim
+from dimension_ir import DimIR
 from span import SourceSpan
 
 
@@ -13,6 +13,6 @@ class AnnotationHeadIR:
 
 
 class AnnotationIR:
-    def __init__(self, head: AnnotationHeadIR, args: List[Dim, Dim]):
+    def __init__(self, head: AnnotationHeadIR, args: List[DimIR, DimIR]):
         self.head=head
         self.args=args

@@ -1,6 +1,6 @@
 from custom_literals import *
 import ast
-from dimension import *
+from dimension_ir import *
 from custom_types import MatrixType, ScalarType, VarType
 from ast import Name, Constant
 

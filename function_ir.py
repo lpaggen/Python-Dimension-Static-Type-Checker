@@ -1,8 +1,10 @@
 from span import SourceSpan
 from annotation_ir import AnnotationIR
+from ir_node import IRNode
+from expression_ir import IdentifiedIRNode
 
 
-class ParamIR:
+class ParamIR(IRNode):
     def __init__(self, symbol_id: int, name: str, annotation: AnnotationIR, default, span: SourceSpan):
         self.symbol_id = symbol_id
         self.name = name
@@ -10,10 +12,10 @@ class ParamIR:
         self.default = default
         self.span = span
 
-class FunctionIR:
+class FunctionIR(IdentifiedIRNode):
     def __init__(
         self,
-        id: int,
+        id: int,  # symbol id -> name of function
         symbol_id: int,
         name: str,
         scope_id: int,  # parent scope where function name is bound
@@ -23,6 +25,7 @@ class FunctionIR:
         decorators,
         span: SourceSpan,
     ):
+        super().__init__(id=id, span=span)
         self.id = id
         self.symbol_id = symbol_id
         self.name = name

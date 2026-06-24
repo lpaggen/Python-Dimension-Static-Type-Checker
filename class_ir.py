@@ -1,7 +1,8 @@
 from span import SourceSpan
+from expression_ir import IdentifiedIRNode
 
 
-class ClassIR:
+class ClassIR(IdentifiedIRNode):
     def __init__(
         self,
         id: int,
@@ -13,6 +14,7 @@ class ClassIR:
         decorators: list,
         span: SourceSpan,
     ):
+        super().__init__(id=id, span=span)
         self.id = id
         self.symbol_id = symbol_id
         self.name = name

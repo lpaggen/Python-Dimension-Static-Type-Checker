@@ -3,13 +3,14 @@ from ir_builder import IRBuilder
 from import_ir import ImportIR
 from program_ir import ProgramIR
 from span import SourceSpan
-# from type import Type, TensorType, IntegerType, FloatType
 from annotation_ir import AnnotationIR, AnnotationHeadIR
-from dimension import Dim
+from dimension_ir import DimIR
 from function_ir import ParamIR
-# from literal import IntegerLiteral, Literal, FloatLiteral
 from identifier_ir import IdentifierIR
-from expression_ir import ExprIR, ListIR, IntegerIR, FloatIR
+from expression_ir import ListIR, IntegerIR, FloatIR, IdentifiedIRNode, CallExprIR, BinOpIR
+from attributeexpr_ir import AttributeExprIR
+from operators import Operator
+
 
 
 class SemanticBuilder(ast.NodeVisitor):
@@ -34,7 +35,7 @@ class SemanticBuilder(ast.NodeVisitor):
                 name=bound_name,
                 kind="MODULE_ALIAS",
                 scope_id=self.current_scope(),
-                span=self.span(node),
+                span=SourceSpan.span(node, self.file_path),
             )
 
             self.builder.add_import(
@@ -45,7 +46,7 @@ class SemanticBuilder(ast.NodeVisitor):
                 imported_name=None,
                 alias=alias.asname,
                 relative_level=0,
-                span=self.span(node),
+                span=SourceSpan.span(node, self.file_path),
             )
 
     def visit_ImportFrom(self, node: ast.ImportFrom):
@@ -57,7 +58,7 @@ class SemanticBuilder(ast.NodeVisitor):
                 name=bound_name,
                 kind="MODULE_ALIAS",
                 scope_id=self.current_scope(),
-                span=self.span(node),
+                span=SourceSpan.span(node, self.file_path),
             )
 
             self.builder.add_import(
@@ -68,7 +69,7 @@ class SemanticBuilder(ast.NodeVisitor):
                 imported_name=None,
                 alias=alias.asname,
                 relative_level=0,
-                span=self.span(node),
+                span=SourceSpan.span(node, self.file_path),
             )
 
     def visit_FunctionDef(self, node: ast.FunctionDef):
@@ -78,14 +79,14 @@ class SemanticBuilder(ast.NodeVisitor):
             name=node.name,
             kind="FUNCTION",
             scope_id=parent_scope,
-            span=self.span(node),
+            span=SourceSpan.span(node, self.file_path),
         )
 
         body_scope_id = self.builder.new_scope(
             name=node.name,
             kind="FUNCTION",
             parent_id=parent_scope,
-            span=self.span(node),
+            span=SourceSpan.span(node, self.file_path),
         )
 
         self.scope_stack.append(body_scope_id)
@@ -97,7 +98,7 @@ class SemanticBuilder(ast.NodeVisitor):
                 name=arg.arg,
                 kind="PARAM",
                 scope_id=self.current_scope(),
-                span=self.span(arg),
+                span=SourceSpan.span(arg, self.file_path),
             )
 
             params.append(
@@ -106,7 +107,7 @@ class SemanticBuilder(ast.NodeVisitor):
                     name=arg.arg,
                     annotation=self.lower_annotation(arg.annotation) if arg.annotation else None,
                     default=None,
-                    span=self.span(arg),
+                    span=SourceSpan.span(arg, self.file_path),
                 )
             )
 
@@ -124,7 +125,7 @@ class SemanticBuilder(ast.NodeVisitor):
             params=params,
             returns=self.lower_annotation(node.returns) if node.returns else None,
             decorators=[self.parse_expr(d) for d in node.decorator_list],
-            span=self.span(node),
+            span=SourceSpan.span(node, self.file_path),
         )
 
     def visit_ClassDef(self, node: ast.ClassDef):
@@ -134,14 +135,14 @@ class SemanticBuilder(ast.NodeVisitor):
             name=node.name,
             kind="CLASS",
             scope_id=parent_scope,
-            span=self.span(node),
+            span=SourceSpan.span(node, self.file_path),
         )
 
         class_scope_id = self.builder.new_scope(
             name=node.name,
             kind="CLASS",
             parent_id=parent_scope,
-            span=self.span(node),
+            span=SourceSpan.span(node, self.file_path),
         )
 
         self.scope_stack.append(class_scope_id)
@@ -158,13 +159,13 @@ class SemanticBuilder(ast.NodeVisitor):
             body_scope_id=class_scope_id,
             bases=[self.parse_expr(base) for base in node.bases],
             decorators=[self.parse_expr(d) for d in node.decorator_list],
-            span=self.span(node),
+            span=SourceSpan.span(node, self.file_path),
         )
 
     def visit_AnnAssign(self, node: ast.AnnAssign):
         annotation = node.annotation
         self.lower_annotation(annotation)
-        self.lower_assignment(target=node.target, value=node.value, kind="ANNASSIGN", annotation=annotation, span=self.span(node=node))
+        self.lower_assignment(target=node.target, value=node.value, kind="ANNASSIGN", annotation=annotation, span=SourceSpan.span(node=node, file_path=self.file_path))
 
     def lower_annotation(self, annotation: ast.AST):
         if isinstance(annotation, ast.Name):  # simple types, int float str etc.
@@ -183,7 +184,7 @@ class SemanticBuilder(ast.NodeVisitor):
         if isinstance(annotation, ast.Subscript):  # complex types, torch.Tensor, np.ndarray, torch.Tensor[2, 3] ...
             return AnnotationIR(
                 head=self.lower_annotation_head(annotation.value),
-                args=[Dim.toDim(i) for i in annotation.slice.elts]
+                args=[DimIR.toDim(i) for i in annotation.slice.elts] #TODO this breaks for anything non-dimensional
             )
 
         return AnnotationIR(  # case where annotation = Attribute
@@ -207,13 +208,13 @@ class SemanticBuilder(ast.NodeVisitor):
                 root=root,
                 attrs=attrs,
                 scope_id=self.current_scope(),
-                span=self.span(node),
+                span=SourceSpan.span(node, self.file_path),
             )
 
         raise NotImplementedError(f"Unsupported annotation head: {type(node).__name__}")
 
     def visit_Assign(self, node: ast.Assign):
-        self.lower_assignment(target=node.targets[0], value=node.value, kind="ASSIGN", annotation=None, span=self.span(node=node))
+        self.lower_assignment(target=node.targets[0], value=node.value, kind="ASSIGN", annotation=None, span=SourceSpan.span(node=node, file_path=self.file_path))
 
     def lower_assignment(self, target: ast.AST, value: ast.AST, kind: str, annotation: AnnotationIR, span: SourceSpan):
         if isinstance(target, ast.Name):  # x = 5
@@ -227,7 +228,7 @@ class SemanticBuilder(ast.NodeVisitor):
                 kind=kind,
                 scope_id=self.current_scope(),
                 value=self.parse_expr(value),
-                span=self.span(node=target),
+                span=SourceSpan.span(node=target, file_path=self.file_path),
             )
 
         if isinstance(target, ast.Tuple):  # a, b = 3, 4
@@ -249,19 +250,48 @@ class SemanticBuilder(ast.NodeVisitor):
                 self.lower_assignment(target=left, value=right, kind=kind, annotation=annotation, span=span)
 
     def parse_expr(self, node: ast.AST):
-        """
-        Parse RHS in expressions of the form: A (: annotation) = torch.tensor[[2, 3, 4]]
-        """
-        if isinstance(node, ast.Constant):  # ie A = 55 , B = 7253.4928
-            return IntegerIR(node.value) if str(type(node.value)) == "int" else FloatIR(node.value)
-        
-        if isinstance(node, ast.Name):  # ie A = z, B = A
-            return IdentifierIR(name=node.id, use_scope_id=self.current_scope(), span=self.span(node=node))
-        
-        if isinstance(node, ast.Call):  # ie A = torch.tensor[[...]] , B = np.ndarray[[...]]
-            ...
-            
+        if isinstance(node, ast.Constant):
+            if isinstance(node.value, int):
+                return IntegerIR(node.value)
+            if isinstance(node.value, float):
+                return FloatIR(node.value)
+            raise NotImplementedError(f"Unsupported constant: {node.value!r}")
+
+        if isinstance(node, ast.Name):
+            return IdentifierIR(
+                name=node.id,
+                use_scope_id=self.current_scope(),
+                span=SourceSpan.span(node, self.file_path),
+            )
+
+        if isinstance(node, ast.Attribute):
+            return AttributeExprIR(
+                base=self.parse_expr(node.value),
+                attr=node.attr,
+                span=SourceSpan.span(node, self.file_path),
+            )
+
+        if isinstance(node, ast.Call):
+            return CallExprIR(
+                callee=self.parse_expr(node.func),
+                args=[self.parse_expr(arg) for arg in node.args],
+                span=SourceSpan.span(node, self.file_path),
+            )
+
+        if isinstance(node, ast.List):
+            return ListIR(
+                elements=[self.parse_expr(arg) for arg in node.elts],
+                span=SourceSpan.span(node, self.file_path),
+            )
+
+        if isinstance(node, ast.BinOp):
+            return BinOpIR(
+                left=self.parse_expr(node.left),
+                right=self.parse_expr(node.right),
+                op=Operator.binop_tostr(node.op),
+                span=SourceSpan.span(node=node, file_path=self.file_path)
+            )
+
+        raise NotImplementedError(f"Unsupported expression node: {type(node).__name__}")
 
     def parse_dim_expr(self, node: ast.AST): ...
-
-    def span(self, node: ast.AST) -> SourceSpan: ...

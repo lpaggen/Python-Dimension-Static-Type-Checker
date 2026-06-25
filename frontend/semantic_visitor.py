@@ -29,6 +29,7 @@ from ir.integer_ir import IntegerIR
 from ir.float_ir import FloatIR
 from ir.string_ir import StringIR
 from ir.binop_ir import BinOpIR
+from common.kind import ScopeKind, SymbolKind, BindingKind, ImportKind
 
 
 class SemanticBuilder(ast.NodeVisitor):
@@ -64,7 +65,7 @@ class SemanticBuilder(ast.NodeVisitor):
 
             symbol_id = self.builder.declare_symbol(
                 name=bound_name,
-                kind="MODULE_ALIAS",
+                kind=ImportKind.MODULE_ALIAS,
                 scope_id=self.current_scope(),
                 span=SourceSpan.span(node, self.file_path),
             )
@@ -72,7 +73,7 @@ class SemanticBuilder(ast.NodeVisitor):
             self.builder.add_import(
                 local_symbol_id=symbol_id,
                 scope_id=self.current_scope(),
-                kind="MODULE",
+                kind=ImportKind.MODULE,
                 module_name=module_name,
                 imported_name=None,
                 alias=alias.asname,
@@ -89,7 +90,7 @@ class SemanticBuilder(ast.NodeVisitor):
 
             symbol_id = self.builder.declare_symbol(
                 name=bound_name,
-                kind="MODULE_ALIAS",
+                kind=ImportKind.MODULE_ALIAS,
                 scope_id=self.current_scope(),
                 span=SourceSpan.span(node, self.file_path),
             )
@@ -97,7 +98,7 @@ class SemanticBuilder(ast.NodeVisitor):
             self.builder.add_import(
                 local_symbol_id=symbol_id,
                 scope_id=self.current_scope(),
-                kind="FROM",
+                kind=ImportKind.FROM,
                 module_name=module_name,
                 imported_name=imported_name,
                 alias=alias.asname,
@@ -106,18 +107,18 @@ class SemanticBuilder(ast.NodeVisitor):
             )
 
     def visit_FunctionDef(self, node: ast.FunctionDef):
-        parent_scope = self.current_scope()
+        parent_scope: int = self.current_scope()
 
         fn_symbol_id = self.builder.declare_symbol(
             name=node.name,
-            kind="FUNCTION",
+            kind=ScopeKind.FUNCTION,
             scope_id=parent_scope,
             span=SourceSpan.span(node, self.file_path),
         )
 
         body_scope_id = self.builder.new_scope(
             name=node.name,
-            kind="FUNCTION",
+            kind=ScopeKind.FUNCTION,
             parent_id=parent_scope,
             span=SourceSpan.span(node, self.file_path),
         )
@@ -129,7 +130,7 @@ class SemanticBuilder(ast.NodeVisitor):
         for arg in node.args.args:
             param_symbol_id = self.builder.declare_symbol(
                 name=arg.arg,
-                kind="PARAM",
+                kind=SymbolKind.PARAM,
                 scope_id=self.current_scope(),
                 span=SourceSpan.span(arg, self.file_path),
             )
@@ -170,14 +171,14 @@ class SemanticBuilder(ast.NodeVisitor):
 
         class_symbol_id = self.builder.declare_symbol(
             name=node.name,
-            kind="CLASS",
+            kind=ScopeKind.CLASS,
             scope_id=parent_scope,
             span=SourceSpan.span(node, self.file_path),
         )
 
         class_scope_id = self.builder.new_scope(
             name=node.name,
-            kind="CLASS",
+            kind=ScopeKind.CLASS,
             parent_id=parent_scope,
             span=SourceSpan.span(node, self.file_path),
         )
@@ -206,11 +207,27 @@ class SemanticBuilder(ast.NodeVisitor):
 
     def visit_AnnAssign(self, node: ast.AnnAssign):
         annotation_ir = self.lower_annotation(node.annotation)
-        self.lower_assignment(target=node.target, value=node.value, kind="ANNASSIGN", annotation=annotation_ir, span=SourceSpan.span(node=node, file_path=self.file_path))
+        self.lower_assignment(
+            target=node.target, 
+            value=node.value, 
+            kind=BindingKind.ANNASSIGN, 
+            annotation=annotation_ir, 
+            span=SourceSpan.span(
+                node=node, file_path=self.file_path
+            )
+        )
 
     def visit_While(self, node: ast.While):
         parent_scope = self.current_scope()
-        loop_scope_id = self.builder.new_scope(name="<while>", kind="BLOCK", parent_id=parent_scope, span=SourceSpan.span(node, self.file_path))
+        loop_scope_id = self.builder.new_scope(
+            name="<while>", 
+            kind=ScopeKind.BLOCK, 
+            parent_id=parent_scope, 
+            span=SourceSpan.span(
+                node,
+                self.file_path
+            )
+        )
 
         test_ir = self.parse_expr(node.test)
 
@@ -241,7 +258,14 @@ class SemanticBuilder(ast.NodeVisitor):
 
     def visit_For(self, node: ast.For):
         parent_scope = self.current_scope()
-        loop_scope_id = self.builder.new_scope(name="<for>", kind="BLOCK", parent_id=parent_scope, span=SourceSpan.span(node, self.file_path))
+        loop_scope_id = self.builder.new_scope(
+            name="<for>", 
+            kind=ScopeKind.BLOCK, 
+            parent_id=parent_scope, 
+            span=SourceSpan.span(
+                node, self.file_path
+            )
+        )
 
         target_ir = self.parse_expr(node.target)
         iter_ir = self.parse_expr(node.iter)
@@ -287,13 +311,28 @@ class SemanticBuilder(ast.NodeVisitor):
     def visit_If(self, node: ast.If):
         parent_scope = self.current_scope()
 
-        then_scope_id = self.builder.new_scope("<if>", "BLOCK", parent_scope, SourceSpan.span(node, self.file_path))
-        else_scope_id = self.builder.new_scope("<else>", "BLOCK", parent_scope, SourceSpan.span(node, self.file_path))
+        then_scope_id = self.builder.new_scope(
+            name="<if>", 
+            kind=ScopeKind.BLOCK, 
+            parent_id=parent_scope, 
+            span=SourceSpan.span(
+                node, self.file_path
+            )
+        )
+        else_scope_id = self.builder.new_scope(
+            name="<else>", 
+            kind=ScopeKind.BLOCK, 
+            parent_id=parent_scope, 
+            span=SourceSpan.span(
+                node, 
+                self.file_path
+            )
+        )
 
         test_ir = self.parse_expr(node.test)
 
         self.scope_stack.append(then_scope_id)
-        body = [ir for stmt in node.body if (ir := self.visit(stmt)) is not None]
+        body = [ir for stmt in node.body if (ir := self.visit(stmt)) is not None]  # := evaluates to RHS, not assign 
         self.scope_stack.pop()
 
         self.scope_stack.append(else_scope_id)
@@ -310,7 +349,7 @@ class SemanticBuilder(ast.NodeVisitor):
             span=SourceSpan.span(node, self.file_path),
         )
 
-    def lower_annotation(self, annotation: ast.AST): # TODO rework, too strict, ? how handle torch.something etc ?
+    def lower_annotation(self, annotation: ast.AST):
         if isinstance(annotation, ast.Name):  # simple types, int float str etc.
             match annotation.id:
                 case "int":
@@ -372,7 +411,7 @@ class SemanticBuilder(ast.NodeVisitor):
         self.lower_assignment(
             target=node.targets[0],
             value=node.value,  # !! self.parse_value called downstream
-            kind="ASSIGN", 
+            kind=BindingKind.ASSIGN, 
             annotation=None, 
             span=SourceSpan.span(
                 node=node, 
@@ -382,7 +421,10 @@ class SemanticBuilder(ast.NodeVisitor):
     def lower_assignment(self, target: ast.AST, value: ast.AST, kind: str, annotation: AnnotationIR, span: SourceSpan):
         if isinstance(target, ast.Name):  # x = 5
             symbol_id = self.builder.declare_symbol(
-                name=target.id, kind="UNKNOWN", scope_id=self.current_scope(), span=span
+                name=target.id, 
+                kind=SymbolKind.UNKNOWN, 
+                scope_id=self.current_scope(), 
+                span=span
             )
 
             value_ir = self.parse_expr(value) if value is not None else None
@@ -393,7 +435,10 @@ class SemanticBuilder(ast.NodeVisitor):
                 kind=kind,
                 scope_id=self.current_scope(),
                 value=value_ir,
-                span=SourceSpan.span(node=target, file_path=self.file_path),
+                span=SourceSpan.span(
+                    node=target, 
+                    file_path=self.file_path
+                ),
             )
 
         if isinstance(target, ast.Tuple):  # a, b = 3, 4
@@ -412,7 +457,13 @@ class SemanticBuilder(ast.NodeVisitor):
                 return
 
             for left, right in zip(target.elts, value.elts):
-                self.lower_assignment(target=left, value=right, kind=kind, annotation=annotation, span=span)
+                self.lower_assignment(
+                    target=left, 
+                    value=right, 
+                    kind=kind, 
+                    annotation=annotation, 
+                    span=span
+                )
 
     def parse_expr(self, node: ast.AST):
         """

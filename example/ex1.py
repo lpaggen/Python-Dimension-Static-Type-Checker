@@ -1,29 +1,18 @@
-from __future__ import annotations
 import torch
-from ex2 import a, b
-from ex3 import z, x
 
+m: int
+k: int
+n: int
 
-n: int = z
+A: torch.Tensor[m, k]
+B: torch.Tensor[k, n]
 
-def fn(a: int, b: int):
-    return "hi"
+C = torch.matmul(A, B)
 
-a: list[int] = [1, 2, 3]
-b = a[0]
+D = A + A
+E = B * 2
 
-for i in "abc":
-    print("ok")
+F = torch.transpose(C, 0, 1)
 
-Z: torch.Tensor = torch.tensor([[1, 2, 3]])
-
-B = torch.add(Z, 45)
-
-F = torch.add(Z, B)
-
-A: torch.Tensor[n, m] = torch.tensor([[1, 2, 3]])
-B: torch.Tensor[m, k] = torch.tensor([[1], [2], [3]])
-
-C = torch.matmul(
-    A, B
-)  # returns a 1x1 tensor, my type checker can verify this with ease
+while True:
+    print("vcool")

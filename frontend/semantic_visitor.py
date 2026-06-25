@@ -16,6 +16,8 @@ from ir.subscript_ir import SubscriptIR
 from ir.tuple_ir import TupleIR
 from ir.none_ir import NoneIR
 from ir.slice_ir import SliceIR
+from ir.whileloop_ir import WhileLoopIR
+from ir.bool_ir import BooleanIR
 
 
 class SemanticBuilder(ast.NodeVisitor):
@@ -187,7 +189,35 @@ class SemanticBuilder(ast.NodeVisitor):
         self.lower_assignment(target=node.target, value=node.value, kind="ANNASSIGN", annotation=annotation_ir, span=SourceSpan.span(node=node, file_path=self.file_path))
 
     def visit_While(self, node: ast.While):
-        ...
+        parent_scope = self.current_scope()
+        loop_scope_id = self.builder.new_scope(name="<while>", kind="BLOCK", parent_id=parent_scope, span=SourceSpan.span(node, self.file_path))
+
+        test_ir = self.parse_expr(node.test)
+
+        self.scope_stack.append(loop_scope_id)
+
+        body = []
+        for stmt in node.body:
+            lowered = self.visit(stmt)
+            if lowered is not None:
+                body.append(lowered)
+
+        orelse = []
+        for stmt in node.orelse:
+            lowered = self.visit(stmt)
+            if lowered is not None:
+                orelse.append(lowered)
+
+        self.scope_stack.pop()
+
+        return WhileLoopIR(
+            test=test_ir,
+            scope_id=self.current_scope(),
+            body_scope_id=loop_scope_id,
+            body=body,
+            orelse=orelse,
+            span=SourceSpan.span(node, self.file_path),
+        )
 
     def visit_For(self, node: ast.For):
         parent_scope = self.current_scope()
@@ -321,12 +351,21 @@ class SemanticBuilder(ast.NodeVisitor):
         Recursive function to parse RHS of AnnAssign, Assign
         """
         if isinstance(node, ast.Constant):
+            if isinstance(node.value, bool):
+                return BooleanIR(node.value)
+
             if isinstance(node.value, int):
                 return IntegerIR(node.value)
+
             if isinstance(node.value, float):
                 return FloatIR(node.value)
+
             if isinstance(node.value, str):
                 return StringIR(node.value)
+
+            if node.value is None:
+                return NoneIR()
+
             raise NotImplementedError(f"Unsupported constant: {node.value!r}")
 
         if isinstance(node, ast.Name):
@@ -378,7 +417,7 @@ class SemanticBuilder(ast.NodeVisitor):
                 elements=tuple([self.parse_expr(arg) for arg in node.elts]),
                 span=SourceSpan.span(node, self.file_path)
             )
-        
+
         if isinstance(node, ast.Slice):
             return SliceIR(
                 lower=self.parse_expr(node.lower) if node.lower else None,

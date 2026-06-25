@@ -5,12 +5,20 @@ from expression_ir import IdentifiedIRNode
 
 
 class ParamIR(IRNode):
-    def __init__(self, symbol_id: int, name: str, annotation: AnnotationIR, default, span: SourceSpan):
+    def __init__(
+        self,
+        symbol_id: int,
+        name: str,
+        annotation: AnnotationIR,
+        default,
+        span: SourceSpan,
+    ):
         self.symbol_id = symbol_id
         self.name = name
         self.annotation = annotation
         self.default = default
         self.span = span
+
 
 class FunctionIR(IdentifiedIRNode):
     def __init__(

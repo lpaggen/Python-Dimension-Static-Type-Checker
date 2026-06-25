@@ -10,6 +10,7 @@ from identifier_ir import IdentifierIR
 from expression_ir import ListIR, IntegerIR, FloatIR, IdentifiedIRNode, CallExprIR, BinOpIR
 from attributeexpr_ir import AttributeExprIR
 from operators import Operator
+from augassign_ir import AugAssignIR
 
 
 
@@ -25,6 +26,19 @@ class SemanticBuilder(ast.NodeVisitor):
     def build(self, tree: ast.AST) -> ProgramIR:
         self.visit(tree)
         return self.builder.finish()
+
+    def visit_AugAssign(self, node: ast.AugAssign):
+        target = node.target
+        op = node.op
+        value = self.parse_expr(node.value)
+        return AugAssignIR(
+            target=target,
+            value=value, 
+            op=op,
+            span=SourceSpan.span(
+                node=node
+            )
+        )
 
     def visit_Import(self, node: ast.Import):
         for alias in node.names:
@@ -166,8 +180,11 @@ class SemanticBuilder(ast.NodeVisitor):
         annotation = node.annotation
         self.lower_annotation(annotation)
         self.lower_assignment(target=node.target, value=node.value, kind="ANNASSIGN", annotation=annotation, span=SourceSpan.span(node=node, file_path=self.file_path))
+        
+    def visit_For(self, node: ast.For):
+        print(node)
 
-    def lower_annotation(self, annotation: ast.AST):
+    def lower_annotation(self, annotation: ast.AST): # TODO rework, too strict, ? how handle torch.something etc ?
         if isinstance(annotation, ast.Name):  # simple types, int float str etc.
             match annotation.id:
                 case "int":
@@ -180,6 +197,13 @@ class SemanticBuilder(ast.NodeVisitor):
                         head="float",
                         args=[]
                     )
+                case _:
+                    self.builder.add_diagnostic(f"Warning unknown return type {annotation.id} at {SourceSpan.span(annotation)}")
+                    return AnnotationIR(
+                        head=annotation.id,
+                        args=[]
+                    )
+                
 
         if isinstance(annotation, ast.Subscript):  # complex types, torch.Tensor, np.ndarray, torch.Tensor[2, 3] ...
             return AnnotationIR(
@@ -250,6 +274,9 @@ class SemanticBuilder(ast.NodeVisitor):
                 self.lower_assignment(target=left, value=right, kind=kind, annotation=annotation, span=span)
 
     def parse_expr(self, node: ast.AST):
+        """
+        Recursive function to parse RHS of AnnAssign, Assign
+        """
         if isinstance(node, ast.Constant):
             if isinstance(node.value, int):
                 return IntegerIR(node.value)

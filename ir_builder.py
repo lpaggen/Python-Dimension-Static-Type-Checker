@@ -3,9 +3,11 @@ from symbol_ir import SymbolIR
 from program_ir import ProgramIR
 from import_ir import ImportIR
 from typing import Optional
+
 # from type import Type
 from span import SourceSpan
 from binding_ir import BindingIR
+
 # from literal import Literal
 from function_ir import FunctionIR
 from class_ir import ClassIR
@@ -20,7 +22,7 @@ class IRBuilder:
         self.symbols = []
         self.decls = []
         self.imports = []
-        
+
         self.diagnostics = []
 
         self.next_scope_id = 0
@@ -29,12 +31,7 @@ class IRBuilder:
         self.next_import_id = 0
 
         self.global_scope_id = self.scopes.append(
-            self.new_scope(
-                name="<module>",
-                kind="MODULE",
-                parent_id=None,
-                span=None
-            )
+            self.new_scope(name="<module>", kind="MODULE", parent_id=None, span=None)
         )
 
     def new_scope(self, name, kind, parent_id, span) -> int:
@@ -45,13 +42,7 @@ class IRBuilder:
         self.next_scope_id += 1
 
         self.scopes.append(
-            ScopeIR(
-                id=scope_id,
-                name=name,
-                kind=kind,
-                parent_id=parent_id,
-                span=span
-            )
+            ScopeIR(id=scope_id, name=name, kind=kind, parent_id=parent_id, span=span)
         )
 
         return scope_id
@@ -66,7 +57,7 @@ class IRBuilder:
         returns,
         decorators,
         span,
-        ):
+    ):
         decl_id = self.next_decl_id
         self.next_decl_id += 1
 
@@ -91,12 +82,12 @@ class IRBuilder:
         id: int,
         symbol_id: int,
         name: str,
-        scope_id: int,       # parent scope
+        scope_id: int,  # parent scope
         body_scope_id: int,  # class-local scope
-        bases: list,         # Base classes: Base, nn.Module, etc.
+        bases: list,  # Base classes: Base, nn.Module, etc.
         decorators: list,
         span: SourceSpan,
-        ):
+    ):
         decl_id = self.next_decl_id
         self.next_decl_id += 1
 
@@ -121,20 +112,24 @@ class IRBuilder:
         """
         symbol_id = self.next_symbol_id
         self.next_symbol_id += 1
-        
+
         self.symbols.append(
-            SymbolIR(
-                id=symbol_id,
-                name=name,
-                kind=kind,
-                scope_id=scope_id,
-                span=span
-            )    
+            SymbolIR(id=symbol_id, name=name, kind=kind, scope_id=scope_id, span=span)
         )
-    
+
         return symbol_id
 
-    def add_import(self, local_symbol_id, scope_id, kind, module_name, imported_name, alias, relative_level, span):
+    def add_import(
+        self,
+        local_symbol_id,
+        scope_id,
+        kind,
+        module_name,
+        imported_name,
+        alias,
+        relative_level,
+        span,
+    ):
         import_id = self.next_import_id
         self.next_import_id += 1
         self.imports.append(
@@ -147,13 +142,21 @@ class IRBuilder:
                 imported_name=imported_name,
                 alias=alias,
                 relative_level=relative_level,
-                span=span
+                span=span,
             )
         )
 
         return import_id
 
-    def add_assign(self, target_id: int, annotation: AnnotationIR, kind: str, scope_id: int, value: ExprIR, span: SourceSpan):
+    def add_assign(
+        self,
+        target_id: int,
+        annotation: AnnotationIR,
+        kind: str,
+        scope_id: int,
+        value: ExprIR,
+        span: SourceSpan,
+    ):
         decl_id = self.next_decl_id
         self.decls.append(
             BindingIR(
@@ -163,12 +166,11 @@ class IRBuilder:
                 kind=kind,
                 value=value,
                 scope_id=scope_id,
-                span=span
+                span=span,
             )
         )
-        
-        return decl_id
 
+        return decl_id
 
     def finish(self) -> ProgramIR:
         return ProgramIR(

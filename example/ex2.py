@@ -1,5 +1,5 @@
 from __future__ import annotations
 
 
-a = 5
+a, c = 5, 56
 b = 2

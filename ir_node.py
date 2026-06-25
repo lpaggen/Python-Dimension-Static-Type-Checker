@@ -3,4 +3,4 @@ class IRNode:
         """
         Parent class of all IRNode objects
         """
-        self.span=span
+        self.span = span

@@ -5,6 +5,7 @@ import ast
 import os
 import time
 
+
 def main():
     for file in os.listdir("example/"):
         start = time.time()
@@ -20,6 +21,7 @@ def main():
 
     end = time.time()
     print(f"Succesfully generated Protobuf IR in: {end - start} seconds!")
+
 
 if __name__ == "__main__":
     main()

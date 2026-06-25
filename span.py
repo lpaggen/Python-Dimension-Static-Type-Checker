@@ -2,7 +2,9 @@ import ast
 
 
 class SourceSpan:
-    def __init__(self, file: str, line: int, col: int, end_line: int | None, end_col: int | None):
+    def __init__(
+        self, file: str, line: int, col: int, end_line: int | None, end_col: int | None
+    ):
         self.file = file
         self.line = line
         self.col = col

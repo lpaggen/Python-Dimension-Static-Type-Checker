@@ -7,7 +7,7 @@ from ir_node import IRNode
 class DimIR(IRNode):
     def __init__(self, span):
         super.__init__(span=span)
-        self.span=span
+        self.span = span
 
     @staticmethod
     def toDim(node) -> DimIR:
@@ -19,13 +19,15 @@ class DimIR(IRNode):
             return BinaryDim(
                 DimIR.binop_tostr(node.op),
                 DimIR.toDim(node.left),
-                DimIR.toDim(node.right)
+                DimIR.toDim(node.right),
             )
         raise TypeError(f"Unsupported dimension node: {node}")
+
 
 class UnknownDim(DimIR):
     def __init__(self):
         pass
+
 
 class SymDim(DimIR):
     def __init__(self, name):
@@ -34,9 +36,11 @@ class SymDim(DimIR):
     def __str__(self):
         return self.name
 
+
 class ScalarDim(DimIR):
     def __init__(self, value):
         self.value = value
+
 
 class BinaryDim(DimIR):
     def __init__(self, operator: Operators, left, right):

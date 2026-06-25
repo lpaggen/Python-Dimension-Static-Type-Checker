@@ -8,9 +8,9 @@ class ClassIR(IdentifiedIRNode):
         id: int,
         symbol_id: int,
         name: str,
-        scope_id: int,       # parent scope
+        scope_id: int,  # parent scope
         body_scope_id: int,  # class-local scope
-        bases: list,         # Base classes: Base, nn.Module, etc.
+        bases: list,  # Base classes: Base, nn.Module, etc.
         decorators: list,
         span: SourceSpan,
     ):

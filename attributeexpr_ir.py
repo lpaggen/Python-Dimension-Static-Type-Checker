@@ -7,4 +7,4 @@ class AttributeExprIR(IRNode):
         super().__init__(span=span)
         self.base = base
         self.attr = attr
-        self.span=span
+        self.span = span

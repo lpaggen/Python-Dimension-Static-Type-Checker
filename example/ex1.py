@@ -9,6 +9,8 @@ B: torch.Tensor[k, n]
 
 C = torch.matmul(A, B)
 
+a = None
+
 D = A + A
 E = B * 2
 

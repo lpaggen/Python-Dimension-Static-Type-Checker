@@ -1,5 +1,5 @@
 from common.span import SourceSpan
-from ir.expression_ir import IdentifiedIRNode
+from ir.identified_ir_node import IdentifiedIRNode
 
 
 class ScopeIR(IdentifiedIRNode):

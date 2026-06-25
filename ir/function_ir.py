@@ -1,7 +1,7 @@
 from common.span import SourceSpan
 from .annotation_ir import AnnotationIR
 from .ir_node import IRNode
-from .expression_ir import IdentifiedIRNode
+from .identified_ir_node import IdentifiedIRNode
 
 
 class ParamIR(IRNode):
@@ -29,6 +29,7 @@ class FunctionIR(IdentifiedIRNode):
         scope_id: int,  # parent scope where function name is bound
         body_scope_id: int,  # function-local scope
         params: list[ParamIR],
+        body: list[IRNode],
         returns,
         decorators,
         span: SourceSpan,
@@ -40,6 +41,7 @@ class FunctionIR(IdentifiedIRNode):
         self.scope_id = scope_id
         self.body_scope_id = body_scope_id
         self.params = params
+        self.body=body
         self.returns = returns
         self.decorators = decorators
         self.span = span

@@ -52,6 +52,7 @@ class IRBuilder:
         scope_id,
         body_scope_id,
         params,
+        body,
         returns,
         decorators,
         span,
@@ -66,6 +67,7 @@ class IRBuilder:
                 name=name,
                 scope_id=scope_id,
                 body_scope_id=body_scope_id,
+                body=body,
                 params=params,
                 returns=returns,
                 decorators=decorators,
@@ -77,11 +79,11 @@ class IRBuilder:
 
     def add_class(
         self,
-        id: int,
         symbol_id: int,
         name: str,
         scope_id: int,  # parent scope
         body_scope_id: int,  # class-local scope
+        body,
         bases: list,  # Base classes: Base, nn.Module, etc.
         decorators: list,
         span: SourceSpan,
@@ -95,6 +97,7 @@ class IRBuilder:
                 symbol_id=symbol_id,
                 name=name,
                 scope_id=scope_id,
+                body=body,
                 body_scope_id=body_scope_id,
                 bases=bases,
                 decorators=decorators,

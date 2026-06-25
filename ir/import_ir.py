@@ -1,6 +1,6 @@
 from common.span import SourceSpan
 from typing import Union
-from .expression_ir import IdentifiedIRNode
+from .identified_ir_node import IdentifiedIRNode
 
 
 class ImportIR(IdentifiedIRNode):

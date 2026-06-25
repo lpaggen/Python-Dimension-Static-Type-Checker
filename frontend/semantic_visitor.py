@@ -7,7 +7,6 @@ from ir.annotation_ir import AnnotationIR, AnnotationHeadIR
 from ir.dimension_ir import DimIR
 from ir.function_ir import ParamIR
 from ir.identifier_ir import IdentifierIR
-from ir.expression_ir import ListIR, IntegerIR, FloatIR, IdentifiedIRNode, CallExprIR, BinOpIR, StringIR
 from ir.attributeexpr_ir import AttributeExprIR
 from common.operators import Operator
 from ir.augassign_ir import AugAssignIR
@@ -18,6 +17,18 @@ from ir.none_ir import NoneIR
 from ir.slice_ir import SliceIR
 from ir.whileloop_ir import WhileLoopIR
 from ir.bool_ir import BooleanIR
+from ir.return_ir import ReturnIR
+from ir.exprstmt_ir import ExprStmtIR
+from ir.boolop_ir import BoolOpIR
+from ir.if_ir import IfIR
+from ir.compare_ir import CompareIR
+from ir.unaryop_ir import UnaryOpIR
+from ir.callexpr_ir import CallExprIR, KeywordArgIR
+from ir.list_ir import ListIR
+from ir.integer_ir import IntegerIR
+from ir.float_ir import FloatIR
+from ir.string_ir import StringIR
+from ir.binop_ir import BinOpIR
 
 
 class SemanticBuilder(ast.NodeVisitor):
@@ -133,9 +144,12 @@ class SemanticBuilder(ast.NodeVisitor):
                 )
             )
 
-        # now visit function body while inside function scope
+        # TODO modify functionIR to have a body 
+        body = []
         for stmt in node.body:
-            self.visit(stmt)
+            lowered = self.visit(stmt)
+            if lowered is not None:
+                body.append(lowered)
 
         self.scope_stack.pop()
 
@@ -145,6 +159,7 @@ class SemanticBuilder(ast.NodeVisitor):
             scope_id=parent_scope,
             body_scope_id=body_scope_id,
             params=params,
+            body=body,
             returns=self.lower_annotation(node.returns) if node.returns else None,
             decorators=[self.parse_expr(d) for d in node.decorator_list],
             span=SourceSpan.span(node, self.file_path),
@@ -169,8 +184,12 @@ class SemanticBuilder(ast.NodeVisitor):
 
         self.scope_stack.append(class_scope_id)
 
+        # TODO modify classIR to have a body 
+        body = []
         for stmt in node.body:
-            self.visit(stmt)
+            lowered = self.visit(stmt)
+            if lowered is not None:
+                body.append(lowered)
 
         self.scope_stack.pop()
 
@@ -179,6 +198,7 @@ class SemanticBuilder(ast.NodeVisitor):
             name=node.name,
             scope_id=parent_scope,
             body_scope_id=class_scope_id,
+            body=body,
             bases=[self.parse_expr(base) for base in node.bases],
             decorators=[self.parse_expr(d) for d in node.decorator_list],
             span=SourceSpan.span(node, self.file_path),
@@ -251,6 +271,44 @@ class SemanticBuilder(ast.NodeVisitor):
             orelse=orelse,
             span=SourceSpan.span(node, self.file_path),
         )
+    
+    def visit_Return(self, node: ast.Return):
+        return ReturnIR(
+            value=self.parse_expr(node.value) if node.value else None,
+            span=SourceSpan.span(node, self.file_path),
+        )
+    
+    def visit_Expr(self, node: ast.Expr):
+        return ExprStmtIR(
+            value=self.parse_expr(node.value),
+            span=SourceSpan.span(node, self.file_path),
+        )
+    
+    def visit_If(self, node: ast.If):
+        parent_scope = self.current_scope()
+
+        then_scope_id = self.builder.new_scope("<if>", "BLOCK", parent_scope, SourceSpan.span(node, self.file_path))
+        else_scope_id = self.builder.new_scope("<else>", "BLOCK", parent_scope, SourceSpan.span(node, self.file_path))
+
+        test_ir = self.parse_expr(node.test)
+
+        self.scope_stack.append(then_scope_id)
+        body = [ir for stmt in node.body if (ir := self.visit(stmt)) is not None]
+        self.scope_stack.pop()
+
+        self.scope_stack.append(else_scope_id)
+        orelse = [ir for stmt in node.orelse if (ir := self.visit(stmt)) is not None]
+        self.scope_stack.pop()
+
+        return IfIR(
+            test=test_ir,
+            scope_id=parent_scope,
+            then_scope_id=then_scope_id,
+            else_scope_id=else_scope_id,
+            body=body,
+            orelse=orelse,
+            span=SourceSpan.span(node, self.file_path),
+        )
 
     def lower_annotation(self, annotation: ast.AST): # TODO rework, too strict, ? how handle torch.something etc ?
         if isinstance(annotation, ast.Name):  # simple types, int float str etc.
@@ -311,7 +369,15 @@ class SemanticBuilder(ast.NodeVisitor):
         raise NotImplementedError(f"Unsupported annotation head: {type(node).__name__}")
 
     def visit_Assign(self, node: ast.Assign):
-        self.lower_assignment(target=node.targets[0], value=node.value, kind="ASSIGN", annotation=None, span=SourceSpan.span(node=node, file_path=self.file_path))
+        self.lower_assignment(
+            target=node.targets[0],
+            value=node.value,  # !! self.parse_value called downstream
+            kind="ASSIGN", 
+            annotation=None, 
+            span=SourceSpan.span(
+                node=node, 
+                file_path=self.file_path)
+        )
 
     def lower_assignment(self, target: ast.AST, value: ast.AST, kind: str, annotation: AnnotationIR, span: SourceSpan):
         if isinstance(target, ast.Name):  # x = 5
@@ -319,12 +385,14 @@ class SemanticBuilder(ast.NodeVisitor):
                 name=target.id, kind="UNKNOWN", scope_id=self.current_scope(), span=span
             )
 
+            value_ir = self.parse_expr(value) if value is not None else None
+
             self.builder.add_assign(
                 target_id=symbol_id,
                 annotation=annotation,
                 kind=kind,
                 scope_id=self.current_scope(),
-                value=self.parse_expr(value),
+                value=value_ir,
                 span=SourceSpan.span(node=target, file_path=self.file_path),
             )
 
@@ -363,6 +431,7 @@ class SemanticBuilder(ast.NodeVisitor):
             if isinstance(node.value, str):
                 return StringIR(node.value)
 
+            # TODO change this, not the right way to go
             if node.value is None:
                 return NoneIR()
 
@@ -386,6 +455,29 @@ class SemanticBuilder(ast.NodeVisitor):
             return CallExprIR(
                 callee=self.parse_expr(node.func),
                 args=[self.parse_expr(arg) for arg in node.args],
+                kwargs=[
+                    KeywordArgIR(
+                        name=kw.arg,
+                        value=self.parse_expr(kw.value),
+                        span=SourceSpan.span(kw.value, self.file_path),
+                    )
+                    for kw in node.keywords
+                ],
+                span=SourceSpan.span(node, self.file_path),
+            )
+
+        if isinstance(node, ast.UnaryOp):
+            return UnaryOpIR(
+                op=Operator.unaryop_tostr(node.op),
+                operand=self.parse_expr(node.operand),
+                span=SourceSpan.span(node, self.file_path),
+            )
+
+        if isinstance(node, ast.Compare):
+            return CompareIR(
+                left=self.parse_expr(node.left),
+                ops=[Operator.cmpop_tostr(op) for op in node.ops],
+                comparators=[self.parse_expr(c) for c in node.comparators],
                 span=SourceSpan.span(node, self.file_path),
             )
 
@@ -393,6 +485,13 @@ class SemanticBuilder(ast.NodeVisitor):
             return ListIR(
                 elements=[self.parse_expr(arg) for arg in node.elts],
                 span=SourceSpan.span(node, self.file_path)
+            )
+
+        if isinstance(node, ast.BoolOp):
+            return BoolOpIR(
+                op=Operator.boolop_tostr(node.op),
+                values=[self.parse_expr(v) for v in node.values],
+                span=SourceSpan.span(node, self.file_path),
             )
 
         if isinstance(node, ast.BinOp):
@@ -404,11 +503,9 @@ class SemanticBuilder(ast.NodeVisitor):
             )
 
         if isinstance(node, ast.Subscript):
-            target = node.value
-            slice_ir = self.parse_expr(node.slice)
             return SubscriptIR(
-                target=target,
-                subscript=slice_ir,
+                target=self.parse_expr(node.value),
+                subscript=self.parse_expr(node.slice),
                 span=SourceSpan.span(node, self.file_path)
             )
 

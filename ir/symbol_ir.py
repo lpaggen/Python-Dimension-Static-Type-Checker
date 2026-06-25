@@ -1,6 +1,6 @@
 from common.span import SourceSpan
 from .ir_node import IRNode
-from .expression_ir import IdentifiedIRNode
+from .identified_ir_node import IdentifiedIRNode
 
 
 class SymbolIR(IdentifiedIRNode):

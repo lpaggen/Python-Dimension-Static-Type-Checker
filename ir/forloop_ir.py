@@ -1,5 +1,5 @@
 from common.span import SourceSpan
-from .expression_ir import IdentifiedIRNode
+from .identified_ir_node import IdentifiedIRNode
 from .ir_node import IRNode
 from typing import List
 

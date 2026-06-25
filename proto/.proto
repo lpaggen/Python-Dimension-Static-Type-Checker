@@ -33,6 +33,7 @@ enum ScopeKind {
   SCOPE_MODULE = 1;
   SCOPE_FUNCTION = 2;
   SCOPE_CLASS = 3;
+  SCOPE_BLOCK = 4;
 }
 
 message SymbolIR {
@@ -80,12 +81,24 @@ message DeclIR {
   }
 }
 
+message StmtIR {
+  oneof kind {
+    BindingIR binding = 1;
+    AugAssignIR aug_assign = 2;
+    ReturnIR return_stmt = 3;
+    ExprStmtIR expr_stmt = 4;
+    IfIR if_stmt = 5;
+    ForLoopIR for_loop = 6;
+    WhileLoopIR while_loop = 7;
+  }
+}
+
 message BindingIR {
   int64 id = 1;
   int64 target_id = 2;
   optional AnnotationIR annotation = 3;
   BindingKind kind = 4;
-  ExprIR value = 5;
+  optional ExprIR value = 5;
   int64 scope_id = 6;
   optional SourceSpan span = 7;
 }
@@ -94,6 +107,52 @@ enum BindingKind {
   BINDING_UNKNOWN = 0;
   BINDING_ASSIGN = 1;
   BINDING_ANNASSIGN = 2;
+}
+
+message AugAssignIR {
+  ExprIR target = 1;
+  Operator op = 2;
+  ExprIR value = 3;
+  optional SourceSpan span = 4;
+}
+
+message ReturnIR {
+  optional ExprIR value = 1;
+  optional SourceSpan span = 2;
+}
+
+message ExprStmtIR {
+  ExprIR value = 1;
+  optional SourceSpan span = 2;
+}
+
+message IfIR {
+  ExprIR test = 1;
+  int64 scope_id = 2;
+  int64 then_scope_id = 3;
+  int64 else_scope_id = 4;
+  repeated StmtIR body = 5;
+  repeated StmtIR orelse = 6;
+  optional SourceSpan span = 7;
+}
+
+message ForLoopIR {
+  ExprIR target = 1;
+  ExprIR iter = 2;
+  int64 scope_id = 3;
+  int64 body_scope_id = 4;
+  repeated StmtIR body = 5;
+  repeated StmtIR orelse = 6;
+  optional SourceSpan span = 7;
+}
+
+message WhileLoopIR {
+  ExprIR test = 1;
+  int64 scope_id = 2;
+  int64 body_scope_id = 3;
+  repeated StmtIR body = 4;
+  repeated StmtIR orelse = 5;
+  optional SourceSpan span = 6;
 }
 
 message FunctionIR {
@@ -105,10 +164,11 @@ message FunctionIR {
   int64 body_scope_id = 5;
 
   repeated ParamIR params = 6;
-  optional AnnotationIR returns = 7;
-  repeated ExprIR decorators = 8;
+  repeated StmtIR body = 7;
+  optional AnnotationIR returns = 8;
+  repeated ExprIR decorators = 9;
 
-  optional SourceSpan span = 9;
+  optional SourceSpan span = 10;
 }
 
 message ParamIR {
@@ -127,10 +187,11 @@ message ClassIR {
   int64 scope_id = 4;
   int64 body_scope_id = 5;
 
-  repeated ExprIR bases = 6;
-  repeated ExprIR decorators = 7;
+  repeated StmtIR body = 6;
+  repeated ExprIR bases = 7;
+  repeated ExprIR decorators = 8;
 
-  optional SourceSpan span = 8;
+  optional SourceSpan span = 9;
 }
 
 message ExprIR {
@@ -138,9 +199,19 @@ message ExprIR {
     IdentifierIR identifier = 1;
     IntegerIR integer = 2;
     FloatIR float_lit = 3;
-    ListIR list = 4;
-    CallExprIR call = 5;
-    AttributeExprIR attribute = 6;
+    StringIR string_lit = 4;
+    BooleanIR bool_lit = 5;
+    NoneIR none_lit = 6;
+    ListIR list = 7;
+    TupleIR tuple = 8;
+    CallExprIR call = 9;
+    AttributeExprIR attribute = 10;
+    BinOpIR binop = 11;
+    UnaryOpIR unaryop = 12;
+    BoolOpIR boolop = 13;
+    CompareIR compare = 14;
+    SubscriptIR subscript = 15;
+    SliceIR slice = 16;
   }
 }
 
@@ -160,7 +231,26 @@ message FloatIR {
   optional SourceSpan span = 2;
 }
 
+message StringIR {
+  string value = 1;
+  optional SourceSpan span = 2;
+}
+
+message BooleanIR {
+  bool value = 1;
+  optional SourceSpan span = 2;
+}
+
+message NoneIR {
+  optional SourceSpan span = 1;
+}
+
 message ListIR {
+  repeated ExprIR elements = 1;
+  optional SourceSpan span = 2;
+}
+
+message TupleIR {
   repeated ExprIR elements = 1;
   optional SourceSpan span = 2;
 }
@@ -168,6 +258,13 @@ message ListIR {
 message CallExprIR {
   ExprIR callee = 1;
   repeated ExprIR args = 2;
+  repeated KeywordArgIR kwargs = 3;
+  optional SourceSpan span = 4;
+}
+
+message KeywordArgIR {
+  optional string name = 1;
+  ExprIR value = 2;
   optional SourceSpan span = 3;
 }
 
@@ -177,15 +274,55 @@ message AttributeExprIR {
   optional SourceSpan span = 3;
 }
 
+message BinOpIR {
+  ExprIR left = 1;
+  ExprIR right = 2;
+  Operator op = 3;
+  optional SourceSpan span = 4;
+}
+
+message UnaryOpIR {
+  Operator op = 1;
+  ExprIR operand = 2;
+  optional SourceSpan span = 3;
+}
+
+message BoolOpIR {
+  Operator op = 1;
+  repeated ExprIR values = 2;
+  optional SourceSpan span = 3;
+}
+
+message CompareIR {
+  ExprIR left = 1;
+  repeated Operator ops = 2;
+  repeated ExprIR comparators = 3;
+  optional SourceSpan span = 4;
+}
+
+message SubscriptIR {
+  ExprIR target = 1;
+  ExprIR subscript = 2;
+  optional SourceSpan span = 3;
+}
+
+message SliceIR {
+  optional ExprIR lower = 1;
+  optional ExprIR upper = 2;
+  optional ExprIR step = 3;
+  optional SourceSpan span = 4;
+}
+
 message AnnotationIR {
   AnnotationHeadIR head = 1;
   repeated DimIR args = 2;
+  optional SourceSpan span = 3;
 }
 
 message AnnotationHeadIR {
   string root = 1;
   repeated string attrs = 2;
-  int64 scope_id = 3;
+  optional int64 scope_id = 3;
   optional SourceSpan span = 4;
 }
 
@@ -198,26 +335,69 @@ message DimIR {
   }
 }
 
-message UnknownDimIR {}
+message UnknownDimIR {
+  optional SourceSpan span = 1;
+}
 
 message SymDimIR {
   string name = 1;
+  optional SourceSpan span = 2;
 }
 
 message ScalarDimIR {
   int64 value = 1;
+  optional SourceSpan span = 2;
 }
 
 message BinaryDimIR {
-  DimOperator operator = 1;
+  Operator operator = 1;
   DimIR left = 2;
   DimIR right = 3;
+  optional SourceSpan span = 4;
 }
 
-enum DimOperator {
-  DIM_OP_UNKNOWN = 0;
-  DIM_OP_ADD = 1;
-  DIM_OP_SUB = 2;
-  DIM_OP_MUL = 3;
-  DIM_OP_DIV = 4;
+enum Operator {
+  OP_UNKNOWN = 0;
+  OP_PLUS = 1;
+  OP_MINUS = 2;
+  OP_MUL = 3;
+  OP_MATMUL = 4;
+  OP_DIV = 5;
+  OP_FLOORDIV = 6;
+  OP_MOD = 7;
+  OP_POW = 8;
+  OP_LSHIFT = 9;
+  OP_RSHIFT = 10;
+  OP_BITOR = 11;
+  OP_BITXOR = 12;
+  OP_BITAND = 13;
+  OP_UPLUS = 14;
+  OP_UMINUS = 15;
+  OP_NOT = 16;
+  OP_INVERT = 17;
+  OP_AND = 18;
+  OP_OR = 19;
+  OP_EQ = 20;
+  OP_NE = 21;
+  OP_LT = 22;
+  OP_LTE = 23;
+  OP_GT = 24;
+  OP_GTE = 25;
+  OP_IS = 26;
+  OP_IS_NOT = 27;
+  OP_IN = 28;
+  OP_NOT_IN = 29;
+  OP_PLUS_ASSIGN = 30;
+  OP_MINUS_ASSIGN = 31;
+  OP_MUL_ASSIGN = 32;
+  OP_MATMUL_ASSIGN = 33;
+  OP_DIV_ASSIGN = 34;
+  OP_FLOORDIV_ASSIGN = 35;
+  OP_MOD_ASSIGN = 36;
+  OP_POW_ASSIGN = 37;
+  OP_LSHIFT_ASSIGN = 38;
+  OP_RSHIFT_ASSIGN = 39;
+  OP_BITOR_ASSIGN = 40;
+  OP_BITXOR_ASSIGN = 41;
+  OP_BITAND_ASSIGN = 42;
 }

@@ -1,4 +1,4 @@
-from .expression_ir import IdentifiedIRNode, IRNode
+from .identified_ir_node import IdentifiedIRNode, IRNode
 from common.span import SourceSpan
 from common.operators import Operator
 

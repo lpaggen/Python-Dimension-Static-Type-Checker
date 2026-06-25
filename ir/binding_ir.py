@@ -1,6 +1,6 @@
 from common.span import SourceSpan
 from .annotation_ir import AnnotationIR
-from .expression_ir import IdentifiedIRNode
+from .identified_ir_node import IdentifiedIRNode
 from .ir_node import IRNode
 
 

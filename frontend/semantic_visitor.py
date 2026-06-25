@@ -13,6 +13,9 @@ from common.operators import Operator
 from ir.augassign_ir import AugAssignIR
 from ir.forloop_ir import ForLoopIR
 from ir.subscript_ir import SubscriptIR
+from ir.tuple_ir import TupleIR
+from ir.none_ir import NoneIR
+from ir.slice_ir import SliceIR
 
 
 class SemanticBuilder(ast.NodeVisitor):
@@ -183,6 +186,9 @@ class SemanticBuilder(ast.NodeVisitor):
         annotation_ir = self.lower_annotation(node.annotation)
         self.lower_assignment(target=node.target, value=node.value, kind="ANNASSIGN", annotation=annotation_ir, span=SourceSpan.span(node=node, file_path=self.file_path))
 
+    def visit_While(self, node: ast.While):
+        ...
+
     def visit_For(self, node: ast.For):
         parent_scope = self.current_scope()
         loop_scope_id = self.builder.new_scope(name="<for>", kind="BLOCK", parent_id=parent_scope, span=SourceSpan.span(node, self.file_path))
@@ -215,8 +221,6 @@ class SemanticBuilder(ast.NodeVisitor):
             orelse=orelse,
             span=SourceSpan.span(node, self.file_path),
         )
-    
-
 
     def lower_annotation(self, annotation: ast.AST): # TODO rework, too strict, ? how handle torch.something etc ?
         if isinstance(annotation, ast.Name):  # simple types, int float str etc.
@@ -349,7 +353,7 @@ class SemanticBuilder(ast.NodeVisitor):
         if isinstance(node, ast.List):
             return ListIR(
                 elements=[self.parse_expr(arg) for arg in node.elts],
-                span=SourceSpan.span(node, self.file_path),
+                span=SourceSpan.span(node, self.file_path)
             )
 
         if isinstance(node, ast.BinOp):
@@ -368,6 +372,23 @@ class SemanticBuilder(ast.NodeVisitor):
                 subscript=slice_ir,
                 span=SourceSpan.span(node, self.file_path)
             )
+
+        if isinstance(node, ast.Tuple):
+            return TupleIR(
+                elements=tuple([self.parse_expr(arg) for arg in node.elts]),
+                span=SourceSpan.span(node, self.file_path)
+            )
+        
+        if isinstance(node, ast.Slice):
+            return SliceIR(
+                lower=self.parse_expr(node.lower) if node.lower else None,
+                upper=self.parse_expr(node.upper) if node.upper else None,
+                step=self.parse_expr(node.step) if node.step else None,
+                span=SourceSpan.span(node, self.file_path),
+            )
+
+        if node is None:
+            return NoneIR(span=SourceSpan.span(node, self.file_path))
 
         raise NotImplementedError(f"Unsupported expression node: {type(node).__name__}")
 

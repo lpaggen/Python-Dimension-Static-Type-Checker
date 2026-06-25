@@ -2,6 +2,7 @@ from common.span import SourceSpan
 from .annotation_ir import AnnotationIR
 from .ir_node import IRNode
 from .identified_ir_node import IdentifiedIRNode
+from generated import _pb2
 
 
 class ParamIR(IRNode):
@@ -18,6 +19,23 @@ class ParamIR(IRNode):
         self.annotation = annotation
         self.default = default
         self.span = span
+
+    def to_proto(self):
+        proto = _pb2.ParamIR(
+            symbol_id=self.symbol_id,
+            name=self.name,
+        )
+
+        if self.annotation is not None:
+            proto.annotation.CopyFrom(self.annotation.to_proto())
+
+        if self.default is not None:
+            proto.default_value.CopyFrom(self.default.to_proto())
+
+        if self.span is not None:
+            proto.span.CopyFrom(self.span.to_proto())
+
+        return proto
 
 
 class FunctionIR(IdentifiedIRNode):
@@ -45,3 +63,26 @@ class FunctionIR(IdentifiedIRNode):
         self.returns = returns
         self.decorators = decorators
         self.span = span
+
+    def to_proto(self):
+        proto = _pb2.FunctionIR(
+            id=self.id,
+            symbol_id=self.symbol_id,
+            name=self.name,
+            scope_id=self.scope_id,
+            body_scope_id=self.body_scope_id,
+        )
+
+        proto.params.extend([p.to_proto() for p in self.params])
+        proto.body.extend([stmt.to_proto() for stmt in self.body])
+        proto.decorators.extend([d.to_proto() for d in self.decorators])
+
+        if self.returns is not None:
+            proto.returns.CopyFrom(self.returns.to_proto())
+
+        if self.span is not None:
+            proto.span.CopyFrom(self.span.to_proto())
+
+        stmt = _pb2.StmtIR()
+        stmt.function.CopyFrom(proto)
+        return stmt

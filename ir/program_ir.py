@@ -3,6 +3,7 @@ from .symbol_ir import SymbolIR
 from .scope_ir import ScopeIR
 from .import_ir import ImportIR
 from .binding_ir import BindingIR
+from generated import _pb2
 
 
 class ProgramIR:
@@ -21,3 +22,16 @@ class ProgramIR:
         self.symbols = symbols
         self.imports = imports
         self.decls = decls
+
+    def to_proto(self):
+        proto = _pb2.ProgramIR(
+            module_name=self.module_name,
+            file_path=self.file_path,
+        )
+
+        proto.scopes.extend([s.to_proto() for s in self.scopes])
+        proto.symbols.extend([s.to_proto() for s in self.symbols])
+        proto.imports.extend([i.to_proto() for i in self.imports])
+        proto.stmts.extend([stmt.to_proto() for stmt in self.stmts])
+
+        return proto

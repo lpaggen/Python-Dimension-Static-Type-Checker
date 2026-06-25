@@ -1,5 +1,6 @@
 from common.span import SourceSpan
 from .expr_ir import ExprIR
+from generated import _pb2
 
 
 class IntegerIR(ExprIR):
@@ -10,3 +11,8 @@ class IntegerIR(ExprIR):
 
     def __repr__(self):
         return str(self.value)
+
+    def to_proto(self):
+        return _pb2.ExprIR(
+            integer=_pb2.IntegerIR(value=self.value)
+        )

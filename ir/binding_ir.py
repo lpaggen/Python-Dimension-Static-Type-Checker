@@ -2,6 +2,7 @@ from common.span import SourceSpan
 from .annotation_ir import AnnotationIR
 from .identified_ir_node import IdentifiedIRNode
 from .ir_node import IRNode
+from generated import _pb2
 
 
 class BindingIR(IdentifiedIRNode):
@@ -23,3 +24,24 @@ class BindingIR(IdentifiedIRNode):
         self.value = value
         self.scope_id = scope_id
         self.span = span
+
+    def to_proto(self):
+        proto = _pb2.BindingIR(
+            id=self.id,
+            target_id=self.target_id,
+            kind=self.kind,
+            scope_id=self.scope_id,
+        )
+
+        if self.annotation is not None:
+            proto.annotation.CopyFrom(self.annotation.to_proto())
+
+        if self.value is not None:
+            proto.value.CopyFrom(self.value.to_proto())
+
+        if self.span is not None:
+            proto.span.CopyFrom(self.span.to_proto())
+
+        stmt = _pb2.StmtIR()
+        stmt.binding.CopyFrom(proto)
+        return stmt

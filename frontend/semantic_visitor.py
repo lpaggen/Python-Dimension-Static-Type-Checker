@@ -12,6 +12,7 @@ from ir.attributeexpr_ir import AttributeExprIR
 from common.operators import Operator
 from ir.augassign_ir import AugAssignIR
 from ir.forloop_ir import ForLoopIR
+from ir.subscript_ir import SubscriptIR
 
 
 class SemanticBuilder(ast.NodeVisitor):
@@ -64,9 +65,11 @@ class SemanticBuilder(ast.NodeVisitor):
             )
 
     def visit_ImportFrom(self, node: ast.ImportFrom):
+        module_name = node.module  # ex. "a" in: from a import b
+
         for alias in node.names:
-            module_name = alias.name
-            bound_name = alias.asname or module_name.split(".")[0]
+            imported_name = alias.name  # ex "b"
+            bound_name = alias.asname or alias.name
 
             symbol_id = self.builder.declare_symbol(
                 name=bound_name,
@@ -78,11 +81,11 @@ class SemanticBuilder(ast.NodeVisitor):
             self.builder.add_import(
                 local_symbol_id=symbol_id,
                 scope_id=self.current_scope(),
-                kind="MODULE",
+                kind="FROM",
                 module_name=module_name,
-                imported_name=None,
+                imported_name=imported_name,
                 alias=alias.asname,
-                relative_level=0,
+                relative_level=node.level,
                 span=SourceSpan.span(node, self.file_path),
             )
 
@@ -177,9 +180,8 @@ class SemanticBuilder(ast.NodeVisitor):
         )
 
     def visit_AnnAssign(self, node: ast.AnnAssign):
-        annotation = node.annotation
-        self.lower_annotation(annotation)
-        self.lower_assignment(target=node.target, value=node.value, kind="ANNASSIGN", annotation=annotation, span=SourceSpan.span(node=node, file_path=self.file_path))
+        annotation_ir = self.lower_annotation(node.annotation)
+        self.lower_assignment(target=node.target, value=node.value, kind="ANNASSIGN", annotation=annotation_ir, span=SourceSpan.span(node=node, file_path=self.file_path))
 
     def visit_For(self, node: ast.For):
         parent_scope = self.current_scope()
@@ -203,7 +205,6 @@ class SemanticBuilder(ast.NodeVisitor):
                 orelse.append(lowered)
 
         self.scope_stack.pop()
-        print("and you have success")
 
         return ForLoopIR(
             target=target_ir,
@@ -235,12 +236,17 @@ class SemanticBuilder(ast.NodeVisitor):
                     return AnnotationIR(
                         head=annotation.id,
                         args=[]
-                    )
-                
+                    )   
 
         if isinstance(annotation, ast.Subscript):  # complex types, torch.Tensor, np.ndarray, torch.Tensor[2, 3] ...
+            head=self.lower_annotation_head(annotation.value)
+            if isinstance(annotation.slice, ast.Name):
+                return AnnotationIR(
+                head=head,
+                args=[annotation.slice.id]
+            )
             return AnnotationIR(
-                head=self.lower_annotation_head(annotation.value),
+                head=head,
                 args=[DimIR.toDim(i) for i in annotation.slice.elts] #TODO this breaks for anything non-dimensional
             )
 
@@ -352,6 +358,15 @@ class SemanticBuilder(ast.NodeVisitor):
                 right=self.parse_expr(node.right),
                 op=Operator.binop_tostr(node.op),
                 span=SourceSpan.span(node=node, file_path=self.file_path)
+            )
+
+        if isinstance(node, ast.Subscript):
+            target = node.value
+            slice_ir = self.parse_expr(node.slice)
+            return SubscriptIR(
+                target=target,
+                subscript=slice_ir,
+                span=SourceSpan.span(node, self.file_path)
             )
 
         raise NotImplementedError(f"Unsupported expression node: {type(node).__name__}")

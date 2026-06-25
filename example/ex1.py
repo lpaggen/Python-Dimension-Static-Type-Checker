@@ -7,7 +7,10 @@ from ex3 import z, x
 n: int = z
 
 def fn(a: int, b: int):
-    return "fuckyou"
+    return "hi"
+
+a: list[int] = [1, 2, 3]
+b = a[0]
 
 for i in "abc":
     print("ok")

@@ -8,4 +8,4 @@ class SliceIR(IRNode):
         self.lower = lower
         self.upper = upper
         self.step = span
-        self.span=span
+        self.span = span

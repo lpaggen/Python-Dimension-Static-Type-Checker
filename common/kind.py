@@ -7,6 +7,7 @@ class ScopeKind(Enum):
     CLASS = "CLASS"
     BLOCK = "BLOCK"
 
+
 class SymbolKind(Enum):
     UNKNOWN = "UNKNOWN"
     MODULE_ALIAS = "MODULE_ALIAS"
@@ -15,9 +16,11 @@ class SymbolKind(Enum):
     CLASS = "CLASS"
     PARAM = "PARAM"
 
+
 class BindingKind(Enum):
     ASSIGN = "ASSIGN"
     ANNASSIGN = "ANNASSIGN"
+
 
 class ImportKind(Enum):
     MODULE = "MODULE"

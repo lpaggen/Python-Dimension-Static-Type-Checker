@@ -22,7 +22,7 @@ class ClassIR(IdentifiedIRNode):
         self.name = name
         self.scope_id = scope_id
         self.body_scope_id = body_scope_id
-        self.body=body
+        self.body = body
         self.bases = bases
         self.decorators = decorators
         self.span = span

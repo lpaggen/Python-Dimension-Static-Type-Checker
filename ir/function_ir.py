@@ -41,7 +41,7 @@ class FunctionIR(IdentifiedIRNode):
         self.scope_id = scope_id
         self.body_scope_id = body_scope_id
         self.params = params
-        self.body=body
+        self.body = body
         self.returns = returns
         self.decorators = decorators
         self.span = span

@@ -5,4 +5,4 @@ from common.span import SourceSpan
 class StmtIR(IRNode):
     def __init__(self, span: SourceSpan):
         super().__init__(span=span)
-        self.span=span
+        self.span = span

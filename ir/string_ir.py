@@ -3,7 +3,7 @@ from common.span import SourceSpan
 
 
 class StringIR(ExprIR):
-    def __init__(self, value: str, span: SourceSpan=None):
+    def __init__(self, value: str, span: SourceSpan = None):
         super().__init__(span=span, value=value)
         self.span = span
         self.value = value

@@ -9,8 +9,15 @@ from frontend.semantic_visitor import SemanticBuilder
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Build custom IR for Python dimension checking.")
-    parser.add_argument("paths", nargs="*", default=["examples"], help="Python files or directories to analyze")
+    parser = argparse.ArgumentParser(
+        description="Build custom IR for Python dimension checking."
+    )
+    parser.add_argument(
+        "paths",
+        nargs="*",
+        default=["examples"],
+        help="Python files or directories to analyze",
+    )
     return parser.parse_args()
 
 

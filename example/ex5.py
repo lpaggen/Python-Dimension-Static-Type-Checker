@@ -4,6 +4,7 @@ m: int
 k: int
 n: int
 
+
 def linear(
     X: torch.Tensor[m, k],
     W: torch.Tensor[k, n],

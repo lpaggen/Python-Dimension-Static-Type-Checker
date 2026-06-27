@@ -5,12 +5,12 @@ from generated import _pb2
 
 class ListIR(ExprIR):
     def __init__(self, elements: list[ExprIR], span: SourceSpan=None):
-        super().__init__(span=span)
+        super().__init__(span=span, value=None)
         self.span = span
         self.elements = elements
 
     def __repr__(self):
-        return "ListIR<" + str(self.contents) + ">"
+        return "ListIR<" + str(self.elements) + ">"
 
     def to_proto(self):
         proto = _pb2.ListIR()

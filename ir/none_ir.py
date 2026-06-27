@@ -5,7 +5,7 @@ from generated import _pb2
 
 class NoneIR(ExprIR):
     def __init__(self, span: SourceSpan = None):
-        super().__init__(span=span)
+        super().__init__(span=span, value=None)
         self.span = span
 
     def to_proto(self):

@@ -4,7 +4,6 @@ from ir.import_ir import ImportIR
 from ir.program_ir import ProgramIR
 from common.span import SourceSpan
 from ir.annotation_ir import AnnotationIR, AnnotationHeadIR
-from ir.dimension_ir import DimIR
 from ir.function_ir import ParamIR
 from ir.identifier_ir import IdentifierIR
 from ir.attributeexpr_ir import AttributeExprIR
@@ -145,7 +144,6 @@ class SemanticBuilder(ast.NodeVisitor):
                 )
             )
 
-        # TODO modify functionIR to have a body 
         body = []
         for stmt in node.body:
             lowered = self.visit(stmt)
@@ -376,9 +374,14 @@ class SemanticBuilder(ast.NodeVisitor):
                 head=head,
                 args=[annotation.slice.id]
             )
+            if isinstance(annotation.slice, ast.Tuple):
+                return AnnotationIR(
+                head=head,
+                args=[self.parse_expr(i) for i in annotation.slice.elts] #TODO this breaks for anything non-dimensional
+            )
             return AnnotationIR(
                 head=head,
-                args=[DimIR.toDim(i) for i in annotation.slice.elts] #TODO this breaks for anything non-dimensional
+                args=[self.parse_expr(annotation.slice)] #TODO this breaks for anything non-dimensional
             )
 
         return AnnotationIR(  # case where annotation = Attribute

@@ -5,6 +5,9 @@ in_features: int
 hidden: int
 out_features: int
 
+def fn(a: Optional[torch.Tensor], b: int) -> int:
+    return a + b
+
 X: torch.Tensor[batch, in_features]
 
 W1: torch.Tensor[in_features, hidden]

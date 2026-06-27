@@ -6,12 +6,12 @@ from generated import _pb2
 
 class TupleIR(ExprIR):
     def __init__(self, elements: tuple[ExprIR], span: SourceSpan=None):
-        super().__init__(span=span)
+        super().__init__(span=span, value=None)
         self.span = span
         self.elements = elements
 
     def __repr__(self):
-        return "TupleIR<" + str(self.contents) + ">"
+        return "TupleIR<" + str(self.elements) + ">"
 
     def to_proto(self):
         tuple_proto = _pb2.TupleIR()

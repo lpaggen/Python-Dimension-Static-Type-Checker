@@ -1,14 +1,15 @@
 from .ir_node import IRNode
 from common.span import SourceSpan
 from generated import _pb2
+from .expr_ir import ExprIR
 
 
-class SliceIR(IRNode):
+class SliceIR(ExprIR):
     def __init__(self, lower: IRNode, upper: IRNode, step: IRNode, span: SourceSpan):
-        super().__init__(span=span)
+        super().__init__(span=span, value=None)
         self.lower = lower
         self.upper = upper
-        self.step = span
+        self.step = step
         self.span = span
 
     def to_proto(self):

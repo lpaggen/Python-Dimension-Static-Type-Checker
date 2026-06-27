@@ -5,7 +5,7 @@ from generated import _pb2
 
 class SubscriptIR(ExprIR):
     def __init__(self, target: ExprIR, subscript: ExprIR, span: SourceSpan):
-        super().__init__(span)
+        super().__init__(span=span, value=None)
         self.target = target
         self.subscript = subscript
         self.span = span

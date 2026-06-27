@@ -3,20 +3,21 @@ from .annotation_ir import AnnotationIR
 from .identified_ir_node import IdentifiedIRNode
 from .ir_node import IRNode
 from generated import _pb2
+from .decl_ir import DeclIR
 
 
-class BindingIR(IdentifiedIRNode):
+class BindingIR(DeclIR):
     def __init__(
         self,
         id: str,
         target_id: int,
         annotation: AnnotationIR,
-        kind: str,
+        kind: int,
         value: IRNode,
         scope_id: int,
         span: SourceSpan,
     ):
-        super().__init__(id=id, span=span)
+        super().__init__(span=span)
         self.id = id
         self.target_id = target_id
         self.annotation = annotation
@@ -42,6 +43,6 @@ class BindingIR(IdentifiedIRNode):
         if self.span is not None:
             proto.span.CopyFrom(self.span.to_proto())
 
-        stmt = _pb2.StmtIR()
+        stmt = _pb2.DeclIR()
         stmt.binding.CopyFrom(proto)
         return stmt

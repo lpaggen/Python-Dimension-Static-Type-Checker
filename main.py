@@ -18,6 +18,12 @@ def parse_args() -> argparse.Namespace:
         default=["examples"],
         help="Python files or directories to analyze",
     )
+    parser.add_argument(
+    "-o",
+    "--output",
+    default="ir_out",
+    help="Output directory for generated IR files",
+    )
     return parser.parse_args()
 
 
@@ -42,8 +48,15 @@ def main() -> None:
     args = parse_args()
     start = time.time()
 
+    output_dir = Path(args.output)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     for path in iter_python_files(args.paths):
-        build_file(path)
+        ir = build_file(path)
+        output_file = output_dir / f"{path.stem}.pb"
+
+        with open(output_file, "wb") as f:
+            f.write(ir.to_proto().SerializeToString())
 
     print(f"Successfully generated IR in: {time.time() - start:.4f} seconds")
 

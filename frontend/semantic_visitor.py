@@ -4,7 +4,7 @@ from ir.import_ir import ImportIR
 from ir.program_ir import ProgramIR
 from common.span import SourceSpan
 from ir.annotation_ir import AnnotationIR, AnnotationHeadIR
-from ir.function_ir import ParamIR
+from ir.function_ir import ParamIR, ReturnIR
 from ir.identifier_ir import IdentifierIR
 from ir.attributeexpr_ir import AttributeExprIR
 from common.operators import Operator
@@ -16,7 +16,6 @@ from ir.none_ir import NoneIR
 from ir.slice_ir import SliceIR
 from ir.whileloop_ir import WhileLoopIR
 from ir.bool_ir import BooleanIR
-from ir.return_ir import ReturnIR
 from ir.exprstmt_ir import ExprStmtIR
 from ir.boolop_ir import BoolOpIR
 from ir.if_ir import IfIR
@@ -64,7 +63,7 @@ class SemanticBuilder(ast.NodeVisitor):
 
             symbol_id = self.builder.declare_symbol(
                 name=bound_name,
-                kind=ImportKind.MODULE_ALIAS,
+                kind=ImportKind.IMPORT_MODULE_ALIAS,
                 scope_id=self.current_scope(),
                 span=SourceSpan.span(node, self.file_path),
             )
@@ -72,7 +71,7 @@ class SemanticBuilder(ast.NodeVisitor):
             self.builder.add_import(
                 local_symbol_id=symbol_id,
                 scope_id=self.current_scope(),
-                kind=ImportKind.MODULE,
+                kind=ImportKind.IMPORT_MODULE,
                 module_name=module_name,
                 imported_name=None,
                 alias=alias.asname,
@@ -89,7 +88,7 @@ class SemanticBuilder(ast.NodeVisitor):
 
             symbol_id = self.builder.declare_symbol(
                 name=bound_name,
-                kind=ImportKind.MODULE_ALIAS,
+                kind=ImportKind.IMPORT_FROM,
                 scope_id=self.current_scope(),
                 span=SourceSpan.span(node, self.file_path),
             )
@@ -97,7 +96,7 @@ class SemanticBuilder(ast.NodeVisitor):
             self.builder.add_import(
                 local_symbol_id=symbol_id,
                 scope_id=self.current_scope(),
-                kind=ImportKind.FROM,
+                kind=ImportKind.IMPORT_FROM,
                 module_name=module_name,
                 imported_name=imported_name,
                 alias=alias.asname,
@@ -110,14 +109,14 @@ class SemanticBuilder(ast.NodeVisitor):
 
         fn_symbol_id = self.builder.declare_symbol(
             name=node.name,
-            kind=ScopeKind.FUNCTION,
+            kind=SymbolKind.SYMBOL_FUNCTION,
             scope_id=parent_scope,
             span=SourceSpan.span(node, self.file_path),
         )
 
         body_scope_id = self.builder.new_scope(
             name=node.name,
-            kind=ScopeKind.FUNCTION,
+            kind=ScopeKind.SCOPE_FUNCTION,
             parent_id=parent_scope,
             span=SourceSpan.span(node, self.file_path),
         )
@@ -129,7 +128,7 @@ class SemanticBuilder(ast.NodeVisitor):
         for arg in node.args.args:
             param_symbol_id = self.builder.declare_symbol(
                 name=arg.arg,
-                kind=SymbolKind.PARAM,
+                kind=SymbolKind.SYMBOL_PARAM,
                 scope_id=self.current_scope(),
                 span=SourceSpan.span(arg, self.file_path),
             )
@@ -169,14 +168,14 @@ class SemanticBuilder(ast.NodeVisitor):
 
         class_symbol_id = self.builder.declare_symbol(
             name=node.name,
-            kind=ScopeKind.CLASS,
+            kind=ScopeKind.SCOPE_CLASS,
             scope_id=parent_scope,
             span=SourceSpan.span(node, self.file_path),
         )
 
         class_scope_id = self.builder.new_scope(
             name=node.name,
-            kind=ScopeKind.CLASS,
+            kind=ScopeKind.SCOPE_CLASS,
             parent_id=parent_scope,
             span=SourceSpan.span(node, self.file_path),
         )
@@ -208,7 +207,7 @@ class SemanticBuilder(ast.NodeVisitor):
         self.lower_assignment(
             target=node.target, 
             value=node.value, 
-            kind=BindingKind.ANNASSIGN, 
+            kind=BindingKind.BINDING_ANNASSIGN, 
             annotation=annotation_ir, 
             span=SourceSpan.span(
                 node=node, file_path=self.file_path
@@ -219,7 +218,7 @@ class SemanticBuilder(ast.NodeVisitor):
         parent_scope = self.current_scope()
         loop_scope_id = self.builder.new_scope(
             name="<while>", 
-            kind=ScopeKind.BLOCK, 
+            kind=ScopeKind.SCOPE_BLOCK, 
             parent_id=parent_scope, 
             span=SourceSpan.span(
                 node,
@@ -258,7 +257,7 @@ class SemanticBuilder(ast.NodeVisitor):
         parent_scope = self.current_scope()
         loop_scope_id = self.builder.new_scope(
             name="<for>", 
-            kind=ScopeKind.BLOCK, 
+            kind=ScopeKind.SCOPE_BLOCK, 
             parent_id=parent_scope, 
             span=SourceSpan.span(
                 node, self.file_path
@@ -311,7 +310,7 @@ class SemanticBuilder(ast.NodeVisitor):
 
         then_scope_id = self.builder.new_scope(
             name="<if>", 
-            kind=ScopeKind.BLOCK, 
+            kind=ScopeKind.SCOPE_BLOCK, 
             parent_id=parent_scope, 
             span=SourceSpan.span(
                 node, self.file_path
@@ -319,7 +318,7 @@ class SemanticBuilder(ast.NodeVisitor):
         )
         else_scope_id = self.builder.new_scope(
             name="<else>", 
-            kind=ScopeKind.BLOCK, 
+            kind=ScopeKind.SCOPE_BLOCK, 
             parent_id=parent_scope, 
             span=SourceSpan.span(
                 node, 
@@ -349,31 +348,23 @@ class SemanticBuilder(ast.NodeVisitor):
 
     def lower_annotation(self, annotation: ast.AST):
         if isinstance(annotation, ast.Name):  # simple types, int float str etc.
-            match annotation.id:
-                case "int":
-                    return AnnotationIR(
-                        head="int",
-                        args=[]
-                    )
-                case "float":
-                    return AnnotationIR(
-                        head="float",
-                        args=[]
-                    )
-                case _:
-                    self.builder.add_diagnostic(f"Warning unknown return type {annotation.id} at {SourceSpan.span(annotation)}")
-                    return AnnotationIR(
-                        head=annotation.id,
-                        args=[]
-                    )   
+            return AnnotationIR(
+                head=AnnotationHeadIR(
+                    root=annotation.id,
+                    attrs=[],
+                    scope_id=self.current_scope(),
+                    span=SourceSpan.span(annotation, self.file_path),
+                ),
+                args=[],
+            )
 
         if isinstance(annotation, ast.Subscript):  # complex types, torch.Tensor, np.ndarray, torch.Tensor[2, 3] ...
             head=self.lower_annotation_head(annotation.value)
             if isinstance(annotation.slice, ast.Name):
                 return AnnotationIR(
-                head=head,
-                args=[annotation.slice.id]
-            )
+                    head=head,
+                    args=[self.parse_expr(annotation.slice)]
+                )
             if isinstance(annotation.slice, ast.Tuple):
                 return AnnotationIR(
                 head=head,
@@ -414,7 +405,7 @@ class SemanticBuilder(ast.NodeVisitor):
         self.lower_assignment(
             target=node.targets[0],
             value=node.value,  # !! self.parse_value called downstream
-            kind=BindingKind.ASSIGN, 
+            kind=BindingKind.BINDING_ASSIGN, 
             annotation=None, 
             span=SourceSpan.span(
                 node=node, 
@@ -425,7 +416,7 @@ class SemanticBuilder(ast.NodeVisitor):
         if isinstance(target, ast.Name):  # x = 5
             symbol_id = self.builder.declare_symbol(
                 name=target.id, 
-                kind=SymbolKind.UNKNOWN, 
+                kind=SymbolKind.SYMBOL_UNKNOWN, 
                 scope_id=self.current_scope(), 
                 span=span
             )
@@ -522,7 +513,7 @@ class SemanticBuilder(ast.NodeVisitor):
 
         if isinstance(node, ast.UnaryOp):
             return UnaryOpIR(
-                op=Operator.unaryop_tostr(node.op),
+                op=Operator.unaryop_to_operator(node.op),
                 operand=self.parse_expr(node.operand),
                 span=SourceSpan.span(node, self.file_path),
             )
@@ -530,7 +521,7 @@ class SemanticBuilder(ast.NodeVisitor):
         if isinstance(node, ast.Compare):
             return CompareIR(
                 left=self.parse_expr(node.left),
-                ops=[Operator.cmpop_tostr(op) for op in node.ops],
+                ops=[Operator.cmpop_to_operator(op) for op in node.ops],
                 comparators=[self.parse_expr(c) for c in node.comparators],
                 span=SourceSpan.span(node, self.file_path),
             )
@@ -543,7 +534,7 @@ class SemanticBuilder(ast.NodeVisitor):
 
         if isinstance(node, ast.BoolOp):
             return BoolOpIR(
-                op=Operator.boolop_tostr(node.op),
+                op=Operator.boolop_to_operator(node.op),
                 values=[self.parse_expr(v) for v in node.values],
                 span=SourceSpan.span(node, self.file_path),
             )
@@ -552,7 +543,7 @@ class SemanticBuilder(ast.NodeVisitor):
             return BinOpIR(
                 left=self.parse_expr(node.left),
                 right=self.parse_expr(node.right),
-                op=Operator.binop_tostr(node.op),
+                op=Operator.binop_to_operator(node.op),
                 span=SourceSpan.span(node=node, file_path=self.file_path)
             )
 

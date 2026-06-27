@@ -32,6 +32,6 @@ class ProgramIR:
         proto.scopes.extend([s.to_proto() for s in self.scopes])
         proto.symbols.extend([s.to_proto() for s in self.symbols])
         proto.imports.extend([i.to_proto() for i in self.imports])
-        proto.stmts.extend([stmt.to_proto() for stmt in self.stmts])
+        proto.decls.extend([stmt.to_proto() for stmt in self.decls])
 
         return proto

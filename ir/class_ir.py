@@ -3,9 +3,10 @@ from .identified_ir_node import IdentifiedIRNode
 from generated import _pb2
 from .stmt_ir import StmtIR
 from .expr_ir import ExprIR
+from .decl_ir import DeclIR
 
 
-class ClassIR(IdentifiedIRNode):
+class ClassIR(DeclIR):
     def __init__(
         self,
         id: int,
@@ -18,7 +19,7 @@ class ClassIR(IdentifiedIRNode):
         decorators: list,
         span: SourceSpan,
     ):
-        super().__init__(id=id, span=span)
+        super().__init__(span=span)
         self.id = id
         self.symbol_id = symbol_id
         self.name = name
@@ -45,6 +46,6 @@ class ClassIR(IdentifiedIRNode):
         if self.span is not None:
             proto.span.CopyFrom(self.span.to_proto())
 
-        stmt = _pb2.StmtIR()
+        stmt = _pb2.DeclIR()
         stmt.class_decl.CopyFrom(proto)
         return stmt

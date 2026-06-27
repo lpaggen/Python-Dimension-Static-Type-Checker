@@ -71,6 +71,7 @@ enum ImportKind {
   IMPORT_UNKNOWN = 0;
   IMPORT_MODULE = 1;
   IMPORT_FROM = 2;
+  IMPORT_MODULE_ALIAS = 3;
 }
 
 message DeclIR {
@@ -315,7 +316,7 @@ message SliceIR {
 
 message AnnotationIR {
   AnnotationHeadIR head = 1;
-  repeated DimIR args = 2;
+  repeated ExprIR args = 2;
   optional SourceSpan span = 3;
 }
 

@@ -1,28 +1,31 @@
-from enum import Enum
+from enum import IntEnum
 
 
-class ScopeKind(Enum):
-    MODULE = "MODULE"
-    FUNCTION = "FUNCTION"
-    CLASS = "CLASS"
-    BLOCK = "BLOCK"
+class ScopeKind(IntEnum):
+    SCOPE_UNKNOWN = 0
+    SCOPE_MODULE = 1
+    SCOPE_FUNCTION = 2
+    SCOPE_CLASS = 3
+    SCOPE_BLOCK = 4
 
 
-class SymbolKind(Enum):
-    UNKNOWN = "UNKNOWN"
-    MODULE_ALIAS = "MODULE_ALIAS"
-    VARIABLE = "VARIABLE"
-    FUNCTION = "FUNCTION"
-    CLASS = "CLASS"
-    PARAM = "PARAM"
+class SymbolKind(IntEnum):
+    SYMBOL_UNKNOWN = 0
+    SYMBOL_MODULE_ALIAS = 1
+    SYMBOL_VARIABLE = 2
+    SYMBOL_FUNCTION = 3
+    SYMBOL_CLASS = 4
+    SYMBOL_PARAM = 5
 
 
-class BindingKind(Enum):
-    ASSIGN = "ASSIGN"
-    ANNASSIGN = "ANNASSIGN"
+class BindingKind(IntEnum):
+    BINDING_UNKNOWN = 0
+    BINDING_ASSIGN = 1
+    BINDING_ANNASSIGN = 2
 
 
-class ImportKind(Enum):
-    MODULE = "MODULE"
-    FROM = "FROM"
-    MODULE_ALIAS = "MODULE_ALIAS"
+class ImportKind(IntEnum):
+    IMPORT_UNKNOWN = 0
+    IMPORT_MODULE = 1
+    IMPORT_FROM = 2
+    IMPORT_MODULE_ALIAS = 3

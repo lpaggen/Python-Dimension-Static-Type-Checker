@@ -11,6 +11,8 @@ from ir.function_ir import FunctionIR
 from ir.class_ir import ClassIR
 from ir.annotation_ir import AnnotationIR
 
+from common.kind import SymbolKind, ImportKind, BindingKind, ScopeKind
+
 
 class IRBuilder:
     def __init__(self, file_path: str, module_name: str) -> None:
@@ -28,8 +30,11 @@ class IRBuilder:
         self.next_decl_id = 0
         self.next_import_id = 0
 
-        self.global_scope_id = self.scopes.append(
-            self.new_scope(name="<module>", kind="MODULE", parent_id=None, span=None)
+        self.global_scope_id = self.new_scope(
+            name="<module>",
+            kind=ScopeKind.SCOPE_MODULE,
+            parent_id=None,
+            span=None,
         )
 
     def new_scope(self, name, kind, parent_id, span) -> int:
@@ -159,6 +164,7 @@ class IRBuilder:
         span: SourceSpan,
     ):
         decl_id = self.next_decl_id
+        self.next_decl_id += 1
         self.decls.append(
             BindingIR(
                 id=decl_id,

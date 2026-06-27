@@ -3,6 +3,9 @@ from .annotation_ir import AnnotationIR
 from .ir_node import IRNode
 from .identified_ir_node import IdentifiedIRNode
 from generated import _pb2
+from .expr_ir import ExprIR
+from .stmt_ir import StmtIR
+from .decl_ir import DeclIR
 
 
 class ParamIR(IRNode):
@@ -37,8 +40,27 @@ class ParamIR(IRNode):
 
         return proto
 
+class ReturnIR(StmtIR):
+    def __init__(self, value: ExprIR, span: SourceSpan):
+        super().__init__(span=span)
+        self.span = span
+        self.value = value
 
-class FunctionIR(IdentifiedIRNode):
+    def to_proto(self):
+        proto = _pb2.ReturnIR()
+
+        if self.value is not None:
+            proto.value.CopyFrom(self.value.to_proto())
+
+        if self.span is not None:
+            proto.span.CopyFrom(self.span.to_proto())
+
+        stmt = _pb2.StmtIR()
+        stmt.return_stmt.CopyFrom(proto)
+        return stmt
+
+
+class FunctionIR(DeclIR):
     def __init__(
         self,
         id: int,  # symbol id -> name of function
@@ -52,7 +74,7 @@ class FunctionIR(IdentifiedIRNode):
         decorators,
         span: SourceSpan,
     ):
-        super().__init__(id=id, span=span)
+        super().__init__(span=span)
         self.id = id
         self.symbol_id = symbol_id
         self.name = name
@@ -83,6 +105,6 @@ class FunctionIR(IdentifiedIRNode):
         if self.span is not None:
             proto.span.CopyFrom(self.span.to_proto())
 
-        stmt = _pb2.StmtIR()
+        stmt = _pb2.DeclIR()
         stmt.function.CopyFrom(proto)
         return stmt

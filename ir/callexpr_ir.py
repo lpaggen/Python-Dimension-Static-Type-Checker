@@ -3,12 +3,12 @@ from common.span import SourceSpan
 from generated import _pb2
 
 
-class KeywordArgIR:
+class KeywordArgIR(ExprIR):
     def __init__(self, name: str, value: ExprIR, span: SourceSpan = None):
         super().__init__(span=span, value=value)
-        name = name
-        value = value
-        span = span
+        self.name = name
+        self.value = value
+        self.span = span
 
     def to_proto(self):
         proto = _pb2.KeywordArgIR(

@@ -1,10 +1,10 @@
 from common.span import SourceSpan
 from typing import Union
-from .identified_ir_node import IdentifiedIRNode
 from generated import _pb2
+from .stmt_ir import StmtIR
 
 
-class ImportIR(IdentifiedIRNode):
+class ImportIR(StmtIR):
     def __init__(
         self,
         id: int,
@@ -17,7 +17,7 @@ class ImportIR(IdentifiedIRNode):
         relative_level: int,
         span: Union[SourceSpan, None],
     ):
-        super().__init__(id=id, span=span)
+        super().__init__(span=span)
         self.id = id
         self.local_symbol_id = local_symbol_id
         self.scope_id = scope_id

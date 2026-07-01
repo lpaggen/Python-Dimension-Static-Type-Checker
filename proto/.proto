@@ -91,6 +91,7 @@ message StmtIR {
     IfIR if_stmt = 5;
     ForLoopIR for_loop = 6;
     WhileLoopIR while_loop = 7;
+    ImportIR import_stmt = 8;
   }
 }
 

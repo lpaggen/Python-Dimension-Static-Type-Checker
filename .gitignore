@@ -2,3 +2,8 @@
 .pyc
 .ipynb
 
+
+
+# Added by cargo
+
+/target

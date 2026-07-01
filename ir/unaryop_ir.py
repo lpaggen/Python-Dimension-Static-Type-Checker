@@ -6,10 +6,10 @@ from generated import _pb2
 
 
 class UnaryOpIR(ExprIR):
-    def __init__(self, op: Operator, value: ExprIR, span: SourceSpan):
-        super().__init__(span=span)
+    def __init__(self, op: Operator, operand: ExprIR, span: SourceSpan):
+        super().__init__(span=span, value=operand)
         self.span = span
-        self.value = value
+        self.operand = operand
         self.op = op
 
     def to_proto(self):

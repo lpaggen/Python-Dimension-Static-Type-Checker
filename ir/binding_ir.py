@@ -1,6 +1,5 @@
 from common.span import SourceSpan
 from .annotation_ir import AnnotationIR
-from .identified_ir_node import IdentifiedIRNode
 from .ir_node import IRNode
 from generated import _pb2
 from .decl_ir import DeclIR

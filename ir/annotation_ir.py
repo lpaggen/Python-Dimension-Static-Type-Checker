@@ -25,7 +25,6 @@ class AnnotationHeadIR(IRNode):
         return proto
 
 
-
 class AnnotationIR(IRNode):
     def __init__(self, head: AnnotationHeadIR, args: List[ExprIR, ExprIR]):
         self.head = head

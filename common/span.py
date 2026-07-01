@@ -15,7 +15,7 @@ class SourceSpan:
     @staticmethod
     def span(node: ast.AST, file_path: str) -> "SourceSpan":
         return SourceSpan(
-            file=file_path,
+            file=str(file_path),
             line=getattr(node, "lineno", 0),
             col=getattr(node, "col_offset", 0),
             end_line=getattr(node, "end_lineno", None),

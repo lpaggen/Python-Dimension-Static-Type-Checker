@@ -1,9 +1,11 @@
 from common.span import SourceSpan
 from generated import _pb2
+from .expr_ir import ExprIR
 
 
-class IdentifierIR:
+class IdentifierIR(ExprIR):
     def __init__(self, name: str, use_scope_id: int, span: SourceSpan):
+        super().__init__(value=name, span=span)
         self.name = name
         self.use_scope_id = use_scope_id
         self.span = span

@@ -1,5 +1,4 @@
 from common.span import SourceSpan
-from .identified_ir_node import IdentifiedIRNode
 from .ir_node import IRNode
 from typing import List
 from generated import _pb2
@@ -14,7 +13,7 @@ class ForLoopIR(IRNode):
         body_scope_id: int,
         body: List[IRNode],
         orelse: List[IRNode],
-        span=None,
+        span: SourceSpan=None,
     ):
         super().__init__(span)
         self.target = target

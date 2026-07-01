@@ -10,7 +10,7 @@ class CompareIR(ExprIR):
     def __init__(
         self, left: ExprIR, ops: list[Operator], comparators: list[ExprIR], span: SourceSpan
     ):
-        super().__init__(span=span)
+        super().__init__(span=span, value=None)
         self.left = left
         self.ops = ops
         self.comparators = comparators

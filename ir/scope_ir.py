@@ -1,11 +1,11 @@
 from common.span import SourceSpan
-from ir.identified_ir_node import IdentifiedIRNode
+from .ir_node import IRNode
 from generated import _pb2
 
 
-class ScopeIR(IdentifiedIRNode):
+class ScopeIR(IRNode):
     def __init__(self, id: int, name: str, kind: str, parent_id: int, span: SourceSpan):
-        super().__init__(id=id, span=span)
+        super().__init__(span=span)
         self.id = id
         self.name = name
         self.kind = kind

@@ -17,12 +17,12 @@ class IfIR(StmtIR):
         span: SourceSpan,
     ):
         super().__init__(span=span)
-        test = (test,)
-        scope_id = (scope_id,)
-        then_scope_id = (then_scope_id,)
-        else_scope_id = (else_scope_id,)
-        body = (body,)
-        orelse = (orelse,)
+        self.test = test
+        self.scope_id = scope_id
+        self.then_scope_id = then_scope_id
+        self.else_scope_id = else_scope_id
+        self.body = body
+        self.orelse = orelse
 
     def to_proto(self):
         proto = _pb2.IfIR(

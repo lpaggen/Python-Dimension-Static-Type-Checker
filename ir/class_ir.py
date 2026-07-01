@@ -1,5 +1,4 @@
 from common.span import SourceSpan
-from .identified_ir_node import IdentifiedIRNode
 from generated import _pb2
 from .stmt_ir import StmtIR
 from .expr_ir import ExprIR

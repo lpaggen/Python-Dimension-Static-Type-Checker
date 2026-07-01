@@ -431,7 +431,7 @@ class SemanticBuilder(ast.NodeVisitor):
                 value=value_ir,
                 span=SourceSpan.span(
                     node=target, 
-                    file_path=self.file_path
+                    file_path=span
                 ),
             )
 
@@ -439,14 +439,14 @@ class SemanticBuilder(ast.NodeVisitor):
             if not isinstance(value, ast.Tuple):
                 self.builder.add_diagnostic(
                     msg="Cannot unpack data where RHS is not a tuple yet.",
-                    span=self.span,
+                    span=span,
                 )
                 return
 
             if len(target.elts) != len(value.elts):
                 self.builder.add_diagnostic(
                     msg=f"Size of LHS ({len(target.elts)}) and RHS ({len(value.elts)}) do not match.",
-                    span=self.span,
+                    span=span,
                 )
                 return
 
@@ -565,6 +565,12 @@ class SemanticBuilder(ast.NodeVisitor):
                 lower=self.parse_expr(node.lower) if node.lower else None,
                 upper=self.parse_expr(node.upper) if node.upper else None,
                 step=self.parse_expr(node.step) if node.step else None,
+                span=SourceSpan.span(node, self.file_path),
+            )
+
+        if isinstance(node, ast.JoinedStr):
+            return StringIR(
+                value="",  # placeholder for ignored f-string content
                 span=SourceSpan.span(node, self.file_path),
             )
 

@@ -1,11 +1,11 @@
-from .ir_node import IRNode
 from common.span import SourceSpan
 from common.operators import Operator
 from generated import _pb2
+from .expr_ir import ExprIR
 
 
-class BinOpIR(IRNode):
-    def __init__(self, left: IRNode, right: IRNode, op: Operator, span=None):
+class BinOpIR(ExprIR):
+    def __init__(self, left: ExprIR, right: ExprIR, op: Operator, span: SourceSpan=None):
         super().__init__(span=span)
         self.op = op
         self.left = left

@@ -93,7 +93,7 @@ pub mod decl_ir {
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct StmtIr {
-    #[prost(oneof = "stmt_ir::Kind", tags = "1, 2, 3, 4, 5, 6, 7")]
+    #[prost(oneof = "stmt_ir::Kind", tags = "1, 2, 3, 4, 5, 6, 7, 8")]
     pub kind: ::core::option::Option<stmt_ir::Kind>,
 }
 /// Nested message and enum types in `StmtIR`.
@@ -114,6 +114,8 @@ pub mod stmt_ir {
         ForLoop(super::ForLoopIr),
         #[prost(message, tag = "7")]
         WhileLoop(super::WhileLoopIr),
+        #[prost(message, tag = "8")]
+        ImportStmt(super::ImportIr),
     }
 }
 #[derive(Clone, PartialEq, ::prost::Message)]

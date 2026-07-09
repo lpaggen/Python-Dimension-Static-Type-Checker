@@ -1,4 +1,4 @@
-use crate::ir::{AnnotationIR, ExprIR, SourceSpan};
+use crate::ir::nodes::{AnnotationIR, ExprIR, SourceSpan};
 
 #[derive(Debug, Clone)]
 pub struct BindingIR {

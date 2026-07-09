@@ -1,4 +1,4 @@
-use crate::ir::{BindingIR, ClassIR, FunctionIR, SourceSpan};
+use crate::ir::nodes::{BindingIR, ClassIR, FunctionIR, SourceSpan};
 
 #[derive(Debug, Clone)]
 pub enum DeclIR {

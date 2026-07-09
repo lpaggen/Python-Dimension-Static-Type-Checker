@@ -1,4 +1,4 @@
-use crate::ir::{DeclIR, ImportIR, ScopeIR, SymbolIR};
+use crate::ir::nodes::{DeclIR, ImportIR, ScopeIR, SymbolIR};
 
 #[derive(Debug, Clone)]
 pub struct ProgramIR {

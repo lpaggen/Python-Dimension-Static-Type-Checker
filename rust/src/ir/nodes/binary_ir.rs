@@ -1,11 +1,9 @@
-use crate::ir::expr_ir::ExprIR;
-use crate::ir::operator::Operator;
-use crate::ir::span_ir::SourceSpan;
+use crate::ir::nodes::expr_ir::{ExprIR, Operator, SourceSpan};
 
 #[derive(Debug, Clone)]
 pub struct BinOpIR {
     pub left: Box<ExprIR>,
-    pub op: BinaryOperatorIR,
+    pub op: Operator,
     pub right: Box<ExprIR>,
     pub span: SourceSpan,
 }

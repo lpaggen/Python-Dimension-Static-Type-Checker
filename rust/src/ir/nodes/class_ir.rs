@@ -1,4 +1,4 @@
-use crate::ir::{ExprIR, SourceSpan, StmtIR};
+use crate::ir::nodes::{ExprIR, SourceSpan, StmtIR};
 
 #[derive(Debug, Clone)]
 pub struct ClassIR {

@@ -1,4 +1,4 @@
-use crate::ir::{
+use crate::ir::nodes::{
     AugAssignIR, DeclIR, ExprStmtIR, ForLoopIR, IfIR, ImportIR, ReturnIR, SourceSpan, WhileLoopIR,
 };
 

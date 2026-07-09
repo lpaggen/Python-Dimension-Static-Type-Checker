@@ -1,4 +1,4 @@
-use crate::ir::{ExprIR, Operator, SourceSpan};
+use crate::ir::nodes::{ExprIR, Operator, SourceSpan};
 
 #[derive(Debug, Clone)]
 pub struct UnaryOpIR {

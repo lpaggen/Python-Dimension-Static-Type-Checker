@@ -1,4 +1,4 @@
-use crate::ir::SourceSpan;
+use crate::ir::nodes::SourceSpan;
 
 #[derive(Debug, Clone)]
 pub struct ScopeIR {

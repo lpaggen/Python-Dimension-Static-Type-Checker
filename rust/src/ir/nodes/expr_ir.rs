@@ -1,6 +1,6 @@
-use crate::ir::{
-    AttributeExprIR, BinOpIR, BoolOpIR, BooleanIR, CallExprIR, CompareIR, FloatIR, IdentifierIR,
-    IntegerIR, ListIR, NoneIR, SliceIR, SourceSpan, StringIR, SubscriptIR, TupleIR, UnaryOpIR,
+use crate::ir::nodes::{
+    AttributeExprIR, BinOpIR, BoolIR, CallExprIR, CompareIR, FloatIR, IdentifierIR, IntegerIR,
+    ListIR, NoneIR, SliceIR, SourceSpan, StringIR, SubscriptIR, TupleIR, UnaryOpIR,
 };
 
 #[derive(Debug, Clone)]
@@ -8,7 +8,7 @@ pub enum ExprIR {
     Identifier(IdentifierIR),
     Integer(IntegerIR),
     Float(FloatIR),
-    Boolean(BooleanIR),
+    Boolean(BoolIR),
     String(StringIR),
     NoneLit(NoneIR),
 
@@ -19,7 +19,6 @@ pub enum ExprIR {
     AttributeExpr(AttributeExprIR),
 
     BinOp(BinOpIR),
-    BoolOp(BoolOpIR),
     UnaryOp(UnaryOpIR),
     Compare(CompareIR),
     CallExpr(CallExprIR),
@@ -42,7 +41,6 @@ impl ExprIR {
             Self::AttributeExpr(node) => node.span,
 
             Self::BinOp(node) => node.span,
-            Self::BoolOp(node) => node.span,
             Self::UnaryOp(node) => node.span,
             Self::Compare(node) => node.span,
             Self::CallExpr(node) => node.span,

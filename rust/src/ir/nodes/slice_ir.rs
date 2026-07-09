@@ -1,4 +1,4 @@
-use crate::ir::{ExprIR, SourceSpan};
+use crate::ir::nodes::{ExprIR, SourceSpan};
 
 #[derive(Debug, Clone)]
 pub struct SliceIR {

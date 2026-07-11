@@ -1,7 +1,9 @@
-use prost::Message;
+use crate::ir::nodes::program_ir::ProgramIR;
+use crate::linker::importgraph::ImportGraph;
+use crate::pb_decoder::pbdecoder::PBDecoder;
 
 mod linker;
-use linker::pbdecoder::PBDecoder;
+mod pb_decoder;
 
 mod ir;
 
@@ -28,18 +30,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // for node in &program.imports {
     //     println!("{}", node.module_name);
     // }
-    let decoder = PBDecoder::new("../ir_out/");
+    let decoder: PBDecoder = PBDecoder::new("../ir_out/");
 
-    let programs = decoder.decode_dir()?;
+    let programs: Vec<ProgramIR> = decoder.decode_dir()?;
 
     println!("decoded {} programs", programs.len());
 
-    for program in &programs {
-        println!("module: {}", program.module_name);
-        println!("file: {}", program.file_path);
-        println!("decls: {}", program.decls.len());
-        println!("imports: {}", program.imports.len());
-    }
+    // for program in &programs {
+    //     println!("module: {}", program.module_name);
+    //     println!("file: {}", program.file_path);
+    //     println!("decls: {}", program.decls.len());
+    //     println!("imports: {}", program.imports.len());
+    // }
+
+    let mut graph = ImportGraph::new();
+    graph.build_import_graph(&programs);
+
+    println!("{:?}", graph.imports_of("example/ex1.py"));
 
     Ok(())
 

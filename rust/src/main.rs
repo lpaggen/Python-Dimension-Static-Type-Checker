@@ -46,7 +46,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut graph = ImportGraph::new();
     graph.build_import_graph(&programs);
 
-    println!("{:?}", graph.imports_of("example/ex1.py"));
+    match graph.imports_of("example/ex1.py") {
+        Some(imports) => {
+            for imported in imports {
+                println!("f1 imports {imported}");
+            }
+        }
+        None => {
+            println!("f1 has no recorded imports");
+        }
+    }
 
     Ok(())
 

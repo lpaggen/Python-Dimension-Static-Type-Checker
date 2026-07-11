@@ -1,28 +1,44 @@
-use std::collections::{HashMap};
-use crate::ir::nodes::{ProgramIR, import_ir::ImportIR};
+use std::collections::{HashMap, HashSet};
 
-pub struct ImportGraph<'programs> {
-    pub outgoing: HashMap<&'programs str, Vec<&'programs ImportIR>>,
+use crate::ir::nodes::ProgramIR;
+
+pub struct ImportGraph {
+    pub outgoing: HashMap<String, HashSet<String>>,
 }
 
-impl<'programs> ImportGraph<'programs> {
-    pub fn new() -> Self {Self {outgoing: HashMap::new()}}
+// TODO fix, this isn't ready for use in final pipeline yet
+impl ImportGraph {
+    pub fn new() -> Self {
+        Self {
+            outgoing: HashMap::new(),
+        }
+    }
 
-    pub fn add_import(&mut self, importer: &'programs str, imported: &'programs ImportIR) {
+    pub fn add_import(&mut self, importer: &str, imported: &str) {
         self.outgoing
-            .entry(importer)
+            .entry(importer.to_owned())
             .or_default()
-            .push(imported);
+            .insert(imported.to_owned());
     }
 
-    pub fn imports_of(&self, module: &str) -> Option<&[&'programs ImportIR]> {
-        return self.outgoing.get(module).map(Vec::as_slice);
+    pub fn imports_of(&self, module: &str) -> Option<&HashSet<String>> {
+        self.outgoing.get(module)
     }
 
-    pub fn build_import_graph(&mut self, programs: &'programs [ProgramIR]) {
+    pub fn build_import_graph(&mut self, programs: &[ProgramIR]) {
         for program in programs {
             for import in &program.imports {
-                self.add_import(&program.module_name.as_str(), import);
+                let import_name = if import.alias.is_some() { import.alias.as_deref() } else { import.imported_name.as_deref() };
+
+                match import_name {
+                    Some(import_name) => {
+                        self.add_import(
+                            program.module_name.as_str(),
+                            import_name,
+                        );
+                    }
+                    None => {}
+                }
             }
         }
     }

@@ -68,28 +68,55 @@ out -> DeclarationError: tensor A was declared with shape(rows=1, cols=4), but e
 4. The program informs the user whether they made any dimension errors or not
 
 ```mermaid
-flowchart LR
+%%{init: {"flowchart": {"curve": "stepAfter", "nodeSpacing": 40, "rankSpacing": 55}}}%%
+flowchart TB
     A["Python Source Code"]
-        --> B["Python AST"]
+    B["Python AST"]
+    C["Python IR Builder"]
+    D["Python IR Objects"]
 
-    B --> C["Semantic IR"]
+    E["Protobuf Messages"]
+    F["Serialized .pb Files"]
 
-    C --> D["Z3 Constraint Layer"]
+    G["Prost-Generated Rust Types"]
+    H["Rust PBDecoder"]
+    I["Rust Semantic IR"]
 
-    D --> E{"SAT ?"}
+    J["Z3 Constraint Layer"]
+    K{"SAT?"}
+    L["Valid Program State"]
+    M["Invalid Path / Error"]
 
-    E -->|SAT| F["Runtime / Valid State"]
+    A --> B
+    B --> C
+    C --> D
+    D -->|"Serialize"| E
+    E --> F
+    F -->|"Deserialize"| G
+    G --> H
+    H --> I
+    I --> J
+    J --> K
+    K -->|SAT| L
+    K -->|UNSAT| M
 
-    E -->|UNSAT| G["Invalid Path"]
+    classDef source fill:#2d3436,color:#fff,stroke:#636e72
+    classDef python fill:#6c5ce7,color:#fff,stroke:#4834d4
+    classDef proto fill:#e17055,color:#fff,stroke:#c05640
+    classDef rust fill:#00b894,color:#fff,stroke:#019875
+    classDef solver fill:#0984e3,color:#fff,stroke:#0767b1
+    classDef decision fill:#b2bec3,color:#2d3436,stroke:#636e72
+    classDef valid fill:#00cec9,color:#fff,stroke:#00a8a8
+    classDef invalid fill:#d63031,color:#fff,stroke:#a61e1e
 
-    %% Styling
-    style A fill:#2d3436,color:#fff,stroke:#636e72
-    style B fill:#6c5ce7,color:#fff,stroke:#4834d4
-    style C fill:#00b894,color:#fff,stroke:#019875
-    style D fill:#0984e3,color:#fff,stroke:#0767b1
-    style E fill:#b2bec3,color:#2d3436,stroke:#636e72
-    style F fill:#00cec9,color:#fff,stroke:#00a8a8
-    style G fill:#d63031,color:#fff,stroke:#a61e1e
+    class A source
+    class B,C,D python
+    class E,F proto
+    class G,H,I rust
+    class J solver
+    class K decision
+    class L valid
+    class M invalid
 ```
 
 # How to use

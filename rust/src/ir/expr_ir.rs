@@ -6,7 +6,7 @@ pub enum ExprIR {
     Identifier(IdentifierIR),
     Integer(IntegerIR),
     Float(FloatIR),
-    Bool(BoolIR),
+    Bool(BooleanIR),
     String(StringIR),
     None(NoneIR),
 
@@ -23,14 +23,14 @@ pub enum ExprIR {
     CallExpr(CallExprIR),
 }
 
-impl ExprIR {
-    pub fn span(&self) -> SourceSpan {
-        match self {
-            ExprIR::Float(node) => node.span,
-            ExprIR::Int(node) => node.span,
-            ExprIR::Name(node) => node.span,
-            ExprIR::Call(node) => node.span,
-            ExprIR::Binary(node) => node.span,
-        }
-    }
-}
+// impl ExprIR {
+//     pub fn span(&self) -> SourceSpan {
+//         match self {
+//             ExprIR::Float(node) => node.span,
+//             ExprIR::Integer(node) => node.span,
+//             ExprIR::Identifier(node) => node.span,
+//             ExprIR::CallExpr(node) => node.span,
+//             ExprIR::BinOp(node) => node.span,
+//         }
+//     }
+// }

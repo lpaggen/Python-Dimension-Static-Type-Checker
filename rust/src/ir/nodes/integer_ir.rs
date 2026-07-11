@@ -1,6 +1,6 @@
-use crate::ir::SourceSpan;
+use crate::ir::span_ir::SourceSpan;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct IntegerIR {
     pub value: i64,
     pub span: Option<SourceSpan>,

@@ -1,4 +1,5 @@
-use crate::ir::{BindingIR, ClassIR, FunctionIR, SourceSpan};
+use crate::ir::nodes::{binding_ir::BindingIR, class_ir::ClassIR, function_ir::FunctionIR};
+use crate::ir::span_ir::SourceSpan;
 
 #[derive(Debug, Clone)]
 pub enum DeclIR {
@@ -7,12 +8,12 @@ pub enum DeclIR {
     Class(ClassIR),
 }
 
-impl DeclIR {
-    pub fn span(&self) -> Option<SourceSpan> {
-        match self {
-            Self::Binding(node) => node.span,
-            Self::Function(node) => node.span,
-            Self::Class(node) => node.span,
-        }
-    }
-}
+// impl DeclIR {
+//     pub fn span(&self) -> Option<SourceSpan> {
+//         match self {
+//             Self::Binding(node) => node.span,
+//             Self::Function(node) => node.span,
+//             Self::Class(node) => node.span,
+//         }
+//     }
+// }

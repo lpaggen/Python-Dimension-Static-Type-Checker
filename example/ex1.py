@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from typing import Optional, Tuple
+from .ex5 import m
 
 # Type hinting constraints for the compiler's static analysis
 M: int = 128

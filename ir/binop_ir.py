@@ -6,7 +6,7 @@ from .expr_ir import ExprIR
 
 class BinOpIR(ExprIR):
     def __init__(self, left: ExprIR, right: ExprIR, op: Operator, span: SourceSpan=None):
-        super().__init__(span=span)
+        super().__init__(span=span, value=None)
         self.op = op
         self.left = left
         self.right = right

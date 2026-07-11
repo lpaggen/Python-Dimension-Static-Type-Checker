@@ -1,4 +1,4 @@
-use crate::ir::SourceSpan;
+use crate::ir::span_ir::SourceSpan;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ImportKind {

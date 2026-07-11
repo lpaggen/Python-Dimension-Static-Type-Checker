@@ -1,18 +1,24 @@
-use crate::ir::{ExprIR, SourceSpan};
+use crate::ir::{expr_ir::ExprIR, span_ir::SourceSpan};
 
 #[derive(Debug, Clone)]
 pub struct AnnotationIR {
-    // Keep this flexible until the full annotation_ir.py is available.
-    // For Tensor[Batch, In], this can point at a SubscriptIR/IdentifierIR tree.
-    pub value: Option<Box<ExprIR>>,
+    pub head: AnnotationHeadIR,
+    pub args: Vec<ExprIR>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AnnotationHeadIR {
+    pub root: String,
+    pub attrs: Vec<String>,
+    pub scope_id: i64,
     pub span: Option<SourceSpan>,
 }
 
 impl AnnotationIR {
-    pub fn new(value: Option<ExprIR>, span: Option<SourceSpan>) -> Self {
+    pub fn new(head: AnnotationHeadIR, args: Vec<ExprIR>) -> Self {
         Self {
-            value: value.map(Box::new),
-            span,
+            head,
+            args,
         }
     }
 }

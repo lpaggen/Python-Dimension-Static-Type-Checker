@@ -11,4 +11,5 @@ pub enum StmtIR {
     Function(FunctionIR),
     Class(ClassIR),
     Import(ImportIR),
+    Return(ReturnIR),
 }

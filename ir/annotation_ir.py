@@ -26,7 +26,7 @@ class AnnotationHeadIR(IRNode):
 
 
 class AnnotationIR(IRNode):
-    def __init__(self, head: AnnotationHeadIR, args: List[ExprIR, ExprIR]):
+    def __init__(self, head: AnnotationHeadIR, args: List[ExprIR]):
         self.head = head
         self.args = args
 

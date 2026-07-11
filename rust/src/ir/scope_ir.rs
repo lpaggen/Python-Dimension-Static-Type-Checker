@@ -1,6 +1,7 @@
 use crate::ir::nodes::span_ir::SourceSpan;
 
 
+#[derive(Debug, Clone)]
 pub struct ScopeIR {
     pub id: i64,
     pub name: String,

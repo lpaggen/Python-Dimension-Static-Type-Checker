@@ -1,4 +1,4 @@
-use crate::ir::{ExprIR, SourceSpan};
+use crate::ir::{expr_ir::ExprIR, span_ir::SourceSpan};
 
 #[derive(Debug, Clone)]
 pub struct KeywordArgIR {

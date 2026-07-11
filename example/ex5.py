@@ -1,6 +1,6 @@
 import torch
 
-m: int
+m: int = 5
 k: int
 n: int
 

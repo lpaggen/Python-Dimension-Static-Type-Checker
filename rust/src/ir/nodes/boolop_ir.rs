@@ -1,4 +1,4 @@
-use crate::ir::{ExprIR, Operator, SourceSpan};
+use crate::ir::{expr_ir::ExprIR, operator::Operator, span_ir::SourceSpan};
 
 #[derive(Debug, Clone)]
 pub struct BoolOpIR {
@@ -8,9 +8,13 @@ pub struct BoolOpIR {
 }
 
 impl BoolOpIR {
-    pub fn binary(left: ExprIR, right: ExprIR, op: Operator, span: Option<SourceSpan>) -> Self {
+    pub fn new(
+        values: Vec<ExprIR>,
+        op: Operator,
+        span: Option<SourceSpan>,
+    ) -> Self {
         Self {
-            values: vec![left, right],
+            values,
             op,
             span,
         }

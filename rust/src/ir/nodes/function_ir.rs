@@ -1,4 +1,5 @@
-use crate::ir::{AnnotationIR, ExprIR, SourceSpan, StmtIR};
+use crate::ir::nodes::{annotation_ir::AnnotationIR};
+use crate::ir::{expr_ir::ExprIR, stmt_ir::StmtIR, span_ir::SourceSpan};
 
 #[derive(Debug, Clone)]
 pub struct ParamIR {

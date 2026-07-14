@@ -2,6 +2,8 @@ use crate::ir::nodes::program_ir::ProgramIR;
 use crate::linker::importgraph::ImportGraph;
 use crate::pb_decoder::pbdecoder::PBDecoder;
 
+use std::path::PathBuf;
+
 mod linker;
 mod pb_decoder;
 

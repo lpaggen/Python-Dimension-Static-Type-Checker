@@ -27,5 +27,5 @@ pub struct ImportIR {
     pub imported_name: Option<String>,
     pub alias: Option<String>,
     pub relative_level: i64,
-    pub span: Option<SourceSpan>,
+    pub span: Option<SourceSpan>, // ? needed ? 
 }

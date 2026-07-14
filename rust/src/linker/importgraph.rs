@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::ir::nodes::ProgramIR;
+use crate::ir::nodes::{ImportKind, ProgramIR};
 
 pub struct ImportGraph {
     pub outgoing: HashMap<String, HashSet<String>>,
@@ -28,17 +28,11 @@ impl ImportGraph {
     pub fn build_import_graph(&mut self, programs: &[ProgramIR]) {
         for program in programs {
             for import in &program.imports {
-                let import_name = if import.alias.is_some() { import.alias.as_deref() } else { import.imported_name.as_deref() };
-
-                match import_name {
-                    Some(import_name) => {
-                        self.add_import(
-                            program.module_name.as_str(),
-                            import_name,
-                        );
-                    }
-                    None => {}
-                }
+                let imported = match if import.alias.is_some() {&import.alias} else {&import.imported_name} {
+                    Some(alias) => alias,  // alias ALWAYS is the final name as per my stupid mistake in the Python frontend
+                    None => &import.module_name,
+                };
+                self.add_import(&program.module_name, imported);
             }
         }
     }

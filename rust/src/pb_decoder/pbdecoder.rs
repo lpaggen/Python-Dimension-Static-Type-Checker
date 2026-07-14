@@ -17,7 +17,9 @@ pub struct PBDecoder {
 
 impl PBDecoder {
     pub fn new(path: impl Into<PathBuf>) -> Self {
-        Self { path: path.into() }
+        Self {
+            path: path.into()
+        }
     }
 
     pub fn decode_dir(&self) -> Result<Vec<ProgramIR>, Box<dyn std::error::Error>> {

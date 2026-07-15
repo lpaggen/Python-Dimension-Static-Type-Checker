@@ -39,9 +39,11 @@ def iter_python_files(paths: list[str]):
 def build_file(path: Path):
     source = path.read_text(encoding="utf-8")
     tree = ast.parse(source, filename=str(path))
-    builder = SemanticBuilder(module_name=path.name, file_path=str(path))
-    program_ir = builder.build(tree)
-    return program_ir
+    builder = SemanticBuilder(
+        module_name=path.stem,
+        file_path=str(path),
+    )
+    return builder.build(tree)
 
 
 def main() -> None:

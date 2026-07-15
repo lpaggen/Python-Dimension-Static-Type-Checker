@@ -1,5 +1,6 @@
 use crate::ir::nodes::program_ir::ProgramIR;
 use crate::linker::importgraph::ImportGraph;
+use crate::linker::programtable::ProgramTable;
 use crate::pb_decoder::pbdecoder::PBDecoder;
 
 use std::path::PathBuf;
@@ -36,7 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let programs: Vec<ProgramIR> = decoder.decode_dir()?;
 
-    println!("decoded {} programs", programs.len());
+    // println!("decoded {} programs", programs.len());
 
     // for program in &programs {
     //     println!("module: {}", program.module_name);
@@ -45,17 +46,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     //     println!("imports: {}", program.imports.len());
     // }
 
-    let mut graph = ImportGraph::new();
-    graph.build_import_graph(&programs);
+    let mut table = ProgramTable::new();
+    table.build_tables(programs);
 
-    match graph.imports_of("example/ex1.py") {
-        Some(imports) => {
-            for imported in imports {
-                println!("f1 imports {imported}");
+    let mut graph = ImportGraph::new();
+    graph.build(&table);
+
+    for (&program_id, program) in &table.by_id {
+        println!("{} imports:", program.module_name);
+
+        if let Some(imported_ids) = graph.imports_of(program_id) {
+            for imported_id in imported_ids {
+                let imported_program = table
+                    .get_by_id(*imported_id)
+                    .expect("graph contains invalid program ID");
+
+                println!("  {}", imported_program.module_name);
             }
-        }
-        None => {
-            println!("f1 has no recorded imports");
         }
     }
 

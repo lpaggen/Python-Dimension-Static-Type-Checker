@@ -1,12 +1,19 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::ir::nodes::{ImportKind, ProgramIR};
+use crate::{
+    linker::programtable::ProgramTable,
+};
 
 pub struct ImportGraph {
-    pub outgoing: HashMap<String, HashSet<String>>,
+    pub outgoing: HashMap<i64, HashSet<i64>>,
 }
 
-// TODO fix, this isn't ready for use in final pipeline yet
+// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+// pub struct ImportRef {
+//     pub program_id: i64,
+//     pub import_id: i64,
+// }
+
 impl ImportGraph {
     pub fn new() -> Self {
         Self {
@@ -14,26 +21,23 @@ impl ImportGraph {
         }
     }
 
-    pub fn add_import(&mut self, importer: &str, imported: &str) {
-        self.outgoing
-            .entry(importer.to_owned())
-            .or_default()
-            .insert(imported.to_owned());
-    }
-
-    pub fn imports_of(&self, module: &str) -> Option<&HashSet<String>> {
-        self.outgoing.get(module)
-    }
-
-    pub fn build_import_graph(&mut self, programs: &[ProgramIR]) {
-        for program in programs {
+    pub fn build(&mut self, table: &ProgramTable) {
+        for (&importer_id, program) in &table.by_id {
             for import in &program.imports {
-                let imported = match if import.alias.is_some() {&import.alias} else {&import.imported_name} {
-                    Some(alias) => alias,  // alias ALWAYS is the final name as per my stupid mistake in the Python frontend
-                    None => &import.module_name,
+                let Some(&imported_id) = table.by_name.get(&import.module_name) else {
+                    continue;
                 };
-                self.add_import(&program.module_name, imported);
+
+                self.outgoing
+                    .entry(importer_id)
+                    .or_default()
+                    .insert(imported_id);
             }
         }
     }
+
+    pub fn imports_of(&self, program_id: i64) -> Option<&HashSet<i64>> {
+        self.outgoing.get(&program_id)
+    }
+
 }

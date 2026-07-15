@@ -32,7 +32,7 @@ from common.kind import ScopeKind, SymbolKind, BindingKind, ImportKind
 
 class SemanticBuilder(ast.NodeVisitor):
     def __init__(self, module_name: str, file_path: str):
-        self.builder = IRBuilder(module_name, file_path)
+        self.builder = IRBuilder(module_name=module_name, file_path=file_path)
         self.file_path = file_path
         self.scope_stack = [self.builder.global_scope_id]
 

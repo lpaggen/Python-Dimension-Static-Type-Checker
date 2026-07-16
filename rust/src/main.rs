@@ -1,9 +1,9 @@
+use crate::ir::nodes::{BindingIR, DeclIR};
 use crate::ir::nodes::program_ir::ProgramIR;
-use crate::linker::importgraph::ImportGraph;
-use crate::linker::programtable::ProgramTable;
-use crate::pb_decoder::pbdecoder::PBDecoder;
-
-use std::path::PathBuf;
+use crate::linker::import_graph::ImportGraph;
+use crate::linker::program_table::ProgramTable;
+use crate::linker::resolution_table::ResolutionTable;
+use crate::pb_decoder::pb_decoder::PBDecoder;
 
 mod linker;
 mod pb_decoder;
@@ -46,25 +46,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     //     println!("imports: {}", program.imports.len());
     // }
 
+    // for program in &programs {
+    //     for decl in &program.decls {
+    //         match decl {
+    //             DeclIR::Binding(binding) => {
+    //                 println!("binding: {:?}", binding.kind);
+    //             }
+
+    //             DeclIR::Function(function) => {
+    //                 println!("function: {}", function.name);
+    //             }
+
+    //             DeclIR::Class(class) => {
+    //                 println!("class: {}", class.name);
+    //             }
+    //         }
+    //     }
+    // }
+
     let mut table = ProgramTable::new();
     table.build_tables(programs);
 
     let mut graph = ImportGraph::new();
     graph.build(&table);
 
-    for (&program_id, program) in &table.by_id {
-        println!("{} imports:", program.module_name);
+    let mut resolved = ResolutionTable::new();
+    resolved.resolve_imports(&table);
 
-        if let Some(imported_ids) = graph.imports_of(program_id) {
-            for imported_id in imported_ids {
-                let imported_program = table
-                    .get_by_id(*imported_id)
-                    .expect("graph contains invalid program ID");
-
-                println!("  {}", imported_program.module_name);
-            }
-        }
-    }
+    // for (&program_id, program) in &table.by_id {
+    //     println!("{} {} imports:", program_id, program.module_name);
+    //     if let Some(imported_ids) = graph.imports_of(program_id) {
+    //         for &import in imported_ids {
+    //             println!("   {}", import)
+    //         }
+    //     }
+    // }
 
     Ok(())
 

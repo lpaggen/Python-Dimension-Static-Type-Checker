@@ -18,11 +18,6 @@ impl ProgramTable {
 
     pub fn build_tables(&mut self, programs: Vec<ProgramIR>) {
         for (id, program) in programs.into_iter().enumerate() {
-            println!(
-                "building table: module_name={:?}, file_path={:?}",
-                program.module_name,
-                program.file_path,
-            );
 
             let id = id as i64;
             let module_name = program.module_name.clone();

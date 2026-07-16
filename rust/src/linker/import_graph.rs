@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{
-    linker::programtable::ProgramTable,
+    linker::program_table::ProgramTable,
 };
 
 pub struct ImportGraph {

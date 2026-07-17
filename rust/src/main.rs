@@ -73,14 +73,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut resolved = ResolutionTable::new();
     resolved.resolve_imports(&table);
 
-    // for (&program_id, program) in &table.by_id {
-    //     println!("{} {} imports:", program_id, program.module_name);
-    //     if let Some(imported_ids) = graph.imports_of(program_id) {
-    //         for &import in imported_ids {
-    //             println!("   {}", import)
-    //         }
-    //     }
-    // }
+    for (&program_id, program) in &table.by_id {
+        println!("{} {} imports:", program_id, program.module_name);
+        if let Some(imported_ids) = graph.imports_of(program_id) {
+            for &import in imported_ids {
+                println!("   {}", import)
+            }
+        }
+    }
 
     Ok(())
 

@@ -36,7 +36,7 @@ impl ResolutionTable {
                 // !! might be a problem if the import goes to external because it doesn't exist in local files due to a typo
                 let target = match programs.get_by_name(&import.module_name) { // if in our local project files, Local, else i.e. torch -> Ext
                     Some(_target) => {
-                        let target_program_id = *programs.by_name.get(&import.module_name).unwrap();  // cannot fail, returning None makes no sense here
+                        let target_program_id = *programs.by_name.get(&import.module_name).unwrap();  // cannot fail
                         let target_program = programs.get_by_id(target_program_id).unwrap();
                         let target_global_symbol_lookup = GlobalSymbolTable::build(target_program_id, target_program);
                         let target_symbol = target_global_symbol_lookup.by_name.get(imported_name);

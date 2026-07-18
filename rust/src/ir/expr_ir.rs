@@ -1,36 +1,35 @@
-use crate::ir::nodes::*;
-
+use crate::ir::nodes::{BooleanIR, FloatIR, IdentifierIR, IntegerIR, ListIR, NoneIR, SliceIR, StringIR, TupleIR, SubscriptIR, AttributeExprIR, BinOpIR, BoolOpIR, UnaryOpIR, CompareIR, CallExprIR};
 
 #[derive(Debug, Clone)]
 pub enum ExprIR {
-    Identifier(IdentifierIR),
-    Integer(IntegerIR),
-    Float(FloatIR),
-    Bool(BooleanIR),
-    String(StringIR),
-    None(NoneIR),
+    IdentifierExpr(IdentifierIR),
+    IntegerExpr(IntegerIR),
+    FloatExpr(FloatIR),
+    BoolExpr(BooleanIR),
+    StringExpr(StringIR),
+    NoneExpr(NoneIR),
 
-    List(ListIR),
-    Tuple(TupleIR),
-    Slice(SliceIR),
-    Subscript(SubscriptIR),
+    ListExpr(ListIR),
+    TupleExpr(TupleIR),
+    SliceExpr(SliceIR),
+    SubscriptExpr(SubscriptIR),
     AttributeExpr(AttributeExprIR),
 
-    BinOp(BinOpIR),
-    BoolOp(BoolOpIR),
-    UnaryOp(UnaryOpIR),
-    Compare(CompareIR),
+    BinOpExpr(BinOpIR),
+    BoolOpExpr(BoolOpIR),
+    UnaryOpExpr(UnaryOpIR),
+    CompareExpr(CompareIR),
     CallExpr(CallExprIR),
 }
 
 // impl ExprIR {
-//     pub fn span(&self) -> SourceSpan {
+//     pub fn span(&self) -> &SourceSpan {
 //         match self {
-//             ExprIR::Float(node) => node.span,
-//             ExprIR::Integer(node) => node.span,
-//             ExprIR::Identifier(node) => node.span,
-//             ExprIR::CallExpr(node) => node.span,
-//             ExprIR::BinOp(node) => node.span,
+//             ExprIR::Float(node) => node.get_span(),
+//             ExprIR::Integer(node) => &node.span,
+//             ExprIR::Identifier(node) => &node.span,
+//             ExprIR::CallExpr(node) => &node.span,
+//             ExprIR::BinOp(node) => &node.span,
 //         }
 //     }
 // }

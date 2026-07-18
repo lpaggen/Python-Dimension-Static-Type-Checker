@@ -43,6 +43,7 @@ impl ImportGraph {
         self.outgoing.get(&program_id)
     }
 
+    /// Returns SCCs in dependency-first order.
     pub fn tarjan_scc(
         &self,
     ) -> Vec<HashSet<i64>> {

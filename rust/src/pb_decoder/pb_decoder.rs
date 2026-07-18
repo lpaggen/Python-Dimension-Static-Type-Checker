@@ -26,6 +26,8 @@ impl PBDecoder {
     pub fn decode_dir(&self) -> Result<Vec<ProgramIR>, Box<dyn std::error::Error>> {
         let mut programs = Vec::new();
 
+        // TODO multithreading, should be straightforward
+
         for entry in fs::read_dir(&self.path)? {
             let entry = entry?;
             let path = entry.path();
@@ -548,7 +550,7 @@ impl PBDecoder {
     fn convert_expr(expr: &pb::ExprIr) -> Result<ExprIR, Box<dyn std::error::Error>> {
         match &expr.kind {
             Some(pb::expr_ir::Kind::Identifier(identifier)) => {
-                Ok(ExprIR::Identifier(IdentifierIR {
+                Ok(ExprIR::IdentifierExpr(IdentifierIR {
                     name: identifier.name.clone(),
                     use_scope_id: identifier.use_scope_id,
                     span: match &identifier.span {
@@ -558,7 +560,7 @@ impl PBDecoder {
                 }))
             }
 
-            Some(pb::expr_ir::Kind::Integer(integer)) => Ok(ExprIR::Integer(IntegerIR {
+            Some(pb::expr_ir::Kind::Integer(integer)) => Ok(ExprIR::IntegerExpr(IntegerIR {
                 value: integer.value,
                 span: match &integer.span {
                     Some(span) => Some(Self::convert_span(span)),
@@ -566,7 +568,7 @@ impl PBDecoder {
                 },
             })),
 
-            Some(pb::expr_ir::Kind::FloatLit(float_lit)) => Ok(ExprIR::Float(FloatIR {
+            Some(pb::expr_ir::Kind::FloatLit(float_lit)) => Ok(ExprIR::FloatExpr(FloatIR {
                 value: float_lit.value,
                 span: match &float_lit.span {
                     Some(span) => Some(Self::convert_span(span)),
@@ -574,7 +576,7 @@ impl PBDecoder {
                 },
             })),
 
-            Some(pb::expr_ir::Kind::StringLit(string_lit)) => Ok(ExprIR::String(StringIR {
+            Some(pb::expr_ir::Kind::StringLit(string_lit)) => Ok(ExprIR::StringExpr(StringIR {
                 value: string_lit.value.clone(),
                 span: match &string_lit.span {
                     Some(span) => Some(Self::convert_span(span)),
@@ -582,7 +584,7 @@ impl PBDecoder {
                 },
             })),
 
-            Some(pb::expr_ir::Kind::BoolLit(bool_lit)) => Ok(ExprIR::Bool(BooleanIR {
+            Some(pb::expr_ir::Kind::BoolLit(bool_lit)) => Ok(ExprIR::BoolExpr(BooleanIR {
                 value: bool_lit.value,
                 span: match &bool_lit.span {
                     Some(span) => Some(Self::convert_span(span)),
@@ -590,7 +592,7 @@ impl PBDecoder {
                 },
             })),
 
-            Some(pb::expr_ir::Kind::NoneLit(_none_lit)) => Ok(ExprIR::None(NoneIR {
+            Some(pb::expr_ir::Kind::NoneLit(_none_lit)) => Ok(ExprIR::NoneExpr(NoneIR {
                 span: match &_none_lit.span {
                     Some(span) => Some(Self::convert_span(span)),
                     None => None,
@@ -604,7 +606,7 @@ impl PBDecoder {
                     elements.push(expr_ir);
                 }
 
-                Ok(ExprIR::List(ListIR {
+                Ok(ExprIR::ListExpr(ListIR {
                     elements: elements,
                     span: match &list.span {
                         Some(span) => Some(Self::convert_span(span)),
@@ -620,7 +622,7 @@ impl PBDecoder {
                     elements.push(expr_ir);
                 }
 
-                Ok(ExprIR::List(ListIR {
+                Ok(ExprIR::ListExpr(ListIR {
                     elements: elements,
                     span: match &tuple.span {
                         Some(span) => Some(Self::convert_span(span)),
@@ -727,7 +729,7 @@ impl PBDecoder {
                     Some(span) => Some(Self::convert_span(span)),
                     None => None,
                 };
-                Ok(ExprIR::BinOp(BinOpIR {
+                Ok(ExprIR::BinOpExpr(BinOpIR {
                     left: left,
                     right: right,
                     op: operator,
@@ -754,7 +756,7 @@ impl PBDecoder {
                     None => None,
                 };
 
-                Ok(ExprIR::UnaryOp(UnaryOpIR {
+                Ok(ExprIR::UnaryOpExpr(UnaryOpIR {
                     op: operator,
                     operand: operand,
                     span: span,
@@ -775,7 +777,7 @@ impl PBDecoder {
                     None => None,
                 };
 
-                Ok(ExprIR::BoolOp(BoolOpIR {
+                Ok(ExprIR::BoolOpExpr(BoolOpIR {
                     values,
                     op: operator,
                     span,
@@ -810,7 +812,7 @@ impl PBDecoder {
                     comparators.push(comparator);
                 }
 
-                Ok(ExprIR::Compare(CompareIR {
+                Ok(ExprIR::CompareExpr(CompareIR {
                     left,
                     ops,
                     comparators,
@@ -846,7 +848,7 @@ impl PBDecoder {
                     None => None,
                 };
 
-                Ok(ExprIR::Subscript(SubscriptIR {
+                Ok(ExprIR::SubscriptExpr(SubscriptIR {
                     target,
                     subscript: index,
                     span,
@@ -874,7 +876,7 @@ impl PBDecoder {
                     None => None,
                 };
 
-                Ok(ExprIR::Slice(SliceIR {
+                Ok(ExprIR::SliceExpr(SliceIR {
                     lower,
                     upper,
                     step,

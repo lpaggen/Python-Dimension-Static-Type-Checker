@@ -17,7 +17,7 @@ impl GlobalSymbolTable {
     }
 
     pub fn build(program_id: i64, program: &ProgramIR) -> Self {
-        let mut by_name = HashMap::new();
+        let mut by_name: HashMap<String, SymbolRef> = HashMap::new();
         for symbol in &program.symbols {
             if symbol.scope_id != 0 { // 0 is global scope always, so consider only top-level symbols
                 continue;

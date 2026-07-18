@@ -8,6 +8,10 @@ use crate::pb_decoder::pb_decoder::PBDecoder;
 mod linker;
 mod pb_decoder;
 
+mod diagnostic;
+
+mod types;
+
 mod ir;
 
 pub mod pb {
@@ -81,6 +85,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
+
+    println!("{:?}", graph.tarjan_scc());
 
     Ok(())
 

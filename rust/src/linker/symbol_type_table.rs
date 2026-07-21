@@ -5,15 +5,16 @@ use crate::diagnostic::diagnostic::DiagnosticKind;
 use crate::diagnostic::diagnostic::Severity;
 
 use crate::ir::expr_ir::ExprIR;
+use crate::ir::nodes::AnnotationIR;
 use crate::ir::nodes::BindingIR;
 use crate::ir::nodes::binding_ir::BindingKind;
 use crate::linker::global_scope_table::GlobalSymbolTable;
 use crate::linker::resolution_table::ResolutionTable;
+use crate::linker::resolved_target::ResolvedTarget;
 use crate::types::types::CallableType;
 use crate::types::types::ClassType;
 use crate::types::types::Type;
 use crate::{ir::nodes::DeclIR, linker::{program_table::ProgramTable, symbol_ref::SymbolRef}};
-
 
 pub struct SymbolTypeTable {
     pub by_ref: HashMap<SymbolRef, Type>,
@@ -59,7 +60,7 @@ impl SymbolTypeTable {
 
             BindingKind::AnnAssign => {
                 self.parse_annotation(program_id, &binding, symbols, resolutions, diagnostics)
-            },  // type is not known yet, since we don't parse annotation here yet
+            },
 
             BindingKind::Unknown => {  // safe to deprecate ? makes no sense to return Unknown at any point after parsing
                 diagnostics.push(Diagnostic {
@@ -94,18 +95,49 @@ impl SymbolTypeTable {
             }
         };
 
-        println!("{:?}", annotation);
-
         let root: Type = match annotation.head.root.as_str() {
             "int" => Type::Int,
             "float" => Type::Float,
             "bool" => Type::Bool,
             "str" => Type::String,
             "None" => Type::None,
-            _ => Type::Unknown,
+            _ => self.resolve_annotation_head(annotation.head.root.as_str(), program_id, symbols, resolutions),  // check global symbol table to get the ref, ie is this torch, numpy, Local, true Unknown? 
         };
 
+        println!("{:?}", root);
+
         Type::Unknown
+    }
+
+    fn resolve_annotation_head(
+        &self,
+        head: &str,
+        program_id: i64,
+        symbols: &GlobalSymbolTable,
+        resolution_table: &ResolutionTable,
+    ) -> Type {
+        let symbol_ref = symbols
+            .lookup(program_id, head)
+            .expect("annotation head must exist in global symbol table");
+
+        let target = resolution_table
+            .imports
+            .get(symbol_ref)
+            .expect("annotation head must have an import resolution");
+
+        match target {
+            ResolvedTarget::Local(local_ref) => {
+                self.by_ref
+                    .get(local_ref)
+                    .cloned()
+                    .unwrap_or(Type::Unknown)
+            }
+
+            ResolvedTarget::External { module, .. } => {  // only need the module here, ie "t" -> "torch"
+                println!("external target: {module}");
+                Type::Unknown
+            }
+        }
     }
 
     pub fn build(

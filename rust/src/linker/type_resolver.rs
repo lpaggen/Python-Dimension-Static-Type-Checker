@@ -1,10 +1,16 @@
 use crate::{
     ir::nodes::AnnotationIR, 
-    linker::{program_table::ProgramTable, 
-    resolution_table::ResolutionTable, 
-    symbol_type_table::SymbolTypeTable}, 
-    types::types::Type::{self, None
-}};
+    linker::{ 
+        resolution_table::ResolutionTable, 
+        symbol_type_table::SymbolTypeTable
+    }, 
+        types::types::Type::{
+            self, 
+            None
+    }
+};
+
+use crate::linker::resolved_target::ResolvedTarget;
 
 pub struct TypeResolver<'a> {
     resolutions: &'a ResolutionTable,
@@ -23,15 +29,16 @@ impl<'a> TypeResolver<'a> {
     }
 
     pub fn resolve_types(&self) {
-        println!("resolve_types called");
-        println!("imports.len() = {}", self.resolutions.imports.len());
-
-        for (symbol_ref, target_ref) in &self.resolutions.imports {
-            println!("{:?} {:?}", symbol_ref, target_ref);
+        for (symbol_ref, symbol_type) in &self.symbol_types.by_ref {
+            let target_ref = match self.resolutions.imports.get(symbol_ref) {
+                Some(imported_ref) => imported_ref,
+                _ => &ResolvedTarget::Local(*symbol_ref),  // can resolve to itself if not an import
+            };
+            // let resolved_type = self.resolve_annotation(annotation);
         }
     }
 
-    pub fn resolve_annotation(&self, annotation: &AnnotationIR, program_id: i64, scope_id: i64) -> Type {
+    pub fn resolve_annotation(&self, annotation: &AnnotationIR) -> Type {
         println!("{:?}", annotation);
         None
     }

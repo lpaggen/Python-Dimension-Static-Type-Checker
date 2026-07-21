@@ -1,4 +1,5 @@
 import torch
+from .ex1 import M
 
 m: int = 5
 k: int

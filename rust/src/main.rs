@@ -1,5 +1,6 @@
 use crate::diagnostic::diagnostic::Diagnostic;
 use crate::ir::nodes::program_ir::ProgramIR;
+use crate::linker::global_scope_table::GlobalSymbolTable;
 use crate::linker::import_graph::ImportGraph;
 use crate::linker::program_table::ProgramTable;
 use crate::linker::resolution_table::ResolutionTable;
@@ -76,14 +77,17 @@ fn main() -> Result<(), Vec<Diagnostic>> {
     let mut table: ProgramTable = ProgramTable::new();
     table.build_tables(programs);
 
+    let mut symbols = GlobalSymbolTable::new();
+    symbols.build(&table);
+
     let mut graph: ImportGraph = ImportGraph::new();
     graph.build(&table);
 
     let mut resolved: ResolutionTable = ResolutionTable::new();
-    resolved.resolve_imports(&table);
+    resolved.resolve_imports(&table, &symbols);
 
     let mut types: SymbolTypeTable = SymbolTypeTable::new();
-    types.build(&table)?;
+    types.build(&table, &symbols, &resolved)?;
 
     let resolver: TypeResolver<'_> = TypeResolver::new(&resolved, &types);
     resolver.resolve_types();

@@ -1,24 +1,24 @@
-import torch
+import torch as t
 
 batch: int
 in_features: int
 hidden: int
 out_features: int
 
-def fn(a: Optional[torch.Tensor], b: int) -> int:
+def fn(a: Optional[t.Tensor], b: int) -> int:
     return a + b
 
-X: torch.Tensor[batch, in_features]
+X: t.Tensor[batch, in_features]
 
-W1: torch.Tensor[in_features, hidden]
-b1: torch.Tensor[hidden]
+W1: t.Tensor[in_features, hidden]
+b1: t.Tensor[hidden]
 
-W2: torch.Tensor[hidden, out_features]
-b2: torch.Tensor[out_features]
+W2: t.Tensor[hidden, out_features]
+b2: t.Tensor[out_features]
 
-H = torch.matmul(X, W1)
+H = t.matmul(X, W1)
 H = H + b1
-H = torch.relu(H)
+H = t.relu(H)
 
-Y = torch.matmul(H, W2)
+Y = t.matmul(H, W2)
 Y = Y + b2

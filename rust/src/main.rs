@@ -1,8 +1,10 @@
-use crate::ir::nodes::{BindingIR, DeclIR};
+use crate::diagnostic::diagnostic::Diagnostic;
 use crate::ir::nodes::program_ir::ProgramIR;
 use crate::linker::import_graph::ImportGraph;
 use crate::linker::program_table::ProgramTable;
 use crate::linker::resolution_table::ResolutionTable;
+use crate::linker::symbol_type_table::SymbolTypeTable;
+use crate::linker::type_resolver::TypeResolver;
 use crate::pb_decoder::pb_decoder::PBDecoder;
 
 mod linker;
@@ -18,7 +20,7 @@ pub mod pb {
     include!(concat!(env!("OUT_DIR"), "/pdc.ir.rs"));
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Vec<Diagnostic>> {
     // let bytes = std::fs::read("../ir_out/ex1.pb")?;
 
     // let program = pb::ProgramIr::decode(bytes.as_slice())?;
@@ -39,7 +41,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // }
     let decoder: PBDecoder = PBDecoder::new("../ir_out/");
 
-    let programs: Vec<ProgramIR> = decoder.decode_dir()?;
+    let programs: Vec<ProgramIR> = match decoder.decode_dir() {
+        Ok(programs) => programs,
+        Err(err) => panic!("{}", err), // should not panic since it depends on Python frontend
+    };
 
     // println!("decoded {} programs", programs.len());
 
@@ -68,25 +73,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     //     }
     // }
 
-    let mut table = ProgramTable::new();
+    let mut table: ProgramTable = ProgramTable::new();
     table.build_tables(programs);
 
-    let mut graph = ImportGraph::new();
+    let mut graph: ImportGraph = ImportGraph::new();
     graph.build(&table);
 
-    let mut resolved = ResolutionTable::new();
+    let mut resolved: ResolutionTable = ResolutionTable::new();
     resolved.resolve_imports(&table);
 
-    for (&program_id, program) in &table.by_id {
-        println!("{} {} imports:", program_id, program.module_name);
-        if let Some(imported_ids) = graph.imports_of(program_id) {
-            for &import in imported_ids {
-                println!("   {}", import)
-            }
-        }
-    }
+    let mut types: SymbolTypeTable = SymbolTypeTable::new();
+    types.build(&table)?;
 
-    println!("{:?}", graph.tarjan_scc());
+    let resolver: TypeResolver<'_> = TypeResolver::new(&resolved, &types);
+    resolver.resolve_types();
+
+    // println!("{:?}", graph.tarjan_scc());
 
     Ok(())
 

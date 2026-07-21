@@ -15,11 +15,10 @@ impl ResolutionTable {
         }
     }
 
-    pub fn resolve_imports(&mut self, programs: &ProgramTable) -> ResolutionTable {
-        let mut resolutions = ResolutionTable {
-            imports: HashMap::new(),
-            // diagnostics: Vec::new(),
-        };
+    pub fn resolve_imports(&mut self, programs: &ProgramTable) {
+        // let mut resolutions = ResolutionTable {
+        //     imports: HashMap::new(),
+        // };
 
         for (&program_id, program) in &programs.by_id {
             for import in &program.imports {
@@ -47,10 +46,8 @@ impl ResolutionTable {
                         name: imported_name.to_string(),
                     }
                 };
-                resolutions.imports.insert(symbol_ref, target);
+                self.imports.insert(symbol_ref, target);
             }
         }
-
-        resolutions
     }
 }

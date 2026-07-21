@@ -8,12 +8,6 @@ pub struct ImportGraph {
     pub outgoing: HashMap<i64, HashSet<i64>>,
 }
 
-// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-// pub struct ImportRef {
-//     pub program_id: i64,
-//     pub import_id: i64,
-// }
-
 impl ImportGraph {
     pub fn new() -> Self {
         Self {

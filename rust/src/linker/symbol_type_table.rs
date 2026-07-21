@@ -13,7 +13,6 @@ use crate::types::types::Type;
 use crate::{ir::nodes::DeclIR, linker::{program_table::ProgramTable, symbol_ref::SymbolRef}};
 
 
-
 pub struct SymbolTypeTable {
     pub by_ref: HashMap<SymbolRef, Type>,
 }
@@ -66,46 +65,41 @@ impl SymbolTypeTable {
         }
     }
 
-    pub fn build(&mut self, programs: &ProgramTable) -> Result<SymbolTypeTable, Vec<Diagnostic>> {
-        let mut diagnostics = Vec::new();
-        let mut by_ref = HashMap::new();
+pub fn build(
+    &mut self,
+    programs: &ProgramTable,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
 
-        for (&program_id, program) in &programs.by_id {
-            for decl in &program.decls {
-                let symbol_ref = SymbolRef {
-                    program_id,
-                    symbol_id: decl.symbol_id(),
-                };
+    for (&program_id, program) in &programs.by_id {
+        for decl in &program.decls {
+            let symbol_ref = SymbolRef {
+                program_id,
+                symbol_id: decl.symbol_id(),
+            };
 
-                let symbol_type = match decl {
-                    DeclIR::Binding(binding) => {
-                        self.parse_binding(binding, &mut diagnostics)
-                    }
+            let symbol_type = match decl {
+                DeclIR::Binding(binding) => {
+                    self.parse_binding(binding, &mut diagnostics)
+                }
 
-                    DeclIR::Function(_) => {
-                        Type::Callable(CallableType {
-                            params: Vec::new(),
-                            return_type: Box::new(Type::Unknown),
-                        })
-                    }
+                DeclIR::Function(_) => Type::Callable(CallableType {
+                    params: Vec::new(),
+                    return_type: Box::new(Type::Unknown),
+                }),
 
-                    DeclIR::Class(_) => {
-                        Type::Class(ClassType {
-                            symbol: symbol_ref,
-                        })
-                    }
-                };
+                DeclIR::Class(_) => Type::Class(ClassType {
+                    symbol: symbol_ref,
+                }),
+            };
 
-                by_ref.insert(symbol_ref, symbol_type);
-            }
-        }
-
-        if diagnostics.is_empty() {
-            Ok(SymbolTypeTable { 
-                by_ref 
-            })
-        } else {
-            Err(diagnostics)
+            self.by_ref.insert(symbol_ref, symbol_type);
         }
     }
-}
+
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}}

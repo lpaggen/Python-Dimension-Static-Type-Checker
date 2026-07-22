@@ -89,6 +89,10 @@ fn main() -> Result<(), Vec<Diagnostic>> {
     let mut types: SymbolTypeTable = SymbolTypeTable::new();
     types.build(&table, &symbols, &resolved)?;
 
+    for (symbol_ref, symbol_type) in &types.by_ref {
+        println!("{:?}, {:?}", symbol_ref, symbol_type)
+    }
+
     let resolver: TypeResolver<'_> = TypeResolver::new(&resolved, &types);
     resolver.resolve_types();
 

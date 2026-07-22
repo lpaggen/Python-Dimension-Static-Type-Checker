@@ -12,6 +12,7 @@ pub enum Type {
     List(Vec<Type>),
     Callable(CallableType), // functions
     Class(ClassType),
+    Dim(DimType),
     //Module(ModuleType),
     Unknown, // may be a valid type, we just don't consider it in this tool
 }
@@ -35,7 +36,7 @@ pub enum TensorTypeState {
 
 #[derive(Debug, Clone)]
 pub struct TensorType {
-    pub shape: Vec<Dim>,
+    pub shape: Vec<DimType>,
     pub dtype: Option<DType>
 }
 
@@ -65,7 +66,7 @@ pub enum DType { // tensor inner type, found in Numpy and Torch
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Dim {
+pub enum DimType {
     Known(i64),
     Symbol(String),  // might become SymbolRef instead, easier to resolve
     Unknown,

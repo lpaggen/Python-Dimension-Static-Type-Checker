@@ -15,6 +15,7 @@ use crate::types::types::ClassType;
 use crate::types::types::TensorTypeState;
 use crate::types::types::Type;
 use crate::{ir::nodes::DeclIR, linker::{program_table::ProgramTable, symbol_ref::SymbolRef}};
+use crate::types::types::DimType;
 
 pub struct SymbolTypeTable {
     pub by_ref: HashMap<SymbolRef, Type>,
@@ -109,9 +110,7 @@ impl SymbolTypeTable {
                 resolutions),
         };
 
-        println!("{:?}", root);
-
-        Type::Unknown
+        root  // safe? or allow Unknown..? 
     }
 
     fn resolve_annotation_path(
@@ -164,6 +163,14 @@ impl SymbolTypeTable {
 
         match (module, path.as_slice()) {
             ("torch", ["Tensor"]) => {
+                Type::Tensor(TensorTypeState::Unresolved)
+            }
+
+            ("torch", ["Size"]) => {
+                Type::Dim(DimType::Unknown)
+            }
+
+            ("torch", ["nn", "Parameter"]) => {
                 Type::Tensor(TensorTypeState::Unresolved)
             }
 

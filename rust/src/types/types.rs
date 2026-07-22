@@ -2,7 +2,7 @@ use crate::linker::symbol_ref::SymbolRef;
 
 #[derive(Debug, Clone)]
 pub enum Type {
-    Tensor(TensorType),
+    Tensor(TensorTypeState),  // annotation knows it's a tensor, but doesn't know dimensions or dtype
     Int,
     Float,
     Bool,
@@ -25,6 +25,12 @@ pub struct CallableType {
 #[derive(Debug, Clone)]
 pub struct ClassType {
     pub symbol: SymbolRef,
+}
+
+#[derive(Debug, Clone)]
+pub enum TensorTypeState {
+    Resolved(TensorType),
+    Unresolved,
 }
 
 #[derive(Debug, Clone)]
@@ -61,6 +67,6 @@ pub enum DType { // tensor inner type, found in Numpy and Torch
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Dim {
     Known(i64),
-    Symbol(String),
+    Symbol(String),  // might become SymbolRef instead, easier to resolve
     Unknown,
 }

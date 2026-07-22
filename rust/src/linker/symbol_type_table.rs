@@ -5,7 +5,6 @@ use crate::diagnostic::diagnostic::DiagnosticKind;
 use crate::diagnostic::diagnostic::Severity;
 
 use crate::ir::expr_ir::ExprIR;
-use crate::ir::nodes::AnnotationIR;
 use crate::ir::nodes::BindingIR;
 use crate::ir::nodes::binding_ir::BindingKind;
 use crate::linker::global_scope_table::GlobalSymbolTable;
@@ -13,6 +12,7 @@ use crate::linker::resolution_table::ResolutionTable;
 use crate::linker::resolved_target::ResolvedTarget;
 use crate::types::types::CallableType;
 use crate::types::types::ClassType;
+use crate::types::types::TensorTypeState;
 use crate::types::types::Type;
 use crate::{ir::nodes::DeclIR, linker::{program_table::ProgramTable, symbol_ref::SymbolRef}};
 
@@ -54,7 +54,7 @@ impl SymbolTypeTable {
                     ExprIR::BoolExpr(_) => Type::Bool,
                     ExprIR::StringExpr(_) => Type::String,
                     ExprIR::NoneExpr(_) => Type::None,
-                    _ => Type::Unknown,  // what we cannot resolve directly gets an Unknown type, we will resolve it later. 
+                    _ => Type::Unknown,  // what we cannot resolve directly gets an Unknown type, we will resolve it later.
                 }
             },
 
@@ -101,7 +101,12 @@ impl SymbolTypeTable {
             "bool" => Type::Bool,
             "str" => Type::String,
             "None" => Type::None,
-            _ => self.resolve_annotation_head(annotation.head.root.as_str(), program_id, symbols, resolutions),  // check global symbol table to get the ref, ie is this torch, numpy, Local, true Unknown? 
+            _ => self.resolve_annotation_path(  // check global symbol table to get the ref, ie is this torch, numpy, Local, true Unknown? 
+                annotation.head.root.as_str(), 
+                annotation.head.attrs.as_slice(),
+                program_id, 
+                symbols, 
+                resolutions),
         };
 
         println!("{:?}", root);
@@ -109,34 +114,60 @@ impl SymbolTypeTable {
         Type::Unknown
     }
 
-    fn resolve_annotation_head(
+    fn resolve_annotation_path(
         &self,
-        head: &str,
+        root: &str,
+        attrs: &[String],
         program_id: i64,
         symbols: &GlobalSymbolTable,
-        resolution_table: &ResolutionTable,
+        resolutions: &ResolutionTable,
     ) -> Type {
-        let symbol_ref = symbols
-            .lookup(program_id, head)
-            .expect("annotation head must exist in global symbol table");
+        let symbol_ref = match symbols.lookup(program_id, root) {
+            Some(symbol_ref) => symbol_ref,
+            None => return Type::Unknown,
+        };
 
-        let target = resolution_table
-            .imports
-            .get(symbol_ref)
-            .expect("annotation head must have an import resolution");
+        let target = match resolutions.imports.get(symbol_ref) {
+            Some(target) => target,
+            None => return Type::Unknown,
+        };
 
         match target {
-            ResolvedTarget::Local(local_ref) => {
-                self.by_ref
-                    .get(local_ref)
-                    .cloned()
-                    .unwrap_or(Type::Unknown)
+            ResolvedTarget::Local(local_ref) if attrs.is_empty() => self
+                .by_ref
+                .get(local_ref)
+                .cloned()
+                .unwrap_or(Type::Unknown),
+
+            ResolvedTarget::External { module, name } => {
+                self.resolve_external_path(module, name, attrs)
             }
 
-            ResolvedTarget::External { module, .. } => {  // only need the module here, ie "t" -> "torch"
-                println!("external target: {module}");
-                Type::Unknown
+            _ => Type::Unknown,
+        }
+    }
+
+    fn resolve_external_path(
+        &self,
+        module: &str,
+        imported_name: &str,
+        attrs: &[String],
+    ) -> Type {
+        let mut path = Vec::new();
+
+        // `import torch`: the imported name represents the module itself.
+        if imported_name != module {
+            path.push(imported_name);
+        }
+
+        path.extend(attrs.iter().map(String::as_str));
+
+        match (module, path.as_slice()) {
+            ("torch", ["Tensor"]) => {
+                Type::Tensor(TensorTypeState::Unresolved)
             }
+
+            _ => Type::Unknown,
         }
     }
 

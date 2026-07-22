@@ -7,7 +7,6 @@ pub struct ResolutionTable {
     // pub diagnostics: Vec<String>, // TODO make new class Diagnostic with SpanIR for proper debugging
 }
 
-
 impl ResolutionTable {
     pub fn new() -> Self {
         Self {

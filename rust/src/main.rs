@@ -93,8 +93,8 @@ fn main() -> Result<(), Vec<Diagnostic>> {
         println!("{:?}, {:?}", symbol_ref, symbol_type)
     }
 
-    let resolver: TypeResolver<'_> = TypeResolver::new(&resolved, &types);
-    resolver.resolve_types();
+    // let resolver: TypeResolver<'_> = TypeResolver::new(&resolved, &types);
+    // resolver.resolve_types();
 
     // println!("{:?}", graph.tarjan_scc());
 

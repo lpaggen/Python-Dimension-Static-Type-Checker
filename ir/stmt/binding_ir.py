@@ -1,30 +1,20 @@
 from common.span import SourceSpan
-from .annotation_ir import AnnotationIR
-from .ir_node import IRNode
+from ir.annotation.annotation_ir import AnnotationIR
+from ir.ir_node import IRNode
 from generated import _pb2
 from .decl_ir import DeclIR
+from dataclasses import dataclass
 
 
+@dataclass
 class BindingIR(DeclIR):
-    def __init__(
-        self,
-        id: str,
-        target_id: int,
-        annotation: AnnotationIR,
-        kind: int,
-        value: IRNode,
-        scope_id: int,
-        span: SourceSpan,
-    ):
-        super().__init__(span=span)
-        self.id = id
-        self.target_id = target_id
-        self.annotation = annotation
-        self.kind = kind
-        self.value = value
-        self.scope_id = scope_id
-        self.span = span
-
+    id: int
+    target_id: int
+    annotation: AnnotationIR | None
+    kind: int
+    value: IRNode | None
+    scope_id: int
+    span: SourceSpan
     def to_proto(self):
         proto = self._binding_proto()
         decl = _pb2.DeclIR()

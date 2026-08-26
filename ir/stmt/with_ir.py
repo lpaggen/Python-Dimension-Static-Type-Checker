@@ -24,7 +24,6 @@ class WithIR(StmtIR):
             )
         )
 
-
 @dataclass
 class WithItemIR(IRNode):
     context_expr: ExprIR
@@ -38,22 +37,4 @@ class WithItemIR(IRNode):
                 if self.optional_vars is not None
                 else None
             ),
-        )
-
-
-@dataclass
-class AsyncWithIR(StmtIR):
-    items: list[WithItemIR]
-    body: list[StmtIR]
-    type_comment: str | None
-    span: SourceSpan
-
-    def to_proto(self):
-        return _pb2.StmtIR(
-            async_with=_pb2.AsyncWithIR(
-                items=[item.to_proto() for item in self.items],
-                body=[stmt.to_proto() for stmt in self.body],
-                type_comment=self.type_comment,
-                span=self.span.to_proto(),
-            )
         )

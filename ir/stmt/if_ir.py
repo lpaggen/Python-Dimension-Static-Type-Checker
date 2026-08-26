@@ -1,29 +1,20 @@
 from .stmt_ir import StmtIR, stmt_to_proto
 from common.span import SourceSpan
-from .expr_ir import ExprIR
+from ir.expr.expr_ir import ExprIR
 from typing import List
 from generated import _pb2
+from dataclasses import dataclass
 
 
+@dataclass
 class IfIR(StmtIR):
-    def __init__(
-        self,
-        test: ExprIR,
-        scope_id: int,
-        then_scope_id: int,
-        else_scope_id: int,
-        body: List[StmtIR],
-        orelse: List[StmtIR],
-        span: SourceSpan,
-    ):
-        super().__init__(span=span)
-        self.test = test
-        self.scope_id = scope_id
-        self.then_scope_id = then_scope_id
-        self.else_scope_id = else_scope_id
-        self.body = body
-        self.orelse = orelse
-
+    test: ExprIR
+    scope_id: int
+    then_scope_id: int
+    else_scope_id: int
+    body: List[StmtIR]
+    orelse: List[StmtIR]
+    span: SourceSpan
     def to_proto(self):
         proto = _pb2.IfIR(
             scope_id=self.scope_id,

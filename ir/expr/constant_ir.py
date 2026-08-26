@@ -35,6 +35,7 @@ class BooleanIR(ConstantIR):
         )
 
 
+@dataclass
 class BytesIR(ConstantIR):
     value: bytes
     span: SourceSpan

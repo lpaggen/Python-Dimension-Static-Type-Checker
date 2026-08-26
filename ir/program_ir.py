@@ -1,31 +1,23 @@
 from typing import List
-from .decl_ir import DeclIR
-from .ir_node import IRNode
-from .symbol_ir import SymbolIR
-from .scope_ir import ScopeIR
-from .import_ir import ImportIR
-from .stmt_ir import stmt_to_proto
+from ir.stmt.decl_ir import DeclIR
+from ir.ir_node import IRNode
+from ir.metadata.symbol_ir import SymbolIR
+from ir.metadata.scope_ir import ScopeIR
+from ir.stmt.import_ir import ImportIR
+from ir.stmt.stmt_ir import stmt_to_proto
 from generated import _pb2
+from dataclasses import dataclass
 
 
+@dataclass
 class ProgramIR:
-    def __init__(
-        self,
-        module_name: str,
-        file_path: str,
-        scopes: List[ScopeIR],
-        symbols: List[SymbolIR],
-        imports: List[ImportIR],
-        decls: List[DeclIR],
-        body: List[IRNode],
-    ):
-        self.module_name = module_name
-        self.file_path = file_path
-        self.scopes = scopes
-        self.symbols = symbols
-        self.imports = imports
-        self.decls = decls
-        self.body = body
+    module_name: str
+    file_path: str
+    scopes: List[ScopeIR]
+    symbols: List[SymbolIR]
+    imports: List[ImportIR]
+    decls: List[DeclIR]
+    body: List[IRNode]
 
     def to_proto(self):
         proto = _pb2.ProgramIR(

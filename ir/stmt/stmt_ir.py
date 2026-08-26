@@ -1,4 +1,4 @@
-from .ir_node import IRNode
+from ir.ir_node import IRNode
 from common.span import SourceSpan
 
 

@@ -4,7 +4,6 @@ use std::path::PathBuf;
 
 use crate::ir::expr_ir::ConstantIR;
 use crate::ir::nodes::annotation_ir::AnnotationHeadIR;
-use crate::ir::nodes::dict_ir::DictEntryIR;
 use crate::ir::nodes::match_ir::MatchCaseIR;
 use crate::ir::nodes::pattern_ir::AsPatternIR;
 use crate::ir::nodes::pattern_ir::CapturePatternIR;
@@ -236,20 +235,20 @@ impl PBDecoder {
         })
     }
 
-    fn convert_param(param: &pb::ParamIr) -> Result<ParamIR, Box<dyn std::error::Error>> {
-        Ok(ParamIR {
+    fn convert_param(param: &pb::ArgIr) -> Result<ArgIR, Box<dyn std::error::Error>> {
+        Ok(ArgIR {
             symbol_id: param.symbol_id,
-            name: param.name.clone(),
+            arg: param.arg.clone(),
 
             // TODO make cleaner, this makes sense but it's inconsistent with the rest
-            kind: function_ir::ParamKind::try_from(param.kind)?,
+            kind: functiondef_ir::ArgKind::try_from(param.kind)?,
 
             annotation: match &param.annotation {
                 Some(annotation) => Some(Self::convert_annotation(annotation)?),
                 None => None,
             },
 
-            default: match &param.default_value {
+            default: match &param.default {
                 Some(default) => Some(Box::new(Self::convert_expr(default)?)),
                 // Most parameters do not have a default value.
                 None => None,
@@ -260,10 +259,10 @@ impl PBDecoder {
     }
 
     fn convert_function(
-        function: &pb::FunctionIr,
-    ) -> Result<FunctionIR, Box<dyn std::error::Error>> {
+        function: &pb::FunctionDefIr,
+    ) -> Result<FunctionDefIR, Box<dyn std::error::Error>> {
         let mut stmts: Vec<StmtIR> = Vec::new();
-        let mut params: Vec<ParamIR> = Vec::new();
+        let mut params: Vec<ArgIR> = Vec::new();
         let mut decorators: Vec<ExprIR> = Vec::new();
 
         for stmt in &function.body {
@@ -271,12 +270,12 @@ impl PBDecoder {
             stmts.push(stmt_ir);
         }
 
-        for param in &function.params {
+        for param in &function.args {
             let param_ir = Self::convert_param(param)?;
             params.push(param_ir);
         }
 
-        for decorator in &function.decorators {
+        for decorator in &function.decorator_list {
             let decorator_ir = Self::convert_expr(decorator)?;
             decorators.push(decorator_ir);
         }
@@ -288,21 +287,29 @@ impl PBDecoder {
 
         // todo decorators
 
-        Ok(FunctionIR {
+        Ok(FunctionDefIR {
             id: function.id,
             symbol_id: function.symbol_id,
             name: function.name.clone(),
             scope_id: function.scope_id,
             body_scope_id: function.body_scope_id,
-            params: params,
+            args: params,
             body: stmts,
             returns: returns,
-            decorators: decorators,
+            decorator_list: decorators,
+            type_comment: function.type_comment.clone(),
+            type_params: function
+                .type_params
+                .iter()
+                .map(Self::convert_type_param)
+                .collect::<Result<_, _>>()?,
             span: Self::convert_optional_span(&function.span),
         })
     }
 
-    fn convert_class(class_decl: &pb::ClassIr) -> Result<ClassIR, Box<dyn std::error::Error>> {
+    fn convert_class(
+        class_decl: &pb::ClassDefIr,
+    ) -> Result<ClassDefIR, Box<dyn std::error::Error>> {
         let mut body: Vec<StmtIR> = Vec::new();
         let mut bases: Vec<ExprIR> = Vec::new();
         let mut decorators: Vec<ExprIR> = Vec::new();
@@ -317,12 +324,12 @@ impl PBDecoder {
             bases.push(expr_ir);
         }
 
-        for expr in &class_decl.decorators {
+        for expr in &class_decl.decorator_list {
             let expr_ir = Self::convert_expr(expr)?;
             decorators.push(expr_ir);
         }
 
-        Ok(ClassIR {
+        Ok(ClassDefIR {
             id: class_decl.id,
             symbol_id: class_decl.symbol_id,
             name: class_decl.name.clone(),
@@ -330,9 +337,67 @@ impl PBDecoder {
             body_scope_id: class_decl.body_scope_id,
             body: body,
             bases: bases,
-            decorators: decorators,
+            keywords: class_decl
+                .keywords
+                .iter()
+                .map(Self::convert_keyword)
+                .collect::<Result<_, _>>()?,
+            decorator_list: decorators,
+            type_params: class_decl
+                .type_params
+                .iter()
+                .map(Self::convert_type_param)
+                .collect::<Result<_, _>>()?,
             span: Self::convert_optional_span(&class_decl.span),
         })
+    }
+
+    fn convert_keyword(
+        keyword: &pb::KeywordArgIr,
+    ) -> Result<KeywordIR, Box<dyn std::error::Error>> {
+        let value = keyword.value.as_ref().ok_or("keyword has no value")?;
+        Ok(KeywordIR {
+            arg: keyword.arg.clone(),
+            value: Box::new(Self::convert_expr(value)?),
+            span: Self::convert_optional_span(&keyword.span),
+        })
+    }
+
+    fn convert_type_param(
+        param: &pb::TypeParamIr,
+    ) -> Result<TypeParamIR, Box<dyn std::error::Error>> {
+        match param.kind.as_ref().ok_or("type parameter has no kind")? {
+            pb::type_param_ir::Kind::TypeVar(value) => Ok(TypeParamIR::TypeVar(TypeVarIR {
+                name: value.name.clone(),
+                bound: value.bound.as_ref().map(Self::convert_expr).transpose()?,
+                default_value: value
+                    .default_value
+                    .as_ref()
+                    .map(Self::convert_expr)
+                    .transpose()?,
+                span: Self::convert_optional_span(&value.span),
+            })),
+            pb::type_param_ir::Kind::ParamSpec(value) => Ok(TypeParamIR::ParamSpec(ParamSpecIR {
+                name: value.name.clone(),
+                default_value: value
+                    .default_value
+                    .as_ref()
+                    .map(Self::convert_expr)
+                    .transpose()?,
+                span: Self::convert_optional_span(&value.span),
+            })),
+            pb::type_param_ir::Kind::TypeVarTuple(value) => {
+                Ok(TypeParamIR::TypeVarTuple(TypeVarTupleIR {
+                    name: value.name.clone(),
+                    default_value: value
+                        .default_value
+                        .as_ref()
+                        .map(Self::convert_expr)
+                        .transpose()?,
+                    span: Self::convert_optional_span(&value.span),
+                }))
+            }
+        }
     }
 
     fn convert_pattern(pattern: &pb::PatternIr) -> Result<PatternIR, Box<dyn std::error::Error>> {
@@ -429,23 +494,23 @@ impl PBDecoder {
                     None => return Err("class pattern has no class expression".into()),
                 };
 
-                let mut positional_patterns = Vec::new();
-                for pattern in &classpattern_ir.positional_patterns {
-                    positional_patterns.push(Self::convert_pattern(pattern)?);
+                let mut patterns = Vec::new();
+                for pattern in &classpattern_ir.patterns {
+                    patterns.push(Self::convert_pattern(pattern)?);
                 }
 
-                let mut keyword_patterns = Vec::new();
-                for pattern in &classpattern_ir.keyword_patterns {
-                    keyword_patterns.push(Self::convert_pattern(pattern)?);
+                let mut kwd_patterns = Vec::new();
+                for pattern in &classpattern_ir.kwd_patterns {
+                    kwd_patterns.push(Self::convert_pattern(pattern)?);
                 }
 
                 let span = Self::convert_optional_span(&classpattern_ir.span);
 
                 Ok(PatternIR::ClassPattern(ClassPatternIR {
                     cls,
-                    positional_patterns,
-                    keyword_names: classpattern_ir.keyword_names.clone(),
-                    keyword_patterns,
+                    patterns,
+                    kwd_attrs: classpattern_ir.kwd_attrs.clone(),
+                    kwd_patterns,
                     span,
                 }))
             }
@@ -521,9 +586,7 @@ impl PBDecoder {
         })
     }
 
-    fn convert_with_item(
-        item: &pb::WithItemIr,
-    ) -> Result<WithItemIR, Box<dyn std::error::Error>> {
+    fn convert_with_item(item: &pb::WithItemIr) -> Result<WithItemIR, Box<dyn std::error::Error>> {
         let context_expr = item
             .context_expr
             .as_ref()
@@ -540,7 +603,6 @@ impl PBDecoder {
             optional_vars,
         })
     }
-
 
     fn convert_except_handler(
         handler: &pb::ExceptHandlerIr,
@@ -586,11 +648,7 @@ impl PBDecoder {
                     .as_ref()
                     .ok_or("assert statement has no test")?;
 
-                let msg = assert_ir
-                    .msg
-                    .as_ref()
-                    .map(Self::convert_expr)
-                    .transpose()?;
+                let msg = assert_ir.msg.as_ref().map(Self::convert_expr).transpose()?;
 
                 Ok(StmtIR::Assert(AssertIR {
                     test: Self::convert_expr(test)?,
@@ -600,11 +658,7 @@ impl PBDecoder {
             }
 
             Some(pb::stmt_ir::Kind::RaiseStmt(raise_ir)) => {
-                let exc = raise_ir
-                    .exc
-                    .as_ref()
-                    .map(Self::convert_expr)
-                    .transpose()?;
+                let exc = raise_ir.exc.as_ref().map(Self::convert_expr).transpose()?;
 
                 let cause = raise_ir
                     .cause
@@ -619,12 +673,10 @@ impl PBDecoder {
                 }))
             }
 
-            Some(pb::stmt_ir::Kind::GlobalStmt(global_ir)) => {
-                Ok(StmtIR::Global(GlobalIR {
-                    names: global_ir.names.clone(),
-                    span: Self::convert_optional_span(&global_ir.span),
-                }))
-            }
+            Some(pb::stmt_ir::Kind::GlobalStmt(global_ir)) => Ok(StmtIR::Global(GlobalIR {
+                names: global_ir.names.clone(),
+                span: Self::convert_optional_span(&global_ir.span),
+            })),
 
             Some(pb::stmt_ir::Kind::NonlocalStmt(nonlocal_ir)) => {
                 Ok(StmtIR::Nonlocal(NonlocalIR {
@@ -633,17 +685,13 @@ impl PBDecoder {
                 }))
             }
 
-            Some(pb::stmt_ir::Kind::PassStmt(pass_ir)) => {
-                Ok(StmtIR::Pass(PassIR {
-                    span: Self::convert_optional_span(&pass_ir.span),
-                }))
-            }
+            Some(pb::stmt_ir::Kind::PassStmt(pass_ir)) => Ok(StmtIR::Pass(PassIR {
+                span: Self::convert_optional_span(&pass_ir.span),
+            })),
 
-            Some(pb::stmt_ir::Kind::BreakStmt(break_ir)) => {
-                Ok(StmtIR::Break(BreakIR {
-                    span: Self::convert_optional_span(&break_ir.span),
-                }))
-            }
+            Some(pb::stmt_ir::Kind::BreakStmt(break_ir)) => Ok(StmtIR::Break(BreakIR {
+                span: Self::convert_optional_span(&break_ir.span),
+            })),
 
             Some(pb::stmt_ir::Kind::ContinueStmt(continue_ir)) => {
                 Ok(StmtIR::Continue(ContinueIR {
@@ -808,7 +856,7 @@ impl PBDecoder {
                 let type_params = type_alias_ir
                     .type_params
                     .iter()
-                    .map(Self::convert_param)
+                    .map(Self::convert_type_param)
                     .collect::<Result<Vec<_>, _>>()?;
 
                 Ok(StmtIR::TypeAlias(TypeAliasIR {
@@ -833,7 +881,7 @@ impl PBDecoder {
                     .collect::<Result<Vec<_>, _>>()?;
 
                 let decorators = function_ir
-                    .decorators
+                    .decorator_list
                     .iter()
                     .map(Self::convert_expr)
                     .collect::<Result<Vec<_>, _>>()?;
@@ -847,14 +895,14 @@ impl PBDecoder {
                 let type_params = function_ir
                     .type_params
                     .iter()
-                    .map(Self::convert_param)
+                    .map(Self::convert_type_param)
                     .collect::<Result<Vec<_>, _>>()?;
 
                 Ok(StmtIR::AsyncFunctionDef(AsyncFunctionDefIR {
                     name: function_ir.name.clone(),
                     args,
                     body,
-                    decorators,
+                    decorator_list: decorators,
                     returns,
                     type_comment: function_ir.type_comment.clone(),
                     scope_id: function_ir.scope_id,
@@ -1010,7 +1058,7 @@ impl PBDecoder {
 
                 let span = Self::convert_optional_span(&for_loop.span);
 
-                Ok(StmtIR::ForLoop(ForLoopIR {
+                Ok(StmtIR::For(ForIR {
                     target,
                     iter,
                     scope_id: for_loop.scope_id,
@@ -1043,7 +1091,7 @@ impl PBDecoder {
 
                 let span = Self::convert_optional_span(&while_loop.span);
 
-                Ok(StmtIR::WhileLoop(WhileLoopIR {
+                Ok(StmtIR::While(WhileIR {
                     test,
                     scope_id: while_loop.scope_id,
                     body_scope_id: while_loop.body_scope_id,
@@ -1078,18 +1126,17 @@ impl PBDecoder {
             }
 
             None => Err("statement has no kind".into()),
-
-            _ => Err("unsupported statement kind".into()),
+            // _ => Err("unsupported statement kind".into()),
         }
     }
 
     fn convert_span(span: &pb::SourceSpan) -> SourceSpan {
         SourceSpan {
             file: span.file.clone(),
-            line: span.line,
-            col: span.col,
-            end_line: span.end_line,
-            end_col: span.end_col,
+            lineno: span.lineno,
+            col_offset: span.col_offset,
+            end_lineno: span.end_lineno,
+            end_col_offset: span.end_col_offset,
         }
     }
 
@@ -1111,10 +1158,8 @@ impl PBDecoder {
             comp.target.as_ref().ok_or("comprehension has no target")?,
         )?);
 
-        let iterable: Box<ExprIR> = Box::new(Self::convert_expr(
-            comp.iterable
-                .as_ref()
-                .ok_or("comprehension has no iterable")?,
+        let iter: Box<ExprIR> = Box::new(Self::convert_expr(
+            comp.iter.as_ref().ok_or("comprehension has no iterable")?,
         )?);
 
         let mut ifs: Vec<ExprIR> = Vec::new();
@@ -1128,7 +1173,7 @@ impl PBDecoder {
 
         Ok(CompIR {
             target,
-            iterable,
+            iter,
             ifs,
             is_async,
             span,
@@ -1137,13 +1182,11 @@ impl PBDecoder {
 
     fn convert_expr(expr: &pb::ExprIr) -> Result<ExprIR, Box<dyn std::error::Error>> {
         match &expr.kind {
-            Some(pb::expr_ir::Kind::Identifier(identifier)) => {
-                Ok(ExprIR::IdentifierExpr(IdentifierIR {
-                    name: identifier.name.clone(),
-                    use_scope_id: identifier.use_scope_id,
-                    span: Self::convert_optional_span(&identifier.span),
-                }))
-            },
+            Some(pb::expr_ir::Kind::Identifier(identifier)) => Ok(ExprIR::Name(NameIR {
+                id: identifier.id.clone(),
+                use_scope_id: identifier.use_scope_id,
+                span: Self::convert_optional_span(&identifier.span),
+            })),
 
             Some(pb::expr_ir::Kind::AwaitExpr(await_ir)) => {
                 let value = await_ir
@@ -1155,7 +1198,7 @@ impl PBDecoder {
                     value: Box::new(Self::convert_expr(value)?),
                     span: Self::convert_optional_span(&await_ir.span),
                 }))
-            },
+            }
 
             Some(pb::expr_ir::Kind::YieldExpr(yield_ir)) => {
                 let value = yield_ir
@@ -1169,7 +1212,7 @@ impl PBDecoder {
                     value,
                     span: Self::convert_optional_span(&yield_ir.span),
                 }))
-            },
+            }
 
             Some(pb::expr_ir::Kind::YieldFrom(yield_from_ir)) => {
                 let value = yield_from_ir
@@ -1210,7 +1253,7 @@ impl PBDecoder {
 
                 Ok(ExprIR::InterpolationExpr(InterpolationIR {
                     value: Box::new(Self::convert_expr(value)?),
-                    source: interpolation_ir.source.clone(),
+                    str: interpolation_ir.str.clone(),
                     conversion: Conversion::try_from(interpolation_ir.conversion)?,
                     format_spec,
                     span: Self::convert_optional_span(&interpolation_ir.span),
@@ -1249,10 +1292,13 @@ impl PBDecoder {
                 };
 
                 Ok(ExprIR::JoinedStr(JoinedStrIR { values, span }))
-            },
+            }
 
             Some(pb::expr_ir::Kind::NamedExpr(named_expr_ir)) => {
-                let target = named_expr_ir.target.clone();
+                let target = named_expr_ir
+                    .target
+                    .as_ref()
+                    .ok_or("named expression has no target")?;
 
                 let value = match &named_expr_ir.value {
                     Some(value) => Self::convert_expr(value)?,
@@ -1265,7 +1311,7 @@ impl PBDecoder {
                 };
 
                 Ok(ExprIR::NamedExpr(NamedExprIR {
-                    target,
+                    target: Box::new(Self::convert_expr(target)?),
                     value: Box::new(value),
                     span,
                 }))
@@ -1291,37 +1337,33 @@ impl PBDecoder {
             Some(pb::expr_ir::Kind::Set(set_ir)) => {
                 let mut elements: Vec<ExprIR> = Vec::new();
 
-                for element in &set_ir.elements {
+                for element in &set_ir.elts {
                     elements.push(Self::convert_expr(element)?);
                 }
 
                 let span = Self::convert_optional_span(&set_ir.span);
 
-                Ok(ExprIR::SetExpr(SetIR { elements, span }))
+                Ok(ExprIR::SetExpr(SetIR {
+                    elts: elements,
+                    span,
+                }))
             }
 
             Some(pb::expr_ir::Kind::Dict(dict_ir)) => {
-                let mut elements: Vec<DictEntryIR> = Vec::new();
-
-                for entry in &dict_ir.entries {
-                    let key = match &entry.key {
-                        Some(key) => Some(Self::convert_expr(key)?),
-                        None => None,
-                    };
-
-                    let value = match &entry.value {
-                        Some(value) => Self::convert_expr(value)?,
-                        None => return Err("dict entry has no value".into()),
-                    };
-
-                    let span = Self::convert_optional_span(&entry.span);
-
-                    elements.push(DictEntryIR { key, value, span });
-                }
+                let keys = dict_ir
+                    .keys
+                    .iter()
+                    .map(|key| key.value.as_ref().map(Self::convert_expr).transpose())
+                    .collect::<Result<Vec<_>, _>>()?;
+                let values = dict_ir
+                    .values
+                    .iter()
+                    .map(Self::convert_expr)
+                    .collect::<Result<Vec<_>, _>>()?;
 
                 let span = Self::convert_optional_span(&dict_ir.span);
 
-                Ok(ExprIR::DictExpr(DictIR { elements, span }))
+                Ok(ExprIR::DictExpr(DictIR { keys, values, span }))
             }
 
             Some(pb::expr_ir::Kind::ListComp(listcomp_ir)) => {
@@ -1386,7 +1428,7 @@ impl PBDecoder {
                     None => None,
                 };
 
-                Ok(ExprIR::GeneratorExpr(GeneratorExprIR {
+                Ok(ExprIR::GeneratorExp(GeneratorExpIR {
                     elt: Box::new(elt),
                     generators,
                     span,
@@ -1443,7 +1485,7 @@ impl PBDecoder {
                     None => None,
                 };
 
-                Ok(ExprIR::IfExpr(IfExprIR {
+                Ok(ExprIR::IfExp(IfExpIR {
                     test: Box::new(test),
                     body: Box::new(body),
                     orelse: Box::new(orelse),
@@ -1516,32 +1558,32 @@ impl PBDecoder {
 
             Some(pb::expr_ir::Kind::List(list)) => {
                 let mut elements: Vec<ExprIR> = Vec::new();
-                for element in &list.elements {
+                for element in &list.elts {
                     let expr_ir: ExprIR = Self::convert_expr(element)?;
                     elements.push(expr_ir);
                 }
 
                 Ok(ExprIR::ListExpr(ListIR {
-                    elements: elements,
+                    elts: elements,
                     span: Self::convert_optional_span(&list.span),
                 }))
             }
 
             Some(pb::expr_ir::Kind::Tuple(tuple)) => {
                 let mut elements: Vec<ExprIR> = Vec::new();
-                for element in &tuple.elements {
+                for element in &tuple.elts {
                     let expr_ir: ExprIR = Self::convert_expr(element)?;
                     elements.push(expr_ir);
                 }
 
                 Ok(ExprIR::TupleExpr(TupleIR {
-                    elements: elements,
+                    elts: elements,
                     span: Self::convert_optional_span(&tuple.span),
                 }))
             }
 
             Some(pb::expr_ir::Kind::Call(call)) => {
-                let callee: Box<ExprIR> = match &call.callee {
+                let callee: Box<ExprIR> = match &call.func {
                     Some(callee) => Box::new(Self::convert_expr(callee)?),
                     None => {
                         return Err("call has no callee".into());
@@ -1555,38 +1597,22 @@ impl PBDecoder {
                     args.push(arg);
                 }
 
-                let mut kwargs: Vec<KeywordArgIR> = Vec::new();
+                let keywords = call
+                    .keywords
+                    .iter()
+                    .map(Self::convert_keyword)
+                    .collect::<Result<Vec<_>, _>>()?;
 
-                for kwarg in &call.kwargs {
-                    let name = match &kwarg.name {
-                        Some(name) => name.clone(),
-                        None => return Err("keyword argument has no name".into()),
-                    };
-
-                    let value = match &kwarg.value {
-                        Some(value) => Self::convert_expr(value)?,
-                        None => return Err("keyword argument has no value".into()),
-                    };
-
-                    let span = Self::convert_optional_span(&kwarg.span);
-
-                    kwargs.push(KeywordArgIR {
-                        name,
-                        value: Box::new(value),
-                        span,
-                    });
-                }
-
-                Ok(ExprIR::CallExpr(CallExprIR {
-                    callee: callee,
+                Ok(ExprIR::Call(CallIR {
+                    func: callee,
                     args: args,
-                    kwargs: kwargs,
+                    keywords,
                     span: Self::convert_optional_span(&call.span),
                 }))
             }
 
             Some(pb::expr_ir::Kind::Attribute(attribute)) => {
-                let base = match &attribute.base {
+                let base = match &attribute.value {
                     Some(base) => Box::new(Self::convert_expr(base)?),
                     None => {
                         return Err(Self::missing_expr(
@@ -1597,8 +1623,8 @@ impl PBDecoder {
                     }
                 };
 
-                Ok(ExprIR::AttributeExpr(AttributeExprIR {
-                    target: base,
+                Ok(ExprIR::Attribute(AttributeIR {
+                    value: base,
                     attr: attribute.attr.clone(),
                     span: Self::convert_optional_span(&attribute.span),
                 }))
@@ -1714,7 +1740,7 @@ impl PBDecoder {
             }
 
             Some(pb::expr_ir::Kind::Subscript(subscript)) => {
-                let target = match &subscript.target {
+                let target = match &subscript.value {
                     Some(target) => Box::new(Self::convert_expr(target)?),
                     None => {
                         return Err(Self::missing_expr(
@@ -1725,7 +1751,7 @@ impl PBDecoder {
                     }
                 };
 
-                let index = match &subscript.subscript {
+                let index = match &subscript.slice {
                     Some(subsript) => Box::new(Self::convert_expr(subsript)?),
                     None => {
                         return Err(Self::missing_expr(
@@ -1739,8 +1765,8 @@ impl PBDecoder {
                 let span = Self::convert_optional_span(&subscript.span);
 
                 Ok(ExprIR::SubscriptExpr(SubscriptIR {
-                    target,
-                    subscript: index,
+                    value: target,
+                    slice: index,
                     span,
                 }))
             }
@@ -1789,7 +1815,13 @@ impl PBDecoder {
         let location = match span {
             Some(span) => format!(
                 " at {}:{}:{}-{}:{}",
-                span.file, span.line, span.col, span.end_line, span.end_col
+                span.file,
+                span.lineno,
+                span.col_offset,
+                span.end_lineno
+                    .map_or_else(|| "?".to_owned(), |value| value.to_string()),
+                span.end_col_offset
+                    .map_or_else(|| "?".to_owned(), |value| value.to_string())
             ),
             None => " (source span unavailable)".to_owned(),
         };

@@ -202,7 +202,7 @@ impl SymbolTypeTable {
                 let symbol_type = match decl {
                     DeclIR::Binding(binding) => self.parse_binding(
                         program_id,
-                        binding,
+                        &binding,
                         symbols,
                         resolutions,
                         &mut diagnostics,

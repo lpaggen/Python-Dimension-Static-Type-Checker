@@ -1,25 +1,15 @@
+from dataclasses import dataclass
 from common.span import SourceSpan
 from generated import _pb2
-from ir.expr_ir import ExprIR
+from ir.expr.expr_ir import ExprIR
 
-
+@dataclass
 class SetIR(ExprIR):
-    def __init__(
-        self,
-        elements: list[ExprIR],
-        span: SourceSpan,
-    ):
-        super().__init__(span=span)
-        self.elements = elements
+    elts: list[ExprIR]
+    span: SourceSpan
 
     def to_proto(self):
-        proto = _pb2.SetIR()
-
-        proto.elements.extend([i.to_proto() for i in self.elements])
-
+        proto = _pb2.SetIR(elts=[elt.to_proto() for elt in self.elts])
         if self.span is not None:
             proto.span.CopyFrom(self.span.to_proto())
-
-        expr = _pb2.ExprIR()
-        expr.set.CopyFrom(proto)
-        return expr
+        return _pb2.ExprIR(set=proto)

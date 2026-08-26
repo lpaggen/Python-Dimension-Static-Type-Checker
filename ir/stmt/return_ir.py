@@ -1,15 +1,14 @@
 from common.span import SourceSpan
 from generated import _pb2
 from ir.expr.expr_ir import ExprIR
-from ir.stmt_ir import StmtIR
+from ir.stmt.stmt_ir import StmtIR
+from dataclasses import dataclass
 
 
+@dataclass
 class ReturnIR(StmtIR):
-    def __init__(self, value: ExprIR, span: SourceSpan):
-        super().__init__(span=span)
-        self.span = span
-        self.value = value
-
+    value: ExprIR | None
+    span: SourceSpan
     def to_proto(self):
         proto = _pb2.ReturnIR()
 

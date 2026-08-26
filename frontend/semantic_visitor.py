@@ -1,69 +1,64 @@
 import ast
 
-from ir.assert_ir import AssertIR
-from ir.asyncfor_ir import AsyncForIR
-from ir.asyncfunctiondef_ir import AsyncFunctionDefIR
-from ir.asyncwith_ir import AsyncWithIR
-from ir.await_ir import AwaitIR
-from ir.break_ir import BreakIR
-from ir.bytes_ir import BytesIR
-from ir.complex_ir import ComplexIR
-from ir.comprehension_ir import CompIR, DictCompIR, GeneratorExprIR, ListCompIR, SetCompIR
-from ir.continue_ir import ContinueIR
-from ir.delete_ir import DeleteIR
-from ir.dict_ir import DictEntryIR, DictIR
-from ir.excepthandler_ir import ExceptHandlerIR
-from ir.expr_ir import ExprIR
-from ir.fstring_ir import Conversion, FormattedValueIR, JoinedStrIR
-from ir.global_ir import GlobalIR
-from ir.interpolation_ir import InterpolationIR
-from ir.lambda_ir import LambdaIR
-from ir.nonlocal_ir import NonlocalIR
-from ir.pass_ir import PassIR
-from ir.raise_ir import RaiseIR
-from ir.set_ir import SetIR
-from ir.starred_ir import StarredIR
-from ir.ternary_ir import IfExprIR
-from ir.try_ir import TryIR
-from ir.trystar_ir import TryStarIR
-from ir.typealias_ir import TypeAliasIR
-from ir.walrus_ir import NamedExprIR
-from ir.with_ir import WithIR
-from ir.withitem_ir import WithItemIR
-from ir.yield_ir import YieldIR
-from ir.yieldfrom_ir import YieldFromIR
+from common.typeparam_ir import ParamSpecIR, TypeVarIR, TypeVarTupleIR
+from ir.expr.attribute_ir import AttributeIR
+from ir.expr.await_ir import AwaitIR
+from ir.expr.binop_ir import BinOpIR
+from ir.expr.boolop_ir import BoolOpIR
+from ir.expr.call_ir import CallIR, KeywordIR
+from ir.expr.compare_ir import CompareIR
+from ir.expr.comprehension_ir import CompIR, DictCompIR, GeneratorExpIR, ListCompIR, SetCompIR
+from ir.expr.constant_ir import BooleanIR, BytesIR, ComplexIR, EllipsisIR, FloatIR, IntegerIR, NoneIR, StringIR
+from ir.expr.conversion_ir import Conversion
+from ir.expr.dict_ir import DictIR
+from ir.expr.expr_ir import ExprIR
+from ir.expr.formattedvalue_ir import FormattedValueIR
+from ir.expr.ifexp_ir import IfExpIR
+from ir.expr.interpolation_ir import InterpolationIR
+from ir.expr.joinedstr_ir import JoinedStrIR
+from ir.expr.lambda_ir import LambdaIR
+from ir.expr.list_ir import ListIR
+from ir.expr.name_ir import NameIR
+from ir.expr.namedexpr_ir import NamedExprIR
+from ir.expr.set_ir import SetIR
+from ir.expr.slice_ir import SliceIR
+from ir.expr.starred_ir import StarredIR
+from ir.expr.subscript_ir import SubscriptIR
+from ir.expr.tuple_ir import TupleIR
+from ir.expr.unaryop_ir import UnaryOpIR
+from ir.expr.yield_ir import YieldIR
+from ir.expr.yieldfrom_ir import YieldFromIR
+from ir.stmt.assert_ir import AssertIR
+from ir.stmt.asyncfunctiondef_ir import AsyncFunctionDefIR
+from ir.stmt.break_ir import BreakIR
+from ir.stmt.continue_ir import ContinueIR
+from ir.stmt.delete_ir import DeleteIR
+from ir.stmt.exprstmt_ir import ExprStmtIR
+from ir.stmt.for_ir import ForIR
+from ir.stmt.global_ir import GlobalIR
+from ir.stmt.if_ir import IfIR
+from ir.stmt.asyncfor_ir import AsyncForIR
+from ir.stmt.while_ir import WhileIR
+from ir.stmt.match_ir import MatchCaseIR, MatchIR
+from ir.stmt.nonlocal_ir import NonlocalIR
+from ir.stmt.pass_ir import PassIR
+from ir.stmt.raise_ir import RaiseIR
+from ir.stmt.try_ir import ExceptHandlerIR, TryIR
+from ir.stmt.trystar_ir import TryStarIR
+from ir.stmt.typealias_ir import TypeAliasIR
+from ir.stmt.asyncwith_ir import AsyncWithIR
+from ir.stmt.with_ir import WithIR, WithItemIR
 from .ir_builder import IRBuilder
 from ir.program_ir import ProgramIR
 from common.span import SourceSpan
-from ir.annotation_ir import AnnotationIR, AnnotationHeadIR
-from ir.function_ir import ParamIR, ParamKind, ReturnIR
-from ir.identifier_ir import IdentifierIR
-from ir.attributeexpr_ir import AttributeExprIR
+from ir.annotation.annotation_ir import AnnotationIR
+from ir.annotation.annotationhead_ir import AnnotationHeadIR
+from ir.arg.arg_ir import ArgIR, ArgKind
+from ir.stmt.return_ir import ReturnIR
 from common.operators import Operator
-from ir.augassign_ir import AugAssignIR
-from ir.forloop_ir import ForLoopIR
-from ir.subscript_ir import SubscriptIR
-from ir.tuple_ir import TupleIR
-from ir.none_ir import NoneIR
-from ir.slice_ir import SliceIR
-from ir.whileloop_ir import WhileLoopIR
-from ir.bool_ir import BooleanIR
-from ir.exprstmt_ir import ExprStmtIR
-from ir.boolop_ir import BoolOpIR
-from ir.if_ir import IfIR
-from ir.compare_ir import CompareIR
-from ir.unaryop_ir import UnaryOpIR
-from ir.callexpr_ir import CallExprIR, KeywordArgIR
-from ir.list_ir import ListIR
-from ir.integer_ir import IntegerIR
-from ir.float_ir import FloatIR
-from ir.string_ir import StringIR
-from ir.binop_ir import BinOpIR
-from ir.ellipsis_ir import EllipsisIR
+from ir.stmt.augassign_ir import AugAssignIR
 from common.kind import ScopeKind, SymbolKind, BindingKind, ImportKind
-from ir.pattern_ir import AsPatternIR, OrPatternIR, StarPatternIR, ClassPatternIR, ValuePatternIR, CapturePatternIR, MappingPatternIR, SequencePatternIR, WildcardPatternIR, SingletonPatternIR
-from ir.match_ir import MatchIR, MatchCaseIR
-from ir.pattern_ir import PatternIR
+from ir.pattern.pattern_ir import AsPatternIR, OrPatternIR, StarPatternIR, ClassPatternIR, ValuePatternIR, CapturePatternIR, MappingPatternIR, SequencePatternIR, WildcardPatternIR, SingletonPatternIR, PatternIR
 
 
 class SemanticBuilder(ast.NodeVisitor):
@@ -220,6 +215,35 @@ class SemanticBuilder(ast.NodeVisitor):
             span=SourceSpan.span(node, self.file_path),
         )
 
+    def lower_type_param(self, param: ast.type_param):
+        span = SourceSpan.span(param, self.file_path)
+        default_value = (
+            self.parse_expr(param.default_value)
+            if param.default_value is not None
+            else None
+        )
+
+        if isinstance(param, ast.TypeVar):
+            return TypeVarIR(
+                name=param.name,
+                bound=self.parse_expr(param.bound) if param.bound is not None else None,
+                default_value=default_value,
+                span=span,
+            )
+        if isinstance(param, ast.ParamSpec):
+            return ParamSpecIR(
+                name=param.name,
+                default_value=default_value,
+                span=span,
+            )
+        if isinstance(param, ast.TypeVarTuple):
+            return TypeVarTupleIR(
+                name=param.name,
+                default_value=default_value,
+                span=span,
+            )
+        raise NotImplementedError(f"Unsupported type parameter: {type(param).__name__}")
+
     def lower_statements(self, statements):
         """Lower statements in source order and flatten multi-binding nodes."""
         lowered_statements = []
@@ -337,10 +361,12 @@ class SemanticBuilder(ast.NodeVisitor):
             name=node.name,
             scope_id=binding_scope,
             body_scope_id=body_scope_id,
-            params=params,
+            args=params,
             body=body,
             returns=self.lower_annotation(node.returns) if node.returns else None,
-            decorators=[self.parse_expr(d) for d in node.decorator_list],
+            decorator_list=[self.parse_expr(d) for d in node.decorator_list],
+            type_comment=node.type_comment,
+            type_params=[self.lower_type_param(param) for param in node.type_params],
             span=SourceSpan.span(node, self.file_path),
         )
 
@@ -376,7 +402,16 @@ class SemanticBuilder(ast.NodeVisitor):
             body_scope_id=class_scope_id,
             body=body,
             bases=[self.parse_expr(base) for base in node.bases],
-            decorators=[self.parse_expr(d) for d in node.decorator_list],
+            keywords=[
+                KeywordIR(
+                    arg=keyword.arg,
+                    value=self.parse_expr(keyword.value),
+                    span=SourceSpan.span(keyword, self.file_path),
+                )
+                for keyword in node.keywords
+            ],
+            decorator_list=[self.parse_expr(d) for d in node.decorator_list],
+            type_params=[self.lower_type_param(param) for param in node.type_params],
             span=SourceSpan.span(node, self.file_path),
         )
 
@@ -413,7 +448,7 @@ class SemanticBuilder(ast.NodeVisitor):
 
         self.scope_stack.pop()
 
-        return WhileLoopIR(
+        return WhileIR(
             test=test_ir,
             scope_id=self.current_scope(),
             body_scope_id=loop_scope_id,
@@ -474,9 +509,10 @@ class SemanticBuilder(ast.NodeVisitor):
             name=node.name,
             args=args,
             body=body,
-            decorators=[self.parse_expr(d) for d in node.decorator_list],
+            decorator_list=[self.parse_expr(d) for d in node.decorator_list],
             returns=self.parse_expr(node.returns) if node.returns is not None else None,
             type_comment=node.type_comment,
+            type_params=[self.lower_type_param(param) for param in node.type_params],
             scope_id=function_scope_id,
             span=SourceSpan.span(node, self.file_path),
         )
@@ -511,7 +547,7 @@ class SemanticBuilder(ast.NodeVisitor):
 
         self.scope_stack.pop()
 
-        return ForLoopIR(
+        return ForIR(
             target=target_ir,
             iter=iter_ir,
             scope_id=self.current_scope(),
@@ -616,12 +652,12 @@ class SemanticBuilder(ast.NodeVisitor):
             ):
                 return ClassPatternIR(
                     cls=self.parse_expr(cls),
-                    positional_patterns=[
+                    patterns=[
                         self.parse_pattern(p)
                         for p in patterns
                     ],
-                    keyword_names=kwd_names,
-                    keyword_patterns=[
+                    kwd_attrs=kwd_names,
+                    kwd_patterns=[
                         self.parse_pattern(p)
                         for p in kwd_patterns
                     ],
@@ -849,9 +885,9 @@ class SemanticBuilder(ast.NodeVisitor):
     def lower_single_param(
         self,
         arg: ast.arg,
-        kind: ParamKind,
+        kind: ArgKind,
         default: ExprIR | None,
-    ) -> ParamIR:
+    ) -> ArgIR:
         symbol_id = self.builder.declare_symbol(
             name=arg.arg,
             kind=SymbolKind.SYMBOL_PARAM,
@@ -859,9 +895,9 @@ class SemanticBuilder(ast.NodeVisitor):
             span=SourceSpan.span(arg, self.file_path),
         )
 
-        return ParamIR(
+        return ArgIR(
             symbol_id=symbol_id,
-            name=arg.arg,
+            arg=arg.arg,
             kind=kind,
             annotation=(
                 self.lower_annotation(arg.annotation)
@@ -872,7 +908,7 @@ class SemanticBuilder(ast.NodeVisitor):
             span=SourceSpan.span(arg, self.file_path),
         )
 
-    def lower_params(self, args: ast.arguments) -> list[ParamIR]:
+    def lower_params(self, args: ast.arguments) -> list[ArgIR]:
         """lowers ast.arguments[posonlyargs, args, vararg, kwonlyargs, kw_defaults, kwarg, defaults]"""
         params = []
 
@@ -885,9 +921,9 @@ class SemanticBuilder(ast.NodeVisitor):
         # there are N posonlyargs in order, then there are M posorkeyword
         for i, arg in enumerate(positional):
             if i < len(positional):
-                kind = ParamKind.POSITIONAL_ONLY
+                kind = ArgKind.POSITIONAL_ONLY
             else:
-                kind = ParamKind.POSITIONAL_OR_KEYWORD
+                kind = ArgKind.POSITIONAL_OR_KEYWORD
 
             # resolve defaults, start with None, then resolve_expr existing defaults
             # recall defaults can only occur after non-defaults
@@ -902,7 +938,7 @@ class SemanticBuilder(ast.NodeVisitor):
             params.append(
                 self.lower_single_param(
                     arg=args.vararg, 
-                    kind=ParamKind.VAR_POSITIONAL,
+                    kind=ArgKind.VAR_POSITIONAL,
                     default=None
                 )
             )
@@ -911,14 +947,14 @@ class SemanticBuilder(ast.NodeVisitor):
         # ex -> *d, e, f=2 -> kwonlyargs[e, f] , kw_defaults[None, 2]
         for arg, _default in zip(args.kwonlyargs, args.kw_defaults):
             default = self.parse_expr(_default) if default is not None else None
-            params.append(self.lower_single_param(arg=arg, kind=ParamKind.KEYWORD_ONLY, default=default))
+            params.append(self.lower_single_param(arg=arg, kind=ArgKind.KEYWORD_ONLY, default=default))
 
         # **arg
         if args.kwarg is not None:
             params.append(
                 self.lower_single_param(
                     arg=args.kwarg,
-                    kind=ParamKind.VAR_KEYWORD,
+                    kind=ArgKind.VAR_KEYWORD,
                     default=None,
                 )
             )
@@ -928,7 +964,7 @@ class SemanticBuilder(ast.NodeVisitor):
     def parse_comp(self, comp: ast.comprehension) -> CompIR:
         return CompIR(
             target=self.parse_expr(comp.target),
-            iterable=self.parse_expr(comp.iter),
+            iter=self.parse_expr(comp.iter),
             ifs=[self.parse_expr(cond) for cond in comp.ifs],
             is_async=bool(comp.is_async),
             span=SourceSpan.span(comp, self.file_path),
@@ -1012,7 +1048,7 @@ class SemanticBuilder(ast.NodeVisitor):
             raise NotImplementedError(f"Unsupported constant: {node.value!r}")
 
         if isinstance(node, ast.IfExp):
-            return IfExprIR(
+            return IfExpIR(
                 test=self.parse_expr(node.test),
                 body=self.parse_expr(node.body),
                 orelse=self.parse_expr(node.orelse),
@@ -1065,7 +1101,7 @@ class SemanticBuilder(ast.NodeVisitor):
 
             self.scope_stack.append(lambda_scope_id)
 
-            # params and args are the same thing here, ParamIR has all we need
+            # The semantic ArgIR also carries the normalized default and parameter kind.
             args = self.lower_params(node.args)
 
             body = self.parse_expr(node.body)
@@ -1087,52 +1123,49 @@ class SemanticBuilder(ast.NodeVisitor):
             )
 
         if isinstance(node, ast.Name):
-            return IdentifierIR(
-                name=node.id,
+            return NameIR(
+                id=node.id,
                 use_scope_id=self.current_scope(),
                 span=SourceSpan.span(node, self.file_path),
             )
 
         if isinstance(node, ast.Set):
             return SetIR(
-                elements=[self.parse_expr(element) for element in node.elts],
+                elts=[self.parse_expr(element) for element in node.elts],
                 span=SourceSpan.span(node, self.file_path),
             )
 
         if isinstance(node, ast.Dict):
             return DictIR(
-                entries=[
-                    DictEntryIR(
-                        key=self.parse_expr(key) if key is not None else None,
-                        value=self.parse_expr(value),
-                        span=SourceSpan.span(value, self.file_path),
-                    )
-                    for key, value in zip(node.keys, node.values)
+                keys=[
+                    self.parse_expr(key) if key is not None else None
+                    for key in node.keys
                 ],
+                values=[self.parse_expr(value) for value in node.values],
                 span=SourceSpan.span(node, self.file_path),
             )
 
         if isinstance(node, ast.GeneratorExp):
-            return GeneratorExprIR(
+            return GeneratorExpIR(
                 elt=self.parse_expr(node.elt),
                 generators=[self.parse_comp(comp) for comp in node.generators],
                 span=SourceSpan.span(node, self.file_path)
             )
 
         if isinstance(node, ast.Attribute):
-            return AttributeExprIR(
-                base=self.parse_expr(node.value),
+            return AttributeIR(
+                value=self.parse_expr(node.value),
                 attr=node.attr,
                 span=SourceSpan.span(node, self.file_path),
             )
 
         if isinstance(node, ast.Call):
-            return CallExprIR(
-                callee=self.parse_expr(node.func),
+            return CallIR(
+                func=self.parse_expr(node.func),
                 args=[self.parse_expr(arg) for arg in node.args],
-                kwargs=[
-                    KeywordArgIR(
-                        name=kw.arg,
+                keywords=[
+                    KeywordIR(
+                        arg=kw.arg,
                         value=self.parse_expr(kw.value),
                         span=SourceSpan.span(kw.value, self.file_path),
                     )
@@ -1158,7 +1191,7 @@ class SemanticBuilder(ast.NodeVisitor):
 
         if isinstance(node, ast.List):
             return ListIR(
-                elements=[self.parse_expr(arg) for arg in node.elts],
+                elts=[self.parse_expr(arg) for arg in node.elts],
                 span=SourceSpan.span(node, self.file_path)
             )
 
@@ -1179,14 +1212,14 @@ class SemanticBuilder(ast.NodeVisitor):
 
         if isinstance(node, ast.Subscript):
             return SubscriptIR(
-                target=self.parse_expr(node.value),
-                subscript=self.parse_expr(node.slice),
+                value=self.parse_expr(node.value),
+                slice=self.parse_expr(node.slice),
                 span=SourceSpan.span(node, self.file_path)
             )
 
         if isinstance(node, ast.Tuple):
             return TupleIR(
-                elements=tuple([self.parse_expr(arg) for arg in node.elts]),
+                elts=tuple([self.parse_expr(arg) for arg in node.elts]),
                 span=SourceSpan.span(node, self.file_path)
             )
 
@@ -1222,7 +1255,7 @@ class SemanticBuilder(ast.NodeVisitor):
         if isinstance(node, ast.Interpolation):
             return InterpolationIR(
                 value=self.parse_expr(node.value),
-                source=node.str,
+                str=node.str,
                 conversion=Conversion(node.conversion),
                 format_spec=(
                     self.parse_expr(node.format_spec)

@@ -1,39 +1,32 @@
+from dataclasses import dataclass
+
 from common.span import SourceSpan
-from ir.arg.param_ir import ParamIR
-from ..ir_node import IRNode
+from common.typeparam_ir import TypeParamIR
+from ir.annotation.annotation_ir import AnnotationIR
+from ir.arg.arg_ir import ArgIR
+from ir.expr.expr_ir import ExprIR
 from generated import _pb2
-from .stmt_ir import stmt_to_proto
+from .stmt_ir import StmtIR, stmt_to_proto
 from .decl_ir import DeclIR
 
 
+@dataclass
 class FunctionDefIR(DeclIR):
-    def __init__(
-        self,
-        id: int,  # symbol id -> name of function
-        symbol_id: int,
-        name: str,
-        scope_id: int,  # parent scope where function name is bound
-        body_scope_id: int,  # function-local scope
-        params: list[ParamIR],
-        body: list[IRNode],
-        returns,
-        decorators,
-        span: SourceSpan,
-    ):
-        super().__init__(span=span)
-        self.id = id
-        self.symbol_id = symbol_id
-        self.name = name
-        self.scope_id = scope_id
-        self.body_scope_id = body_scope_id
-        self.params = params
-        self.body = body
-        self.returns = returns
-        self.decorators = decorators
-        self.span = span
+    id: int             # symbol id -> name of function
+    symbol_id: int
+    scope_id: int       # parent scope where function name is bound
+    body_scope_id: int  # function-local scope
+    name: str
+    args: list[ArgIR]
+    body: list[StmtIR]
+    decorator_list: list[ExprIR]
+    returns: AnnotationIR | None
+    type_comment: str | None
+    type_params: list[TypeParamIR]
+    span: SourceSpan
 
     def to_proto(self):
-        proto = _pb2.FunctionIR(
+        proto = _pb2.FunctionDefIR(
             id=self.id,
             symbol_id=self.symbol_id,
             name=self.name,
@@ -41,12 +34,16 @@ class FunctionDefIR(DeclIR):
             body_scope_id=self.body_scope_id,
         )
 
-        proto.params.extend([p.to_proto() for p in self.params])
+        proto.args.extend([arg.to_proto() for arg in self.args])
         proto.body.extend([stmt_to_proto(stmt) for stmt in self.body])
-        proto.decorators.extend([d.to_proto() for d in self.decorators])
+        proto.decorator_list.extend([d.to_proto() for d in self.decorator_list])
+        proto.type_params.extend([param.to_proto() for param in self.type_params])
 
         if self.returns is not None:
             proto.returns.CopyFrom(self.returns.to_proto())
+
+        if self.type_comment is not None:
+            proto.type_comment = self.type_comment
 
         if self.span is not None:
             proto.span.CopyFrom(self.span.to_proto())

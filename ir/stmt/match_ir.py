@@ -1,24 +1,19 @@
 from .stmt_ir import StmtIR
-from .expr_ir import ExprIR
+from ir.expr.expr_ir import ExprIR
 from common.span import SourceSpan
-from .pattern_ir import PatternIR
+from ir.pattern.pattern_ir import PatternIR
 
 from generated import _pb2
 
 from typing import List
+from dataclasses import dataclass
 
 
+@dataclass
 class MatchIR(StmtIR):
-    def __init__(
-        self,
-        subject: ExprIR,
-        cases: List["MatchCaseIR"],
-        span: SourceSpan,
-    ):
-        super().__init__(span=span)
-        self.subject = subject
-        self.cases = cases
-
+    subject: ExprIR
+    cases: List["MatchCaseIR"]
+    span: SourceSpan
     def to_proto(self):
         proto = _pb2.MatchIR()
 
@@ -38,21 +33,13 @@ class MatchIR(StmtIR):
         return stmt
 
 
+@dataclass
 class MatchCaseIR(StmtIR):
-    def __init__(
-        self,
-        scope_id: int,
-        pattern: PatternIR,
-        guard: ExprIR | None,
-        body: List[StmtIR],
-        span: SourceSpan,
-    ):
-        super().__init__(span=span)
-        self.scope_id = scope_id
-        self.pattern = pattern
-        self.guard = guard
-        self.body = body
-
+    scope_id: int
+    pattern: PatternIR
+    guard: ExprIR | None
+    body: List[StmtIR]
+    span: SourceSpan
     def to_proto(self):
         proto = _pb2.MatchCaseIR(scope_id=self.scope_id)
 

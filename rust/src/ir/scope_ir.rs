@@ -1,4 +1,4 @@
-use crate::ir::nodes::span_ir::SourceSpan;
+use crate::ir::span_ir::SourceSpan;
 
 
 #[derive(Debug, Clone)]

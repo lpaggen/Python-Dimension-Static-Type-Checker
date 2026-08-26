@@ -1,32 +1,25 @@
-from .ir_node import IRNode
+from dataclasses import dataclass
+
 from common.span import SourceSpan
 from generated import _pb2
-from .expr_ir import ExprIR
+from ir.expr.expr_ir import ExprIR
 
 
+@dataclass
 class SliceIR(ExprIR):
-    def __init__(self, lower: IRNode, upper: IRNode, step: IRNode, span: SourceSpan):
-        super().__init__(span=span, value=None)
-        self.lower = lower
-        self.upper = upper
-        self.step = step
-        self.span = span
+    lower: ExprIR | None
+    upper: ExprIR | None
+    step: ExprIR | None
+    span: SourceSpan
 
     def to_proto(self):
         proto = _pb2.SliceIR()
-
         if self.lower is not None:
             proto.lower.CopyFrom(self.lower.to_proto())
-
         if self.upper is not None:
             proto.upper.CopyFrom(self.upper.to_proto())
-
         if self.step is not None:
             proto.step.CopyFrom(self.step.to_proto())
-
         if self.span is not None:
             proto.span.CopyFrom(self.span.to_proto())
-
-        expr = _pb2.ExprIR()
-        expr.slice.CopyFrom(proto)
-        return expr
+        return _pb2.ExprIR(slice=proto)

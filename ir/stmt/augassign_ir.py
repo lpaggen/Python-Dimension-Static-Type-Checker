@@ -1,20 +1,17 @@
 from .stmt_ir import StmtIR
-from .expr_ir import ExprIR
+from ir.expr.expr_ir import ExprIR
 from common.span import SourceSpan
 from common.operators import Operator
 from generated import _pb2
+from dataclasses import dataclass
 
 
+@dataclass
 class AugAssignIR(StmtIR):
-    def __init__(
-        self, target: str, op: Operator, value=ExprIR, span: SourceSpan = None
-    ):
-        super().__init__(span=span)
-        self.span = span
-        self.target = target
-        self.op = op
-        self.value = value
-
+    target: ExprIR
+    op: Operator
+    value: ExprIR
+    span: SourceSpan | None = None
     def to_proto(self):
         proto = _pb2.AugAssignIR(op=self.op.value)
 

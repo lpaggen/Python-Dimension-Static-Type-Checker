@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 from common.span import SourceSpan
 from generated import _pb2
-from ir.stmt_ir import StmtIR
+from ir.stmt.stmt_ir import StmtIR
 
 
 @dataclass

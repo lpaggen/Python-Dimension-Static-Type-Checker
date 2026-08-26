@@ -1,30 +1,18 @@
-from common.span import SourceSpan
+from dataclasses import dataclass
 from common.operators import Operator
+from common.span import SourceSpan
 from generated import _pb2
-from .expr_ir import ExprIR
+from ir.expr.expr_ir import ExprIR
 
-
+@dataclass
 class BinOpIR(ExprIR):
-    def __init__(
-        self, left: ExprIR, right: ExprIR, op: Operator, span: SourceSpan = None
-    ):
-        super().__init__(span=span, value=None)
-        self.op = op
-        self.left = left
-        self.right = right
-        self.span = span
+    left: ExprIR
+    right: ExprIR
+    op: Operator
+    span: SourceSpan | None = None
 
     def to_proto(self):
-        proto = _pb2.BinOpIR(
-            op=self.op.value,
-        )
-
-        proto.left.CopyFrom(self.left.to_proto())
-        proto.right.CopyFrom(self.right.to_proto())
-
+        proto = _pb2.BinOpIR(left=self.left.to_proto(), right=self.right.to_proto(), op=self.op.value)
         if self.span is not None:
             proto.span.CopyFrom(self.span.to_proto())
-
-        expr = _pb2.ExprIR()
-        expr.binop.CopyFrom(proto)
-        return expr
+        return _pb2.ExprIR(binop=proto)

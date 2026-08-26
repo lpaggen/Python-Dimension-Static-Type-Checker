@@ -1,24 +1,18 @@
-from .expr_ir import ExprIR
+from dataclasses import dataclass
+
 from common.span import SourceSpan
 from generated import _pb2
+from ir.expr.expr_ir import ExprIR
 
 
+@dataclass
 class SubscriptIR(ExprIR):
-    def __init__(self, target: ExprIR, subscript: ExprIR, span: SourceSpan):
-        super().__init__(span=span, value=None)
-        self.target = target
-        self.subscript = subscript
-        self.span = span
+    value: ExprIR
+    slice: ExprIR
+    span: SourceSpan
 
     def to_proto(self):
-        proto = _pb2.SubscriptIR()
-
-        proto.target.CopyFrom(self.target.to_proto())
-        proto.subscript.CopyFrom(self.subscript.to_proto())
-
+        proto = _pb2.SubscriptIR(value=self.value.to_proto(), slice=self.slice.to_proto())
         if self.span is not None:
             proto.span.CopyFrom(self.span.to_proto())
-
-        expr = _pb2.ExprIR()
-        expr.subscript.CopyFrom(proto)
-        return expr
+        return _pb2.ExprIR(subscript=proto)

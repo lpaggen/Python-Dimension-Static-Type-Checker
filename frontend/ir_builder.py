@@ -1,15 +1,15 @@
-from ir.scope_ir import ScopeIR
-from ir.symbol_ir import SymbolIR
+from ir.metadata.scope_ir import ScopeIR
+from ir.metadata.symbol_ir import SymbolIR
 from ir.program_ir import ProgramIR
-from ir.import_ir import ImportIR
-from ir.expr_ir import ExprIR
+from ir.stmt.import_ir import ImportIR
+from ir.expr.expr_ir import ExprIR
 
 from common.span import SourceSpan
 
-from ir.binding_ir import BindingIR
-from ir.function_ir import FunctionIR
-from ir.class_ir import ClassIR
-from ir.annotation_ir import AnnotationIR
+from ir.stmt.binding_ir import BindingIR
+from ir.stmt.functiondef_ir import FunctionDefIR
+from ir.stmt.classdef_ir import ClassDefIR
+from ir.annotation.annotation_ir import AnnotationIR
 
 from common.kind import ScopeKind
 
@@ -57,25 +57,29 @@ class IRBuilder:
         name,
         scope_id,
         body_scope_id,
-        params,
+        args,
         body,
         returns,
-        decorators,
+        decorator_list,
+        type_comment,
+        type_params,
         span,
     ):
         decl_id = self.next_decl_id
         self.next_decl_id += 1
 
-        function = FunctionIR(
+        function = FunctionDefIR(
             id=decl_id,
             symbol_id=symbol_id,
             name=name,
             scope_id=scope_id,
             body_scope_id=body_scope_id,
             body=body,
-            params=params,
+            args=args,
             returns=returns,
-            decorators=decorators,
+            decorator_list=decorator_list,
+            type_comment=type_comment,
+            type_params=type_params,
             span=span,
         )
         self.decls.append(function)
@@ -90,13 +94,15 @@ class IRBuilder:
         body_scope_id: int,  # class-local scope
         body,
         bases: list,  # Base classes: Base, nn.Module, etc.
-        decorators: list,
+        keywords: list,
+        decorator_list: list,
+        type_params: list,
         span: SourceSpan,
     ):
         decl_id = self.next_decl_id
         self.next_decl_id += 1
 
-        class_decl = ClassIR(
+        class_decl = ClassDefIR(
             id=decl_id,
             symbol_id=symbol_id,
             name=name,
@@ -104,7 +110,9 @@ class IRBuilder:
             body=body,
             body_scope_id=body_scope_id,
             bases=bases,
-            decorators=decorators,
+            keywords=keywords,
+            decorator_list=decorator_list,
+            type_params=type_params,
             span=span,
         )
         self.decls.append(class_decl)

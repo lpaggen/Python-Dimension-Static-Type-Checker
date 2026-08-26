@@ -1,5 +1,5 @@
 use crate::diagnostic::diagnostic::Diagnostic;
-use crate::ir::nodes::program_ir::ProgramIR;
+use crate::ir::program_ir::ProgramIR;
 use crate::linker::global_scope_table::GlobalSymbolTable;
 use crate::linker::import_graph::ImportGraph;
 use crate::linker::program_table::ProgramTable;

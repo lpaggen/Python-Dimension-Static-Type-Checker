@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{ir::stmt::{StmtIR, continue_ir}, type_resolver::control_flow::{basic_block::BasicBlock, block_id::BlockID, terminator::Terminator}};
+use crate::{ir::stmt::{StmtIR, continue_ir}, type_resolver::control_flow::{basic_block::BasicBlock, block_id::BlockID, branch::Branch, terminator::Terminator}};
 
 pub struct Cfg {
     pub blocks: HashMap<BlockID, BasicBlock>,
@@ -25,6 +25,21 @@ impl Cfg {
                     // create loop header/body/exit
                     // header ends in Branch(...)
                     // body ends in Goto(header)
+
+                    let header = self.new_block();
+                    let exit = self.new_block();
+
+                    // connect incoming and header
+
+                    // true edge body->header
+                    // false edge body->exit
+                    let branch = Terminator::Branch(Branch { 
+                        true_target: header, 
+                        false_target: exit 
+                    });
+
+                    
+                    
                 }
 
                 StmtIR::For(for_stmt) => {

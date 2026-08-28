@@ -19,15 +19,12 @@ impl Terminator {
 
             Terminator::Goto(goto) => {
                 vec![*goto]
-            }
+            },
 
-            Terminator::Raise(_) => {
+            Terminator::Raise(_)
+            | Terminator::Return(_) => {
                 vec![]
-            }
-
-            Terminator::Return(_) => {
-                vec![]
-            }
+            },
         }
     }
 

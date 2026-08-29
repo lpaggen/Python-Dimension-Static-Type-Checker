@@ -1,6 +1,7 @@
 use crate::type_resolver::control_flow::block_id::BlockID;
 
-pub struct LoopIR {
+#[derive(Clone, Copy)]
+pub struct LoopContext {
     // pub preheader: BlockID,
     pub header: BlockID,
     // pub body_entry: BlockID,

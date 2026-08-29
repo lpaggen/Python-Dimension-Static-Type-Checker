@@ -7,6 +7,8 @@ use crate::linker::resolution_table::ResolutionTable;
 use crate::type_resolver::symbol_type_table::SymbolTypeTable;
 // use crate::type_resolver::type_resolver::TypeResolver;
 use crate::pb_decoder::pb_decoder::PBDecoder;
+use crate::type_resolver::control_flow::block_id::BlockID;
+use crate::type_resolver::control_flow::cfg::Cfg;
 
 mod diagnostic;
 mod ir;
@@ -42,9 +44,20 @@ fn main() -> Result<(), Vec<Diagnostic>> {
     let mut types: SymbolTypeTable = SymbolTypeTable::new();
     types.build(&table, &symbols, &resolved)?;
 
-    // for (symbol_ref, symbol_type) in &types.by_ref {
-    //     println!("{:?}, {:?}", symbol_ref, symbol_type)
-    // }
+    let body = &table.by_id.get(&0).unwrap().body;
+    println!("{:#?}", body);
+
+    let mut cfg = Cfg::new();
+
+    let exits = cfg.build(
+        vec![BlockID { id: 0 }],
+        &body,
+        None,
+    );
+
+    println!("{:?}", cfg.blocks);
+    println!("exits: {exits:?}");
+
 
     // let mut resolver: TypeResolver = TypeResolver::new(&table, &types);
     // resolver.resolve_types();

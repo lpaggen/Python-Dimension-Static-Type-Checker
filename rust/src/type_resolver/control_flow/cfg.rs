@@ -18,10 +18,14 @@ pub struct Cfg<'a> {
 // TODO impl support for while/for 'orelse' field
 impl<'a> Cfg<'a> {
     pub fn new() -> Self {
-        Self {
+        let mut cfg = Self {
             blocks: HashMap::new(),
             current_id: 0,
-        }
+        };
+
+        cfg.new_block(); // entry block = BlockID { id: 0 }
+
+        cfg
     }
 
     pub fn build(

@@ -12,15 +12,15 @@ class AugAssignIR(StmtIR):
     op: Operator
     value: ExprIR
     span: SourceSpan | None = None
-    def to_proto(self):
-        proto = _pb2.AugAssignIR(op=self.op.value)
 
-        proto.target.CopyFrom(self.target.to_proto())
-        proto.value.CopyFrom(self.value.to_proto())
+    def to_proto(self):
+        proto = _pb2.AugAssignIR(
+            target=self.target.to_proto(),
+            op=self.op.value,
+            value=self.value.to_proto(),
+        )
 
         if self.span is not None:
             proto.span.CopyFrom(self.span.to_proto())
 
-        stmt = _pb2.StmtIR()
-        stmt.augassign.CopyFrom(proto)
-        return stmt
+        return _pb2.StmtIR(aug_assign=proto)

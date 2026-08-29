@@ -262,16 +262,14 @@ class SemanticBuilder(ast.NodeVisitor):
         return lowered_statements
 
     def visit_AugAssign(self, node: ast.AugAssign):
-        target = node.target
-        op = node.op
-        value = self.parse_expr(node.value)
         return AugAssignIR(
-            target=target,
-            value=value, 
-            op=op,
+            target=self.parse_expr(node.target),
+            value=self.parse_expr(node.value),
+            op=Operator.augop_to_operator(node.op),
             span=SourceSpan.span(
-                node=node
-            )
+                node=node,
+                file_path=self.file_path,
+            ),
         )
 
     def visit_Import(self, node: ast.Import):

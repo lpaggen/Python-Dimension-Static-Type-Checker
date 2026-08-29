@@ -3,6 +3,7 @@ use crate::{
     type_resolver::control_flow::{block_id::BlockID, branch::Branch, fornext::Next, raise::Raise},
 };
 
+#[derive(Debug, Clone)]
 pub enum Terminator<'a> {
     Branch(Branch<'a>), // if, while, (match)
 

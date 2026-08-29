@@ -1,5 +1,6 @@
 use crate::{ir::expr::ExprIR, type_resolver::control_flow::block_id::BlockID};
 
+#[derive(Debug, Clone)]
 pub struct Next<'a> {
     pub iterator: &'a ExprIR,
     pub target: &'a ExprIR,

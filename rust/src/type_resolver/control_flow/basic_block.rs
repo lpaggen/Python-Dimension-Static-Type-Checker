@@ -3,6 +3,7 @@ use crate::{
     type_resolver::control_flow::{block_id::BlockID, terminator::Terminator},
 };
 
+#[derive(Debug, Clone)]
 pub struct BasicBlock<'a> {
     pub incoming: Vec<BlockID>,
     pub terminator: Option<Terminator<'a>>, // terminator owns the outgoing IDs

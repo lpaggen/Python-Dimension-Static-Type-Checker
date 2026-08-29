@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     ir::stmt::StmtIR,
-    type_resolver::control_flow::{
+    control_flow::{
         basic_block::BasicBlock, block_id::BlockID, branch::Branch, fornext::Next,
         loopctx::LoopContext, raise::Raise, terminator::Terminator,
     },

@@ -1,4 +1,4 @@
-use crate::type_resolver::control_flow::block_id::BlockID;
+use crate::control_flow::block_id::BlockID;
 
 #[derive(Clone, Copy)]
 pub struct LoopContext {

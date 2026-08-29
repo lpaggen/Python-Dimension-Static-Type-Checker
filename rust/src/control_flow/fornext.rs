@@ -1,4 +1,4 @@
-use crate::{ir::expr::ExprIR, type_resolver::control_flow::block_id::BlockID};
+use crate::{ir::expr::ExprIR, control_flow::block_id::BlockID};
 
 #[derive(Debug, Clone)]
 pub struct Next<'a> {

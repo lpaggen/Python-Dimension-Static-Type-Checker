@@ -7,8 +7,8 @@ use crate::linker::resolution_table::ResolutionTable;
 use crate::type_resolver::symbol_type_table::SymbolTypeTable;
 // use crate::type_resolver::type_resolver::TypeResolver;
 use crate::pb_decoder::pb_decoder::PBDecoder;
-use crate::type_resolver::control_flow::block_id::BlockID;
-use crate::type_resolver::control_flow::cfg::Cfg;
+use crate::control_flow::block_id::BlockID;
+use crate::control_flow::cfg::Cfg;
 
 mod diagnostic;
 mod ir;
@@ -16,6 +16,7 @@ mod linker;
 mod pb_decoder;
 mod type_resolver;
 mod types;
+mod control_flow;
 
 pub mod pb {
     include!(concat!(env!("OUT_DIR"), "/pdc.ir.rs"));

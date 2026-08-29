@@ -1,15 +1,11 @@
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
 use crate::{
-    ir::stmt::StmtIR, 
+    ir::stmt::StmtIR,
     type_resolver::control_flow::{
-        basic_block::BasicBlock, 
-        block_id::BlockID, 
-        branch::Branch, fornext::Next, 
-        loopctx::LoopContext, 
-        raise::Raise, 
-        terminator::Terminator
-    }
+        basic_block::BasicBlock, block_id::BlockID, branch::Branch, fornext::Next,
+        loopctx::LoopContext, raise::Raise, terminator::Terminator,
+    },
 };
 
 pub struct Cfg<'a> {
@@ -21,6 +17,13 @@ pub struct Cfg<'a> {
 // TERMINATOR OWNS THE OUTGOING EDGES !!!!!!!!
 // TODO impl support for while/for 'orelse' field
 impl<'a> Cfg<'a> {
+    pub fn new() -> Self {
+        Self {
+            blocks: HashMap::new(),
+            current_id: 0,
+        }
+    }
+
     pub fn build(
         &mut self,
         mut current: Vec<BlockID>,
@@ -35,10 +38,7 @@ impl<'a> Cfg<'a> {
                     let else_body = self.new_block();
 
                     for id in current {
-                        self.set_terminator(
-                            id,
-                            Terminator::Goto(header),
-                        );
+                        self.set_terminator(id, Terminator::Goto(header));
                     }
 
                     self.set_terminator(
@@ -50,22 +50,11 @@ impl<'a> Cfg<'a> {
                         }),
                     );
 
-                    let then_exits = self.build(
-                        vec![then_body],
-                        &if_stmt.body,
-                        loop_ctx,
-                    );
+                    let then_exits = self.build(vec![then_body], &if_stmt.body, loop_ctx);
 
-                    let else_exits = self.build(
-                        vec![else_body],
-                        &if_stmt.orelse,
-                        loop_ctx,
-                    );
+                    let else_exits = self.build(vec![else_body], &if_stmt.orelse, loop_ctx);
 
-                    current = then_exits
-                        .into_iter()
-                        .chain(else_exits)
-                        .collect();
+                    current = then_exits.into_iter().chain(else_exits).collect();
                 }
 
                 StmtIR::While(while_stmt) => {
@@ -75,38 +64,30 @@ impl<'a> Cfg<'a> {
 
                     // connect incoming and header
                     for id in current {
-                        self.set_terminator(
-                        id, 
-                        Terminator::Goto(
-                            header
-                        ));
+                        self.set_terminator(id, Terminator::Goto(header));
                     }
 
                     self.set_terminator(
-                    header, 
-                    Terminator::Branch(Branch { 
-                        condition: while_stmt.test.as_ref(),
-                        true_target: body, 
-                        false_target: exit 
-                    }));
+                        header,
+                        Terminator::Branch(Branch {
+                            condition: while_stmt.test.as_ref(),
+                            true_target: body,
+                            false_target: exit,
+                        }),
+                    );
 
                     // need to consider the body has other statements which point elsewhere
                     let body_exits = self.build(
-                    vec![body], 
-                    &while_stmt.body, 
-                    Some(LoopContext { 
-                        header, 
-                        exit 
-                    }));
+                        vec![body],
+                        &while_stmt.body,
+                        Some(LoopContext { header, exit }),
+                    );
 
                     for id in &body_exits {
-                        self.set_terminator(
-                        *id, 
-                        Terminator::Goto(header));
+                        self.set_terminator(*id, Terminator::Goto(header));
                     }
 
                     current = vec![exit]
-                    
                 }
 
                 StmtIR::For(for_stmt) => {
@@ -115,10 +96,7 @@ impl<'a> Cfg<'a> {
                     let exit = self.new_block();
 
                     for id in current {
-                        self.set_terminator(
-                            id,
-                            Terminator::Goto(header),
-                        );
+                        self.set_terminator(id, Terminator::Goto(header));
                     }
 
                     self.set_terminator(
@@ -134,17 +112,11 @@ impl<'a> Cfg<'a> {
                     let body_exits = self.build(
                         vec![loop_body],
                         &for_stmt.body,
-                        Some(LoopContext { 
-                            header, 
-                            exit 
-                        }),
+                        Some(LoopContext { header, exit }),
                     );
 
                     for id in &body_exits {
-                        self.set_terminator(
-                            *id,
-                            Terminator::Goto(header),
-                        );
+                        self.set_terminator(*id, Terminator::Goto(header));
                     }
 
                     current = vec![exit];
@@ -152,12 +124,7 @@ impl<'a> Cfg<'a> {
 
                 StmtIR::Return(return_stmt) => {
                     for id in &current {
-                        self.set_terminator(
-                            *id,
-                            Terminator::Return(
-                                return_stmt.value.as_deref(),
-                            ),
-                        );
+                        self.set_terminator(*id, Terminator::Return(return_stmt.value.as_deref()));
                     }
 
                     current.clear();
@@ -167,10 +134,7 @@ impl<'a> Cfg<'a> {
                 StmtIR::Break(_break_stmt) => {
                     let ctx = loop_ctx.expect("break statement outside loop");
                     for id in &current {
-                        self.set_terminator(
-                            *id, 
-                            Terminator::Goto(ctx.exit)
-                        );  
+                        self.set_terminator(*id, Terminator::Goto(ctx.exit));
                     }
 
                     current.clear();
@@ -180,10 +144,7 @@ impl<'a> Cfg<'a> {
                     let ctx = loop_ctx.expect("continue outside loop");
 
                     for id in &current {
-                        self.set_terminator(
-                            *id,
-                            Terminator::Goto(ctx.header),
-                        );
+                        self.set_terminator(*id, Terminator::Goto(ctx.header));
                     }
 
                     current.clear();
@@ -194,16 +155,17 @@ impl<'a> Cfg<'a> {
                     for id in &current {
                         self.set_terminator(
                             *id,
-                            Terminator::Raise(Raise { 
-                                exception: raise_stmt.exc.as_ref(), 
-                                cause: raise_stmt.cause.as_ref() }
-                        ));
+                            Terminator::Raise(Raise {
+                                exception: raise_stmt.exc.as_ref(),
+                                cause: raise_stmt.cause.as_ref(),
+                            }),
+                        );
                     }
 
                     current.clear();
                 }
 
-                _other => {  // anything else, assignments, definitions, etc, go here
+                _other => { // anything else, assignments, definitions, etc, go here
                     // append `other` to current BB
                 }
             }
@@ -213,8 +175,8 @@ impl<'a> Cfg<'a> {
     }
 
     fn new_block(&mut self) -> BlockID {
-        let id = BlockID{
-            id: self.current_id
+        let id = BlockID {
+            id: self.current_id,
         };
 
         self.current_id += 1;

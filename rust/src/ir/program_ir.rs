@@ -1,6 +1,6 @@
 use crate::ir::{
     metadata::{ScopeIR, SymbolIR},
-    stmt::{decl_ir::DeclIR, import_ir::ImportIR, StmtIR},
+    stmt::{StmtIR, decl_ir::DeclIR, import_ir::ImportIR},
 };
 
 #[derive(Debug, Clone)]

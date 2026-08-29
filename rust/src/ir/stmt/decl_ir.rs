@@ -1,6 +1,7 @@
-use crate::ir::{nodes::{
-    binding_ir::BindingIR, classdef_ir::ClassDefIR, functiondef_ir::FunctionDefIR,
-}, span_ir::SourceSpan};
+use crate::ir::{
+    nodes::{binding_ir::BindingIR, classdef_ir::ClassDefIR, functiondef_ir::FunctionDefIR},
+    span_ir::SourceSpan,
+};
 
 #[derive(Debug, Clone)]
 pub enum DeclIR {

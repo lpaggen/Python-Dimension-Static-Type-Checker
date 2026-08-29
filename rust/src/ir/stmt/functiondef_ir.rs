@@ -1,5 +1,5 @@
-use crate::ir::nodes::annotation_ir::AnnotationIR;
 use crate::ir::nodes::TypeParamIR;
+use crate::ir::nodes::annotation_ir::AnnotationIR;
 use crate::ir::{expr_ir::ExprIR, span_ir::SourceSpan, stmt_ir::StmtIR};
 
 #[derive(Debug, Clone)]

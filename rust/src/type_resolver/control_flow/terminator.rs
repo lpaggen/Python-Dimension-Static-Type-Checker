@@ -1,15 +1,18 @@
-use crate::{ir::expr::ExprIR, type_resolver::control_flow::{block_id::BlockID, branch::Branch, fornext::Next, raise::Raise}};
+use crate::{
+    ir::expr::ExprIR,
+    type_resolver::control_flow::{block_id::BlockID, branch::Branch, fornext::Next, raise::Raise},
+};
 
 pub enum Terminator<'a> {
-    Branch(Branch<'a>),  // if, while, (match)
+    Branch(Branch<'a>), // if, while, (match)
 
     ForNext(Next<'a>),
 
-    Goto(BlockID),   // break (exit loop), continue (back to top of loop), (match)
+    Goto(BlockID), // break (exit loop), continue (back to top of loop), (match)
 
     Return(Option<&'a ExprIR>),
 
-    Raise(Raise<'a>)
+    Raise(Raise<'a>),
 }
 
 impl<'a> Terminator<'a> {
@@ -17,7 +20,7 @@ impl<'a> Terminator<'a> {
         match self {
             Terminator::Branch(branch) => {
                 vec![branch.true_target, branch.false_target]
-            },
+            }
 
             // can't only be a branch, need to know about target too
             Terminator::ForNext(next) => {
@@ -26,12 +29,11 @@ impl<'a> Terminator<'a> {
 
             Terminator::Goto(goto) => {
                 vec![*goto]
-            },
+            }
 
-            Terminator::Raise(_)
-            | Terminator::Return(_) => {
+            Terminator::Raise(_) | Terminator::Return(_) => {
                 vec![]
-            },
+            }
         }
     }
 

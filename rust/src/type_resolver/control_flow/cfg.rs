@@ -1,6 +1,6 @@
-use std::collections::HashMap;
+use std::{collections::HashMap};
 
-use crate::{ir::stmt::{StmtIR, continue_ir}, type_resolver::control_flow::{basic_block::BasicBlock, block_id::BlockID, branch::Branch, terminator::Terminator}};
+use crate::{ir::stmt::StmtIR, type_resolver::control_flow::{basic_block::BasicBlock, block_id::BlockID, branch::Branch, terminator::Terminator}};
 
 pub struct Cfg {
     pub blocks: HashMap<BlockID, BasicBlock>,
@@ -8,12 +8,13 @@ pub struct Cfg {
 }
 
 // !! CFG just wants to BUILD the graph, doesn't care WHICH path execution takes, only models all paths
+// TERMINATOR OWNS THE OUTGOING EDGES !!!!!!!!
 impl Cfg {
     pub fn build(
         &mut self,
-        current: BlockID,
+        mut current: Vec<BlockID>,
         body: &[StmtIR],
-    ) -> Option<BlockID> {
+    ) -> Vec<BlockID> {
         for stmt in body {
             match stmt {
                 StmtIR::If(if_stmt) => {
@@ -22,23 +23,36 @@ impl Cfg {
                 }
 
                 StmtIR::While(while_stmt) => {
-                    // create loop header/body/exit
-                    // header ends in Branch(...)
-                    // body ends in Goto(header)
-
                     let header = self.new_block();
+                    let body = self.new_block();
                     let exit = self.new_block();
 
                     // connect incoming and header
+                    for id in current {
+                        self.set_terminator(
+                        id, 
+                        Terminator::Goto(
+                            header
+                        ));
+                    }
 
-                    // true edge body->header
-                    // false edge body->exit
-                    let branch = Terminator::Branch(Branch { 
-                        true_target: header, 
+                    self.set_terminator(
+                    header, 
+                    Terminator::Branch(Branch { 
+                        true_target: body, 
                         false_target: exit 
-                    });
+                    }));
 
-                    
+                    // need to consider the body has other statements which point elsewhere
+                    let body_exits = self.build(vec![body], &while_stmt.body);
+
+                    for id in &body_exits {
+                        self.set_terminator(
+                        *id, 
+                        Terminator::Goto(header));
+                    }
+
+                    current = vec![exit]
                     
                 }
 
@@ -71,9 +85,7 @@ impl Cfg {
             }
         }
 
-        Some(BlockID {
-            id: 0
-        })
+        vec![BlockID {id: 0}]
     }
 
     fn new_block(&mut self) -> BlockID {
@@ -86,5 +98,12 @@ impl Cfg {
         self.blocks.insert(id, BasicBlock::new());
 
         id
+    }
+
+    fn set_terminator(&mut self, from: BlockID, to: Terminator) {
+        self.blocks
+            .get_mut(&from)
+            .expect("Invalid Block ID")
+            .terminator = Some(to);
     }
 }

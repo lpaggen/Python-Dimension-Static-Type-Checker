@@ -45,7 +45,7 @@ fn main() -> Result<(), Vec<Diagnostic>> {
     let mut types: SymbolTypeTable = SymbolTypeTable::new();
     types.build(&table, &symbols, &resolved)?;
 
-    let body = &table.by_id.get(&0).unwrap().body;
+    let body = &table.by_id.get(&3).unwrap().body;
     println!("{:#?}", body);
 
     let mut cfg = Cfg::new();

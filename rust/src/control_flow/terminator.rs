@@ -1,6 +1,5 @@
 use crate::{
-    ir::expr::ExprIR,
-    control_flow::{block_id::BlockID, branch::Branch, fornext::Next, raise::Raise},
+    control_flow::{block_id::BlockID, branch::Branch, fornext::Next, matcharm::Match, raise::Raise}, ir::expr::ExprIR,
 };
 
 #[derive(Debug, Clone)]
@@ -8,6 +7,8 @@ pub enum Terminator<'a> {
     Branch(Branch<'a>), // if, while, (match)
 
     ForNext(Next<'a>),
+
+    Match(Match<'a>),
 
     Goto(BlockID), // break (exit loop), continue (back to top of loop), (match)
 
@@ -26,6 +27,15 @@ impl<'a> Terminator<'a> {
             // can't only be a branch, need to know about target too
             Terminator::ForNext(next) => {
                 vec![next.hasnext_target, next.empty_target]
+            }
+
+            Terminator::Match(match_) => {
+                let mut out = Vec::new();
+                for arm in &match_.arms {
+                    out.push(arm.target);
+                }
+                out.push(match_.no_match_target);
+                out
             }
 
             Terminator::Goto(goto) => {

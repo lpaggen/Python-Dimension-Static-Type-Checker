@@ -1,11 +1,9 @@
 use std::collections::HashMap;
 
 use crate::{
-    ir::stmt::StmtIR,
     control_flow::{
-        basic_block::BasicBlock, block_id::BlockID, branch::Branch, fornext::Next,
-        loopctx::LoopContext, raise::Raise, terminator::Terminator,
-    },
+        basic_block::BasicBlock, block_id::BlockID, branch::Branch, fornext::Next, loopctx::LoopContext, matcharm::{Match, MatchArm}, raise::Raise, terminator::Terminator,
+    }, ir::stmt::StmtIR,
 };
 
 pub struct Cfg<'a> {
@@ -168,6 +166,53 @@ impl<'a> Cfg<'a> {
 
                     current.clear();
                 }
+
+                StmtIR::Match(match_stmt) => {
+                    let header = self.new_block();
+                    let no_match_target = self.new_block();
+
+                    for id in &current {
+                        self.set_terminator(*id, Terminator::Goto(header));
+                    }
+
+                    let mut arms: Vec<MatchArm> = Vec::new();
+                    let mut match_exits = Vec::new();
+
+                    for case in &match_stmt.cases {
+                        let target = self.new_block();
+
+                        arms.push(MatchArm {
+                            pattern: &case.pattern,
+                            guard: case.guard.as_ref(),
+                            target,
+                        });
+
+                        let case_exits = self.build(
+                            vec![target],
+                            &case.body,
+                            loop_ctx,
+                        );
+
+                        match_exits.extend(case_exits);
+                    }
+
+                    self.set_terminator(
+                        header,
+                        Terminator::Match(Match {
+                            subject: match_stmt.subject.as_ref(),
+                            arms,
+                            no_match_target,
+                        }),
+                    );
+
+                    match_exits.push(no_match_target);
+
+                    current = match_exits;
+                }
+
+                // StmtIR::ExprStmt(exprstmt_ir) => {
+                //     println!("{:?}", exprstmt_ir)
+                // }
 
                 _other => { // anything else, assignments, definitions, etc, go here
                     // append `other` to current BB

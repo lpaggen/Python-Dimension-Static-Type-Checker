@@ -1,13 +1,46 @@
-import torch
+def outer(x):
+    def inner(y):
+        if y:
+            return y
+        return 0
 
-m: int
-k: int
-p: int
-n: int
+    while x:
+        if x == 2:
+            x = x - 1
+            continue
 
-A: torch.Tensor[m, k] = torch.tensor([[2, 3, 4]], dtype="f16")
-B: torch.Tensor[p, n]
+        if x == 1:
+            break
 
-C = torch.matmul(A, B)
+        inner(x)
+        x = x - 1
 
-D = A + B
+    return inner(x)
+
+
+class Foo:
+    value = 10
+
+    if value > 5:
+        flag = True
+    else:
+        flag = False
+
+    def method(self, n):
+        def helper(v):
+            return v + 1
+
+        for i in range(n):
+            if i == 2:
+                continue
+
+            if i == 4:
+                break
+
+            helper(i)
+
+        return helper(n)
+
+
+result = outer(5)
+obj = Foo()

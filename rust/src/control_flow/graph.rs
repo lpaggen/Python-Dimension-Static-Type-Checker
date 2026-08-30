@@ -43,8 +43,8 @@ impl<'a> Graph<'a> {
 
                     self.set_incoming(header, &current);
 
-                    for id in current {
-                        self.set_terminator(id, Terminator::Goto(header));
+                    for id in &current {
+                        self.set_terminator(*id, Terminator::Goto(header));
                     }
 
                     self.set_incoming(then_body, &[header]);
@@ -63,7 +63,24 @@ impl<'a> Graph<'a> {
 
                     let else_exits = self.build(cfg, vec![else_body], &if_stmt.orelse, loop_ctx);
 
-                    current = then_exits.into_iter().chain(else_exits).collect();
+                    let exits: Vec<_> = then_exits
+                        .into_iter()
+                        .chain(else_exits)
+                        .collect();
+
+                    if exits.is_empty() {
+                        current.clear();
+                    } else {
+                        let join = self.new_block();
+
+                        for exit in &exits {
+                            self.set_terminator(*exit, Terminator::Goto(join));
+                        }
+
+                        self.set_incoming(join, &exits);
+
+                        current = vec![join];
+                    }
                 }
 
                 StmtIR::While(while_stmt) => {
@@ -74,8 +91,8 @@ impl<'a> Graph<'a> {
                     self.set_incoming(header, &current);
 
                     // connect incoming and header
-                    for id in current {
-                        self.set_terminator(id, Terminator::Goto(header));
+                    for id in &current {
+                        self.set_terminator(*id, Terminator::Goto(header));
                     }
 
                     self.set_incoming(body, &[header]);
@@ -242,7 +259,19 @@ impl<'a> Graph<'a> {
 
                     match_exits.push(no_match_target);
 
-                    current = match_exits;
+                    if match_exits.is_empty() {
+                        current.clear();
+                    } else {
+                        let join = self.new_block();
+
+                        for exit in &match_exits {
+                            self.set_terminator(*exit, Terminator::Goto(join));
+                        }
+
+                        self.set_incoming(join, &match_exits);
+
+                        current = vec![join];
+                    }
                 }
 
                 StmtIR::Class(classdef_stmt) => {

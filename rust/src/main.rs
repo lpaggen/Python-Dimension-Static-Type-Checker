@@ -1,3 +1,4 @@
+use crate::control_flow::programcfg::ProgramCfg;
 use crate::diagnostic::diagnostic::Diagnostic;
 use crate::ir::program_ir::ProgramIR;
 use crate::linker::global_scope_table::GlobalSymbolTable;
@@ -7,7 +8,6 @@ use crate::linker::resolution_table::ResolutionTable;
 use crate::type_resolver::symbol_type_table::SymbolTypeTable;
 // use crate::type_resolver::type_resolver::TypeResolver;
 use crate::pb_decoder::pb_decoder::PBDecoder;
-use crate::control_flow::block_id::BlockID;
 use crate::control_flow::cfg::Cfg;
 
 mod diagnostic;
@@ -45,20 +45,13 @@ fn main() -> Result<(), Vec<Diagnostic>> {
     let mut types: SymbolTypeTable = SymbolTypeTable::new();
     types.build(&table, &symbols, &resolved)?;
 
-    let body = &table.by_id.get(&3).unwrap().body;
-    println!("{:#?}", body);
+    // let body = &table.by_id.get(&3).unwrap().body;
+    // println!("{:#?}", body);
 
     let mut cfg = Cfg::new();
 
-    let exits = cfg.build(
-        vec![BlockID { id: 0 }],
-        &body,
-        None,
-    );
-
-    println!("{:?}", cfg.blocks);
-    println!("exits: {exits:?}");
-
+    cfg.build(&table);
+    println!("{:?}", cfg.programs.get(&3));
 
     // let mut resolver: TypeResolver = TypeResolver::new(&table, &types);
     // resolver.resolve_types();

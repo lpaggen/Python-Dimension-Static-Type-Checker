@@ -7,3 +7,5 @@ pub mod loopctx;
 pub mod raise;
 pub mod terminator;
 pub mod matcharm;
+pub mod graph;
+pub mod programcfg;

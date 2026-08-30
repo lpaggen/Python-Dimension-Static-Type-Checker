@@ -39,9 +39,14 @@ impl<'a> Cfg<'a> {
                     let then_body = self.new_block();
                     let else_body = self.new_block();
 
+                    self.set_incoming(header, &current);
+
                     for id in current {
                         self.set_terminator(id, Terminator::Goto(header));
                     }
+
+                    self.set_incoming(then_body, &[header]);
+                    self.set_incoming(else_body, &[header]);
 
                     self.set_terminator(
                         header,
@@ -64,10 +69,15 @@ impl<'a> Cfg<'a> {
                     let body = self.new_block();
                     let exit = self.new_block();
 
+                    self.set_incoming(header, &current);
+
                     // connect incoming and header
                     for id in current {
                         self.set_terminator(id, Terminator::Goto(header));
                     }
+
+                    self.set_incoming(body, &[header]);
+                    self.set_incoming(exit, &[header]);
 
                     self.set_terminator(
                         header,
@@ -89,6 +99,8 @@ impl<'a> Cfg<'a> {
                         self.set_terminator(*id, Terminator::Goto(header));
                     }
 
+                    self.set_incoming(header, &body_exits);
+
                     current = vec![exit]
                 }
 
@@ -97,9 +109,14 @@ impl<'a> Cfg<'a> {
                     let loop_body = self.new_block();
                     let exit = self.new_block();
 
-                    for id in current {
-                        self.set_terminator(id, Terminator::Goto(header));
+                    self.set_incoming(header, &current);
+
+                    for id in &current {
+                        self.set_terminator(*id, Terminator::Goto(header));
                     }
+
+                    self.set_incoming(loop_body, &[header]);
+                    self.set_incoming(exit, &[header]);
 
                     self.set_terminator(
                         header,
@@ -121,6 +138,8 @@ impl<'a> Cfg<'a> {
                         self.set_terminator(*id, Terminator::Goto(header));
                     }
 
+                    self.set_incoming(header, &body_exits);
+
                     current = vec![exit];
                 }
 
@@ -135,6 +154,9 @@ impl<'a> Cfg<'a> {
                 // TODO add Span to 'expect' for user to see where the issue is
                 StmtIR::Break(_break_stmt) => {
                     let ctx = loop_ctx.expect("break statement outside loop");
+
+                    self.set_incoming(ctx.exit, &current);
+
                     for id in &current {
                         self.set_terminator(*id, Terminator::Goto(ctx.exit));
                     }
@@ -144,6 +166,8 @@ impl<'a> Cfg<'a> {
 
                 StmtIR::Continue(_) => {
                     let ctx = loop_ctx.expect("continue outside loop");
+
+                    self.set_incoming(ctx.header, &current);
 
                     for id in &current {
                         self.set_terminator(*id, Terminator::Goto(ctx.header));
@@ -171,6 +195,8 @@ impl<'a> Cfg<'a> {
                     let header = self.new_block();
                     let no_match_target = self.new_block();
 
+                    self.set_incoming(header, &current);
+
                     for id in &current {
                         self.set_terminator(*id, Terminator::Goto(header));
                     }
@@ -180,6 +206,8 @@ impl<'a> Cfg<'a> {
 
                     for case in &match_stmt.cases {
                         let target = self.new_block();
+
+                        self.set_incoming(target, &[header]);
 
                         arms.push(MatchArm {
                             pattern: &case.pattern,
@@ -196,6 +224,8 @@ impl<'a> Cfg<'a> {
                         match_exits.extend(case_exits);
                     }
 
+                    self.set_incoming(no_match_target, &[header]);
+
                     self.set_terminator(
                         header,
                         Terminator::Match(Match {
@@ -210,12 +240,24 @@ impl<'a> Cfg<'a> {
                     current = match_exits;
                 }
 
+                StmtIR::Class(classdef_stmt) => {
+                    println!("TODO CLASS")
+                }
+
+                StmtIR::Function(functiondef_stmt) => {
+                    println!("TODO FUNCTION")
+                }
+
                 // StmtIR::ExprStmt(exprstmt_ir) => {
                 //     println!("{:?}", exprstmt_ir)
                 // }
 
-                _other => { // anything else, assignments, definitions, etc, go here
+                // TODO make a real join
+                other => { // anything else, assignments, definitions, etc, go here
                     // append `other` to current BB
+                    for id in &current {
+                        self.add_statement(*id, other);
+                    }
                 }
             }
         }
@@ -240,5 +282,21 @@ impl<'a> Cfg<'a> {
             .get_mut(&from)
             .expect("Invalid Block ID")
             .terminator = Some(to);
+    }
+
+    fn set_incoming(&mut self, target: BlockID, incoming: &[BlockID]) {
+        self.blocks
+            .get_mut(&target)
+            .expect("Invalid Block ID")
+            .incoming
+            .extend_from_slice(incoming);
+    }
+
+    fn add_statement(&mut self, block_id: BlockID, statement: &'a StmtIR) {
+        self.blocks
+            .get_mut(&block_id)
+            .expect("Invalid Block ID")
+            .statements
+            .push(statement);
     }
 }

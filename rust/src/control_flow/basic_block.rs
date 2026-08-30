@@ -7,7 +7,7 @@ use crate::{
 pub struct BasicBlock<'a> {
     pub incoming: Vec<BlockID>,
     pub terminator: Option<Terminator<'a>>, // terminator owns the outgoing IDs
-    pub statements: Vec<StmtIR>,
+    pub statements: Vec<&'a StmtIR>,
 }
 
 impl<'a> BasicBlock<'a> {

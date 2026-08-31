@@ -10,16 +10,19 @@ pub struct ProgramCfg<'a> {
 
     pub current_function_id: usize,
     pub current_class_id: usize,
+
+    pub id: i64,  // copy of ProgramTable's own IDs
 }
 
 impl<'a> ProgramCfg<'a> {
-    pub fn new() -> Self {
+    pub fn new(id: i64) -> Self {
         Self {
             module: Graph::new(),
             functions: HashMap::new(),
             classes: HashMap::new(),
             current_class_id: 0,
-            current_function_id: 0
+            current_function_id: 0,
+            id: id,
         }
     }
 

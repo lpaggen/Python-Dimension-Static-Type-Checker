@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::Deref};
+use std::{collections::HashMap};
 
 use crate::{
     control_flow::{
@@ -22,7 +22,7 @@ impl<'a> Cfg<'a> {
 
     pub fn build(&mut self, programs: &'a ProgramTable) {
         for (pid, program) in &programs.by_id {
-            let mut program_cfg = ProgramCfg::new();
+            let mut program_cfg = ProgramCfg::new(*pid); // give to build SymbolRef during merges
             program_cfg.build_program(&program.body);
             self.programs.insert(*pid, program_cfg);
         }

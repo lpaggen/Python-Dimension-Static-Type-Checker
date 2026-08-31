@@ -27,6 +27,17 @@ impl<'a> Graph<'a> {
         cfg
     }
 
+    pub fn get_outgoing_ids(&self, id: &BlockID) -> Vec<BlockID> {
+        self
+            .blocks
+            .get(&id)
+            .unwrap()
+            .terminator
+            .as_ref()
+            .unwrap()
+            .outgoing()
+    }
+
     pub fn build(
         &mut self,
         cfg: &mut ProgramCfg<'a>,  // so we can push to modules and functions and classes 

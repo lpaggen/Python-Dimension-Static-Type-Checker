@@ -2,14 +2,8 @@ from ir.metadata.scope_ir import ScopeIR
 from ir.metadata.symbol_ir import SymbolIR
 from ir.program_ir import ProgramIR
 from ir.stmt.import_ir import ImportIR
-from ir.expr.expr_ir import ExprIR
 
 from common.span import SourceSpan
-
-from ir.stmt.binding_ir import BindingIR
-from ir.stmt.functiondef_ir import FunctionDefIR
-from ir.stmt.classdef_ir import ClassDefIR
-from ir.annotation.annotation_ir import AnnotationIR
 
 from common.kind import ScopeKind
 
@@ -20,7 +14,6 @@ class IRBuilder:
         self.module_name = module_name
         self.scopes = []
         self.symbols = []
-        self.decls = []
         self.imports = []
         self.body = []
 
@@ -28,7 +21,6 @@ class IRBuilder:
 
         self.next_scope_id = 0
         self.next_symbol_id = 0
-        self.next_decl_id = 0
         self.next_import_id = 0
 
         self.global_scope_id = self.new_scope(
@@ -51,73 +43,73 @@ class IRBuilder:
 
         return scope_id
 
-    def add_function(
-        self,
-        symbol_id,
-        name,
-        scope_id,
-        body_scope_id,
-        args,
-        body,
-        returns,
-        decorator_list,
-        type_comment,
-        type_params,
-        span,
-    ):
-        decl_id = self.next_decl_id
-        self.next_decl_id += 1
+    # def add_function(
+    #     self,
+    #     symbol_id,
+    #     name,
+    #     scope_id,
+    #     body_scope_id,
+    #     args,
+    #     body,
+    #     returns,
+    #     decorator_list,
+    #     type_comment,
+    #     type_params,
+    #     span,
+    # ):
+    #     decl_id = self.next_decl_id
+    #     self.next_decl_id += 1
 
-        function = FunctionDefIR(
-            id=decl_id,
-            symbol_id=symbol_id,
-            name=name,
-            scope_id=scope_id,
-            body_scope_id=body_scope_id,
-            body=body,
-            args=args,
-            returns=returns,
-            decorator_list=decorator_list,
-            type_comment=type_comment,
-            type_params=type_params,
-            span=span,
-        )
-        self.decls.append(function)
+    #     function = FunctionDefIR(
+    #         id=decl_id,
+    #         symbol_id=symbol_id,
+    #         name=name,
+    #         scope_id=scope_id,
+    #         body_scope_id=body_scope_id,
+    #         body=body,
+    #         args=args,
+    #         returns=returns,
+    #         decorator_list=decorator_list,
+    #         type_comment=type_comment,
+    #         type_params=type_params,
+    #         span=span,
+    #     )
+    #     self.decls.append(function)
 
-        return function
+    #     return function
 
-    def add_class(
-        self,
-        symbol_id: int,
-        name: str,
-        scope_id: int,  # parent scope
-        body_scope_id: int,  # class-local scope
-        body,
-        bases: list,  # Base classes: Base, nn.Module, etc.
-        keywords: list,
-        decorator_list: list,
-        type_params: list,
-        span: SourceSpan,
-    ):
-        decl_id = self.next_decl_id
-        self.next_decl_id += 1
+    # def add_class(
+    #     self,
+    #     symbol_id: int,
+    #     name: str,
+    #     scope_id: int,  # parent scope
+    #     body_scope_id: int,  # class-local scope
+    #     body,
+    #     bases: list,  # Base classes: Base, nn.Module, etc.
+    #     keywords: list,
+    #     decorator_list: list,
+    #     type_params: list,
+    #     span: SourceSpan,
+    # ):
+    #     decl_id = self.next_decl_id
+    #     self.next_decl_id += 1
 
-        class_decl = ClassDefIR(
-            id=decl_id,
-            symbol_id=symbol_id,
-            name=name,
-            scope_id=scope_id,
-            body=body,
-            body_scope_id=body_scope_id,
-            bases=bases,
-            keywords=keywords,
-            decorator_list=decorator_list,
-            type_params=type_params,
-            span=span,
-        )
-        self.decls.append(class_decl)
+    #     class_decl = ClassDefIR(
+    #         id=decl_id,
+    #         symbol_id=symbol_id,
+    #         name=name,
+    #         scope_id=scope_id,
+    #         body=body,
+    #         body_scope_id=body_scope_id,
+    #         bases=bases,
+    #         keywords=keywords,
+    #         decorator_list=decorator_list,
+    #         type_params=type_params,
+    #         span=span,
+    #     )
+    #     self.decls.append(class_decl)
 
-        return class_decl
+    #     return class_decl
 
     def declare_symbol(self, name, kind, scope_id, span) -> int:
         """
@@ -160,29 +152,29 @@ class IRBuilder:
 
         return import_ir
 
-    def add_assign(
-        self,
-        target_id: int,
-        annotation: AnnotationIR,
-        kind: str,
-        scope_id: int,
-        value: ExprIR,
-        span: SourceSpan,
-    ):
-        decl_id = self.next_decl_id
-        self.next_decl_id += 1
-        binding = BindingIR(
-            id=decl_id,
-            target_id=target_id,
-            annotation=annotation,
-            kind=kind,
-            value=value,
-            scope_id=scope_id,
-            span=span,
-        )
-        self.decls.append(binding)
+    # def add_assign(
+    #     self,
+    #     target_id: int,
+    #     annotation: AnnotationIR,
+    #     kind: str,
+    #     scope_id: int,
+    #     value: ExprIR,
+    #     span: SourceSpan,
+    # ):
+    #     decl_id = self.next_decl_id
+    #     self.next_decl_id += 1
+    #     binding = BindingIR(
+    #         id=decl_id,
+    #         target_id=target_id,
+    #         annotation=annotation,
+    #         kind=kind,
+    #         value=value,
+    #         scope_id=scope_id,
+    #         span=span,
+    #     )
+    #     self.decls.append(binding)
 
-        return binding
+    #     return binding
 
     def finish(self) -> ProgramIR:
         return ProgramIR(
@@ -191,7 +183,6 @@ class IRBuilder:
             scopes=self.scopes,
             symbols=self.symbols,
             imports=self.imports,
-            decls=self.decls,
             body=self.body,
         )
 

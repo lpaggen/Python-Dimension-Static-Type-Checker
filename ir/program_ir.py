@@ -1,5 +1,4 @@
 from typing import List
-from ir.stmt.decl_ir import DeclIR
 from ir.ir_node import IRNode
 from ir.metadata.symbol_ir import SymbolIR
 from ir.metadata.scope_ir import ScopeIR
@@ -16,7 +15,6 @@ class ProgramIR:
     scopes: List[ScopeIR]
     symbols: List[SymbolIR]
     imports: List[ImportIR]
-    decls: List[DeclIR]
     body: List[IRNode]
 
     def to_proto(self):
@@ -28,7 +26,6 @@ class ProgramIR:
         proto.scopes.extend([s.to_proto() for s in self.scopes])
         proto.symbols.extend([s.to_proto() for s in self.symbols])
         proto.imports.extend([i.to_proto() for i in self.imports])
-        proto.decls.extend([stmt.to_proto() for stmt in self.decls])
         proto.body.extend([stmt_to_proto(stmt) for stmt in self.body])
 
         return proto

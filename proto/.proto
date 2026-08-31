@@ -17,8 +17,7 @@ message ProgramIR {
   repeated ScopeIR scopes = 3;
   repeated SymbolIR symbols = 4;
   repeated ImportIR imports = 5;
-  repeated DeclIR decls = 6;
-  repeated StmtIR body = 7;
+  repeated StmtIR body = 6;
 }
 
 message SetIR {
@@ -97,43 +96,51 @@ enum ImportKind {
   IMPORT_MODULE_ALIAS = 3;
 }
 
-message DeclIR {
+message StmtIR {
   oneof kind {
-    BindingIR binding = 1;
-    FunctionDefIR function = 2;
-    ClassDefIR class_decl = 3;
+    AssignIR assign = 1;
+    AnnAssignIR annassign = 2;
+    AugAssignIR aug_assign = 3;
+    ReturnIR return_stmt = 4;
+    ExprStmtIR expr_stmt = 5;
+    IfIR if_stmt = 6;
+    ForLoopIR for_loop = 7;
+    WhileLoopIR while_loop = 8;
+    ImportIR import_stmt = 9;
+    FunctionDefIR function = 10;
+    ClassDefIR class_decl = 11;
+    MatchIR match = 12;
+    AssertIR assert_stmt = 13;
+    DeleteIR delete_stmt = 14;
+    RaiseIR raise_stmt = 15;
+    GlobalIR global_stmt = 16;
+    NonlocalIR nonlocal_stmt = 17;
+    PassIR pass_stmt = 18;
+    BreakIR break_stmt = 19;
+    ContinueIR continue_stmt = 20;
+    WithIR with_stmt = 21;
+    TryIR try_stmt = 22;
+    TryStarIR try_star_stmt = 23;
+    TypeAliasIR type_alias = 24;
+    AsyncForIR async_for = 25;
+    AsyncFunctionDefIR async_function_def = 26;
+    AsyncWithIR async_with = 27;
   }
 }
 
-message StmtIR {
-  oneof kind {
-    BindingIR binding = 1;
-    AugAssignIR aug_assign = 2;
-    ReturnIR return_stmt = 3;
-    ExprStmtIR expr_stmt = 4;
-    IfIR if_stmt = 5;
-    ForLoopIR for_loop = 6;
-    WhileLoopIR while_loop = 7;
-    ImportIR import_stmt = 8;
-    FunctionDefIR function = 9;
-    ClassDefIR class_decl = 10;
-    MatchIR match = 11;
-    AssertIR assert_stmt = 12;
-    DeleteIR delete_stmt = 13;
-    RaiseIR raise_stmt = 14;
-    GlobalIR global_stmt = 15;
-    NonlocalIR nonlocal_stmt = 16;
-    PassIR pass_stmt = 17;
-    BreakIR break_stmt = 18;
-    ContinueIR continue_stmt = 19;
-    WithIR with_stmt = 20;
-    TryIR try_stmt = 21;
-    TryStarIR try_star_stmt = 22;
-    TypeAliasIR type_alias = 23;
-    AsyncForIR async_for = 24;
-    AsyncFunctionDefIR async_function_def = 25;
-    AsyncWithIR async_with = 26;
-  }
+message AssignIR {
+  repeated ExprIR target = 1;
+  ExprIR value = 2;
+  optional string type_comment = 3;
+  optional SourceSpan span = 6;
+}
+
+message AnnAssignIR {
+  ExprIR target = 1;
+  AnnotationIR annotation = 2;
+  optional ExprIR value = 3;
+  int64 simple = 4;
+  optional SourceSpan span = 6;
 }
 
 message AsyncForIR {
@@ -243,22 +250,6 @@ message TypeAliasIR {
   repeated TypeParamIR type_params = 2;
   ExprIR value = 3;
   optional SourceSpan span = 4;
-}
-
-message BindingIR {
-  int64 id = 1;
-  int64 target_id = 2;
-  optional AnnotationIR annotation = 3;
-  BindingKind kind = 4;
-  optional ExprIR value = 5;
-  int64 scope_id = 6;
-  optional SourceSpan span = 7;
-}
-
-enum BindingKind {
-  BINDING_UNKNOWN = 0;
-  BINDING_ASSIGN = 1;
-  BINDING_ANNASSIGN = 2;
 }
 
 message AugAssignIR {

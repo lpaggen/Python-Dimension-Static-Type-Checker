@@ -28,13 +28,17 @@ from ir.expr.tuple_ir import TupleIR
 from ir.expr.unaryop_ir import UnaryOpIR
 from ir.expr.yield_ir import YieldIR
 from ir.expr.yieldfrom_ir import YieldFromIR
+from ir.stmt.annassign_ir import AnnAssignIR
 from ir.stmt.assert_ir import AssertIR
+from ir.stmt.assign_ir import AssignIR
 from ir.stmt.asyncfunctiondef_ir import AsyncFunctionDefIR
 from ir.stmt.break_ir import BreakIR
+from ir.stmt.classdef_ir import ClassDefIR
 from ir.stmt.continue_ir import ContinueIR
 from ir.stmt.delete_ir import DeleteIR
 from ir.stmt.exprstmt_ir import ExprStmtIR
 from ir.stmt.for_ir import ForIR
+from ir.stmt.functiondef_ir import FunctionDefIR
 from ir.stmt.global_ir import GlobalIR
 from ir.stmt.if_ir import IfIR
 from ir.stmt.asyncfor_ir import AsyncForIR
@@ -354,7 +358,7 @@ class SemanticBuilder(ast.NodeVisitor):
 
         self.scope_stack.pop()
 
-        return self.builder.add_function(
+        return FunctionDefIR(
             symbol_id=fn_symbol_id,
             name=node.name,
             scope_id=binding_scope,
@@ -393,7 +397,7 @@ class SemanticBuilder(ast.NodeVisitor):
 
         self.scope_stack.pop()
 
-        return self.builder.add_class(
+        return ClassDefIR(
             symbol_id=class_symbol_id,
             name=node.name,
             scope_id=binding_scope,
@@ -414,15 +418,12 @@ class SemanticBuilder(ast.NodeVisitor):
         )
 
     def visit_AnnAssign(self, node: ast.AnnAssign):
-        annotation_ir = self.lower_annotation(node.annotation)
-        return self.lower_assignment(
-            target=node.target, 
-            value=node.value, 
-            kind=BindingKind.BINDING_ANNASSIGN, 
-            annotation=annotation_ir, 
-            span=SourceSpan.span(
-                node=node, file_path=self.file_path
-            )
+        return AnnAssignIR(
+            target=self.parse_expr(node.target),
+            annotation=self.lower_annotation(node.annotation),
+            value=self.parse_expr(node.value) if node.value is not None else None,
+            simple=node.simple,
+            span=SourceSpan.span(node, self.file_path)
         )
 
     def visit_While(self, node: ast.While):
@@ -805,16 +806,12 @@ class SemanticBuilder(ast.NodeVisitor):
         raise NotImplementedError(f"Unsupported annotation head: {type(node).__name__}")
 
     def visit_Assign(self, node: ast.Assign):
-        return [
-            self.lower_assignment(
-                target=target,
-                value=node.value,
-                kind=BindingKind.BINDING_ASSIGN,
-                annotation=None,
-                span=SourceSpan.span(node=node, file_path=self.file_path),
-            )
-            for target in node.targets
-        ]
+        return AssignIR(
+            target=[self.parse_expr(expr) for expr in node.targets],
+            value=self.parse_expr(node.value),
+            type_comment=node.type_comment,
+            span=SourceSpan.span(node, self.file_path)
+        )
 
     def lower_assignment(self, target: ast.AST, value: ast.AST, kind: str, annotation: AnnotationIR, span: SourceSpan):
         if isinstance(target, ast.Name):  # x = 5

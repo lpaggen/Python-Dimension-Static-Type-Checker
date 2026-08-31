@@ -6,12 +6,11 @@ from generated import _pb2
 from ir.expr.call_ir import KeywordIR
 from .stmt_ir import StmtIR, stmt_to_proto
 from ..expr.expr_ir import ExprIR
-from .decl_ir import DeclIR
 
 
 @dataclass
-class ClassDefIR(DeclIR):
-    id: int
+class ClassDefIR(StmtIR):
+    # id: int
     symbol_id: int
     scope_id: int        # parent scope
     body_scope_id: int   # class-local scope
@@ -25,7 +24,7 @@ class ClassDefIR(DeclIR):
 
     def to_proto(self):
         proto = _pb2.ClassDefIR(
-            id=self.id,
+            # id=self.id,
             symbol_id=self.symbol_id,
             name=self.name,
             scope_id=self.scope_id,
@@ -43,12 +42,12 @@ class ClassDefIR(DeclIR):
         if self.span is not None:
             proto.span.CopyFrom(self.span.to_proto())
 
-        stmt = _pb2.DeclIR()
-        stmt.class_decl.CopyFrom(proto)
-        return stmt
+        # stmt = _pb2.DeclIR()
+        # stmt.class_decl.CopyFrom(proto)
+        return proto
 
     def to_stmt_proto(self):
-        decl = self.to_proto()
+        fn = self.to_proto()
         stmt = _pb2.StmtIR()
-        stmt.class_decl.CopyFrom(decl.class_decl)
+        stmt.class_decl.CopyFrom(fn)
         return stmt

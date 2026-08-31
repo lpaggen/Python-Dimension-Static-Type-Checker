@@ -47,7 +47,7 @@ impl BlockFlow {
 
     pub fn analyze_stmt(&mut self, stmt: &StmtIR) {
         match stmt { // !! change back to Assign / AnnAssign, Binding is bad practice.
-            StmtIR::Binding(binding_stmt) => {
+            StmtIR::Assign(assign_stmt) => {
                 
             }
 

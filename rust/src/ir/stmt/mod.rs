@@ -26,17 +26,17 @@ pub mod typealias_ir;
 pub mod while_ir;
 pub mod with_ir;
 pub mod withitem_ir;
+pub mod assign_ir;
+pub mod annassign_ir;
 
 pub use assert_ir::AssertIR;
 pub use asyncfor_ir::AsyncForIR;
 pub use asyncfunctiondef_ir::AsyncFunctionDefIR;
 pub use asyncwith_ir::AsyncWithIR;
 pub use augassign_ir::AugAssignIR;
-pub use binding_ir::BindingIR;
 pub use break_ir::BreakIR;
 pub use classdef_ir::ClassDefIR;
 pub use continue_ir::ContinueIR;
-pub use decl_ir::DeclIR;
 pub use delete_ir::DeleteIR;
 pub use excepthandler_ir::ExceptHandlerIR;
 pub use exprstmt_ir::ExprStmtIR;
@@ -55,11 +55,15 @@ pub use typealias_ir::TypeAliasIR;
 pub use while_ir::WhileIR;
 pub use with_ir::WithIR;
 pub use withitem_ir::WithItemIR;
+pub use assign_ir::AssignIR;
+pub use annassign_ir::AnnAssignIR;
+
 
 #[derive(Debug, Clone)]
 pub enum StmtIR {
+    Assign(AssignIR),
+    AnnAssign(AnnAssignIR),
     ExprStmt(ExprStmtIR),
-    Binding(BindingIR),
     AugAssign(AugAssignIR),
     If(IfIR),
     While(WhileIR),

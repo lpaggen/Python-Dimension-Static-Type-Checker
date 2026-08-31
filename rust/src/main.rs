@@ -7,7 +7,7 @@ use crate::linker::global_scope_table::GlobalSymbolTable;
 use crate::linker::import_graph::ImportGraph;
 use crate::linker::program_table::ProgramTable;
 use crate::linker::resolution_table::ResolutionTable;
-use crate::type_resolver::symbol_type_table::SymbolTypeTable;
+// use crate::type_resolver::symbol_type_table::SymbolTypeTable;
 // use crate::type_resolver::type_resolver::TypeResolver;
 use crate::pb_decoder::pb_decoder::PBDecoder;
 use crate::control_flow::cfg::Cfg;
@@ -56,10 +56,10 @@ fn main() -> Result<(), Vec<Diagnostic>> {
     resolved.resolve_imports(&table, &symbols);
     println!("resolution:      {:?}", start.elapsed());
 
-    let start = Instant::now();
-    let mut types: SymbolTypeTable = SymbolTypeTable::new();
-    types.build(&table, &symbols, &resolved)?;
-    println!("symbol types:    {:?}", start.elapsed());
+    // let start = Instant::now();
+    // let mut types: SymbolTypeTable = SymbolTypeTable::new();
+    // types.build(&table, &symbols, &resolved)?;
+    // println!("symbol types:    {:?}", start.elapsed());
 
     let start = Instant::now();
     let mut cfg = Cfg::new();

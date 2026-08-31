@@ -53,20 +53,20 @@ impl PBDecoder {
                     )
                 })?;
 
-                let mut decls: Vec<DeclIR> = Vec::new();
+                // let mut decls: Vec<DeclIR> = Vec::new();
 
-                for (index, decl) in pb_program.decls.iter().enumerate() {
-                    let decl_ir = Self::convert_decl(decl).map_err(|error| {
-                        io::Error::new(
-                            io::ErrorKind::InvalidData,
-                            format!(
-                                "failed to decode declaration {index} in protobuf file '{}': {error}",
-                                path.display()
-                            ),
-                        )
-                    })?;
-                    decls.push(decl_ir);
-                }
+                // for (index, decl) in pb_program.decls.iter().enumerate() {
+                //     let decl_ir = Self::convert_decl(decl).map_err(|error| {
+                //         io::Error::new(
+                //             io::ErrorKind::InvalidData,
+                //             format!(
+                //                 "failed to decode declaration {index} in protobuf file '{}': {error}",
+                //                 path.display()
+                //             ),
+                //         )
+                //     })?;
+                //     decls.push(decl_ir);
+                // }
 
                 let scopes = pb_program.scopes.iter().map(Self::convert_scope).collect();
 
@@ -103,7 +103,7 @@ impl PBDecoder {
                     scopes,
                     symbols,
                     imports,
-                    decls,
+                    // decls,
                     body,
                 });
             }
@@ -148,51 +148,51 @@ impl PBDecoder {
         }
     }
 
-    fn convert_decl(decl: &pb::DeclIr) -> Result<DeclIR, Box<dyn std::error::Error>> {
-        match &decl.kind {
-            Some(pb::decl_ir::Kind::Binding(binding)) => {
-                let binding_ir = Self::convert_binding(binding)?;
-                Ok(DeclIR::Binding(binding_ir))
-            }
+    // fn convert_decl(decl: &pb::DeclIr) -> Result<DeclIR, Box<dyn std::error::Error>> {
+    //     match &decl.kind {
+    //         Some(pb::decl_ir::Kind::Binding(binding)) => {
+    //             let binding_ir = Self::convert_binding(binding)?;
+    //             Ok(DeclIR::Binding(binding_ir))
+    //         }
 
-            Some(pb::decl_ir::Kind::Function(function)) => {
-                let function_ir = Self::convert_function(function)?;
-                Ok(DeclIR::Function(function_ir))
-            }
+    //         Some(pb::decl_ir::Kind::Function(function)) => {
+    //             let function_ir = Self::convert_function(function)?;
+    //             Ok(DeclIR::Function(function_ir))
+    //         }
 
-            Some(pb::decl_ir::Kind::ClassDecl(class_decl)) => {
-                let class_ir = Self::convert_class(class_decl)?;
-                Ok(DeclIR::Class(class_ir))
-            }
+    //         Some(pb::decl_ir::Kind::ClassDecl(class_decl)) => {
+    //             let class_ir = Self::convert_class(class_decl)?;
+    //             Ok(DeclIR::Class(class_ir))
+    //         }
 
-            None => Err("empty DeclIR".into()),
-        }
-    }
+    //         None => Err("empty DeclIR".into()),
+    //     }
+    // }
 
-    fn convert_binding(binding: &pb::BindingIr) -> Result<BindingIR, Box<dyn std::error::Error>> {
-        let value = match &binding.value {
-            Some(value) => Some(Box::new(Self::convert_expr(value)?)),
-            // An annotated declaration such as `name: Type` has no value.
-            None => None,
-        };
+    // fn convert_binding(binding: &pb::BindingIr) -> Result<BindingIR, Box<dyn std::error::Error>> {
+    //     let value = match &binding.value {
+    //         Some(value) => Some(Box::new(Self::convert_expr(value)?)),
+    //         // An annotated declaration such as `name: Type` has no value.
+    //         None => None,
+    //     };
 
-        let span = Self::convert_optional_span(&binding.span);
+    //     let span = Self::convert_optional_span(&binding.span);
 
-        let annotation = match &binding.annotation {
-            Some(annotation) => Some(Self::convert_annotation(annotation)?),
-            None => None,
-        };
+    //     let annotation = match &binding.annotation {
+    //         Some(annotation) => Some(Self::convert_annotation(annotation)?),
+    //         None => None,
+    //     };
 
-        Ok(BindingIR {
-            id: binding.id,
-            target_id: binding.target_id,
-            annotation: annotation,
-            kind: crate::ir::nodes::binding_ir::BindingKind::from(binding.kind), // TODO util to convert back to enum at some stage ?
-            value: value,
-            scope_id: binding.scope_id,
-            span: span,
-        })
-    }
+    //     Ok(BindingIR {
+    //         id: binding.id,
+    //         target_id: binding.target_id,
+    //         annotation: annotation,
+    //         kind: crate::ir::nodes::binding_ir::BindingKind::from(binding.kind), // TODO util to convert back to enum at some stage ?
+    //         value: value,
+    //         scope_id: binding.scope_id,
+    //         span: span,
+    //     })
+    // }
 
     fn convert_annotation(
         annotation: &pb::AnnotationIr,
@@ -629,6 +629,53 @@ impl PBDecoder {
 
     fn convert_stmt(stmt: &pb::StmtIr) -> Result<StmtIR, Box<dyn std::error::Error>> {
         match &stmt.kind {
+            Some(pb::stmt_ir::Kind::Annassign(annassign_ir)) => {
+                let target = annassign_ir
+                    .target
+                    .as_ref()
+                    .ok_or("annassign statement has no target")?;
+
+                let value = annassign_ir
+                    .value
+                    .as_ref()
+                    .map(Self::convert_expr)
+                    .transpose()?;
+
+                let annotation = match &annassign_ir.annotation {
+                    Some(annotation) => Some(Self::convert_annotation(annotation)?),
+                    None => None,
+                };
+
+                Ok(StmtIR::AnnAssign(AnnAssignIR {
+                    target: Self::convert_expr(target)?,
+                    annotation: annotation.expect("AnnAssign statement has no annotation"),
+                    value,
+                    simple: annassign_ir.simple,
+                    span: Self::convert_optional_span(&annassign_ir.span),
+                }))
+            }
+
+            Some(pb::stmt_ir::Kind::Assign(assign_ir)) => {
+                let targets = assign_ir
+                    .target
+                    .iter()
+                    .map(Self::convert_expr)
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                let value = assign_ir
+                    .value
+                    .as_ref()
+                    .ok_or("assign statement has no value")?;
+
+                Ok(StmtIR::Assign(AssignIR {
+                    targets,
+                    value: Self::convert_expr(value)?,
+                    type_comment: assign_ir.type_comment.clone(),
+                    span: Self::convert_optional_span(&assign_ir.span),
+                }))
+            }
+
+
             Some(pb::stmt_ir::Kind::DeleteStmt(delete_ir)) => {
                 let targets = delete_ir
                     .targets
@@ -933,26 +980,26 @@ impl PBDecoder {
                 }))
             }
 
-            Some(pb::stmt_ir::Kind::Binding(binding)) => Ok(StmtIR::Binding(BindingIR {
-                id: binding.id,
-                target_id: binding.target_id,
+            // Some(pb::stmt_ir::Kind::Binding(binding)) => Ok(StmtIR::Binding(BindingIR {
+            //     id: binding.id,
+            //     target_id: binding.target_id,
 
-                annotation: match &binding.annotation {
-                    Some(annotation) => Some(Self::convert_annotation(annotation)?),
-                    None => None,
-                },
+            //     annotation: match &binding.annotation {
+            //         Some(annotation) => Some(Self::convert_annotation(annotation)?),
+            //         None => None,
+            //     },
 
-                kind: crate::ir::nodes::binding_ir::BindingKind::from(binding.kind),
+            //     kind: crate::ir::nodes::binding_ir::BindingKind::from(binding.kind),
 
-                value: match &binding.value {
-                    Some(value) => Some(Box::new(Self::convert_expr(value)?)),
-                    None => None,
-                },
+            //     value: match &binding.value {
+            //         Some(value) => Some(Box::new(Self::convert_expr(value)?)),
+            //         None => None,
+            //     },
 
-                scope_id: binding.scope_id,
+            //     scope_id: binding.scope_id,
 
-                span: Self::convert_optional_span(&binding.span),
-            })),
+            //     span: Self::convert_optional_span(&binding.span),
+            // })),
 
             Some(pb::stmt_ir::Kind::AugAssign(aug)) => {
                 let target = match &aug.target {

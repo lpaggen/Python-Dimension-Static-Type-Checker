@@ -44,3 +44,19 @@ class Foo:
 
 result = outer(5)
 obj = Foo()
+
+# from torch import Tensor
+
+
+# c = outer()  # suppose we don't know if T/F
+
+# if c:
+#     x: Tensor[m, k]
+#     y: Tensor[k, n]
+# else:
+#     x: Tensor[m, p]
+#     y: Tensor[p, n]
+
+# ...
+
+# z = x @ y

@@ -30,6 +30,7 @@ pub mod tuple_ir;
 pub mod unaryop_ir;
 pub mod yield_ir;
 pub mod yieldfrom_ir;
+pub mod identifier_ir;
 
 pub use attribute_ir::AttributeIR;
 pub use await_ir::AwaitIR;
@@ -63,6 +64,7 @@ pub use tuple_ir::TupleIR;
 pub use unaryop_ir::UnaryOpIR;
 pub use yield_ir::YieldIR;
 pub use yieldfrom_ir::YieldFromIR;
+pub use identifier_ir::IdentifierIR;
 
 #[derive(Debug, Clone)]
 pub enum ExprIR {
@@ -100,6 +102,8 @@ pub enum ExprIR {
     SetComp(SetCompIR),
 
     StarredExpr(StarredIR),
+
+    IdentifierExpr(IdentifierIR),
 }
 
 #[derive(Debug, Clone)]

@@ -34,6 +34,83 @@ impl SymbolTypeTable {
             .unwrap_or(Type::Unknown)
     }
 
+    fn parse_expr(
+        &self,
+        expr: &ExprIR,
+        resolutions: &ResolutionTable,
+    ) -> Type {
+        match expr {
+            ExprIR::Constant(ConstantIR::IntegerLit(_)) => Type::Int,
+            ExprIR::Constant(ConstantIR::FloatLit(_)) => Type::Float,
+            ExprIR::Constant(ConstantIR::BooleanLit(_)) => Type::Bool,
+            ExprIR::Constant(ConstantIR::StringLit(_)) => Type::String,
+            ExprIR::Constant(ConstantIR::NoneLit(_)) => Type::None,
+            ExprIR::Constant(ConstantIR::EllipsisLit(_)) => Type::Ellipsis,
+            ExprIR::Constant(ConstantIR::BytesLit(_)) => Type::Bytes,
+            ExprIR::Constant(ConstantIR::ComplexLit(_)) => Type::Complex,
+
+            ExprIR::TupleExpr(tuple) => {
+                let element_types = tuple
+                    .elts
+                    .iter()
+                    .map(|element| self.parse_expr(element, resolutions))
+                    .collect();
+
+                Type::Tuple(element_types)
+            }
+
+            // ExprIR::CallExpr(call) => {
+            //     self.infer_call_type(call)
+            // },
+
+            // ExprIR::BinOpExpr(binop_expr) => {
+            //     self.infer_binary_type(binop_expr.op, &binop_expr.left, &binop_expr.right)
+            // },
+
+            // name resolution | x: int = a <- we need to find what Type "a" is, is it declared? accessible? unbound?
+            ExprIR::Name(identifier) => {
+                // let symbol_ref = SymbolRef {
+                //     program_id: ...,
+                //     symbol_id: identifier.name.
+                // }
+
+                // need to find by &identifer.name somehow...
+                // 1) find ref from name
+                // 2) query flow_env with ref
+
+                // self.flow_env.get(k)
+
+                Type::Unknown
+            },
+
+            ExprIR::SliceExpr(slice) => {
+                todo!()
+            }
+
+            ExprIR::SubscriptExpr(subscript) => {
+                todo!()
+            }
+
+            ExprIR::Attribute(attribute) => {
+                todo!()
+            }
+
+            ExprIR::BoolOpExpr(boolean) => {
+                todo!()
+            }
+
+            ExprIR::UnaryOpExpr(unary) => {
+                todo!()
+            }
+
+            ExprIR::CompareExpr(cmp) => {
+                todo!()
+            }
+
+            _ => Type::Unknown,
+        }
+    }
+
     fn parse_stmt(
         &self,
         program_id: i64,
@@ -44,19 +121,7 @@ impl SymbolTypeTable {
     ) -> Option<Type> {
         match stmt {
             StmtIR::Assign(assign_stmt) => {
-                let value = &assign_stmt.value;
-                let ty = match value {
-                    ExprIR::Constant(ConstantIR::IntegerLit(_)) => Type::Int,
-                    ExprIR::Constant(ConstantIR::FloatLit(_)) => Type::Float,
-                    ExprIR::Constant(ConstantIR::BooleanLit(_)) => Type::Bool,
-                    ExprIR::Constant(ConstantIR::StringLit(_)) => Type::String,
-                    ExprIR::Constant(ConstantIR::NoneLit(_)) => Type::None,
-                    ExprIR::Constant(ConstantIR::EllipsisLit(_)) => Type::Ellipsis,
-                    ExprIR::Constant(ConstantIR::BytesLit(_)) => Type::Bytes,
-                    ExprIR::Constant(ConstantIR::ComplexLit(_)) => Type::Complex,
-                    _ => Type::Unknown, // what we cannot resolve directly gets an Unknown type, we will resolve it later.
-                };
-
+                let ty = self.parse_expr(&assign_stmt.value, &resolutions);
                 Some(ty)
             }
 
@@ -70,7 +135,6 @@ impl SymbolTypeTable {
                 ))
             }
 
-            // this doesn't make sense, should just be assign and annassign ..? what else could be Unknown, nothing
             _ => {
                 None
             }
@@ -93,6 +157,8 @@ impl SymbolTypeTable {
             "float" => Type::Float,
             "bool" => Type::Bool,
             "str" => Type::String,
+            "bytes" => Type::Bytes,
+            "complex" => Type::Complex,
             "None" => Type::None,
             _ => self.resolve_annotation_path(
                 // check global symbol table to get the ref, ie is this torch, numpy, Local, true Unknown?

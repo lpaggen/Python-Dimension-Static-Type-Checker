@@ -4,6 +4,7 @@ use crate::{
     control_flow::{bindingstate::BindingState, block_id::BlockID}, linker::symbol_ref::SymbolRef, types::types::Type
 };
 
+#[derive(Clone)]
 pub struct FlowState {
     pub by_ref: HashMap<SymbolRef, BindingState>
 }

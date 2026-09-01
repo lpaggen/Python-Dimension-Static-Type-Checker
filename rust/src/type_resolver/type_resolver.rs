@@ -1,236 +1,285 @@
-// use crate::{diagnostic::diagnostic::{Diagnostic, DiagnosticKind}, ir::{expr_ir::ExprIR, nodes::{BindingIR, CallExprIR, binding_ir::BindingKind, identifier_ir}, operator::Operator, stmt_ir::StmtIR}, linker::{program_table::ProgramTable, symbol_ref::SymbolRef}, pb::expr_ir::Kind::Identifier, type_resolver::{flow_env::{self, FlowEnv, FlowValue}, symbol_type_table::SymbolTypeTable}, types::types::Type};
-// use crate::diagnostic::diagnostic::Severity;
+use crate::diagnostic::diagnostic::Diagnostic;
+use crate::ir::expr::CallIR;
+use crate::ir::stmt::AnnAssignIR;
+use crate::ir::stmt::StmtIR;
+use std::collections::HashMap;
 
-// pub struct TypeResolver<'a> {
-//     pub diagnostics: Vec<Diagnostic>,
-//     programs: &'a ProgramTable,
-//     symbol_types: &'a SymbolTypeTable,
-// }
+use crate::ir::expr_ir::ConstantIR;
+use crate::ir::expr_ir::ExprIR;
+use crate::linker::global_scope_table::GlobalSymbolTable;
+use crate::linker::resolution_table::ResolutionTable;
+use crate::linker::resolved_target::ResolvedTarget;
+use crate::types::types::DimType;
+use crate::types::types::TensorTypeState;
+use crate::types::types::Type;
+use crate::{
+    linker::{symbol_ref::SymbolRef},
+};
 
-// impl<'a> TypeResolver<'a> {
-//     pub fn new(programs: &'a ProgramTable, symbol_types: &'a SymbolTypeTable) -> Self {
-//         Self {
-//             diagnostics: Vec::new(),
-//             programs: programs,
-//             symbol_types: symbol_types,
-//         }
-//     }
+// probably won't need 'by_ref' since this struct might just be owned by the CFG pass in a later build
+// !! Type resolver is only used in the CFG phase, we likely won't be calling build() standalone, rather just resolve stmt by stmt
+pub struct TypeResolver<'ctx> {
+    pub by_ref: HashMap<SymbolRef, Type>,
 
-//     fn is_assignable(&self, actual: &Type, expected: &Type) -> bool {
-//         actual == expected
-//             || matches!((actual, expected), (Type::Int, Type::Float))
-//             || matches!(actual, Type::Unknown)
-//             || matches!(expected, Type::Unknown)
-//     }
+    symbols: &'ctx GlobalSymbolTable,
+    resolutions: &'ctx ResolutionTable,
+}
 
-//     fn infer_binary_type(&self, op: Operator, left: &ExprIR, right: &ExprIR) -> Type {
-//         todo!()
-//     }
+impl<'ctx> TypeResolver<'ctx> {
+    pub fn new(
+        symbols: &'ctx GlobalSymbolTable,
+        resolutions: &'ctx ResolutionTable,
+    ) -> Self {
+        Self {
+            by_ref: HashMap::new(),
+            symbols,
+            resolutions,
+        }
+    }
 
-//     fn infer_call_type(&self, call: &CallExprIR) -> Type {
-//         todo!()
-//     }
+    pub fn get(&self, symbol_ref: &SymbolRef) -> Type {
+        self.by_ref
+            .get(symbol_ref)
+            .cloned()
+            .unwrap_or(Type::Unknown)
+    }
 
-//     fn infer_expr_type(&self, expr: &ExprIR) -> Type {
-//         match expr {
-//             ExprIR::IntegerExpr(_) => Type::Int,
-//             ExprIR::FloatExpr(_) => Type::Float,
-//             ExprIR::BoolExpr(_) => Type::Bool,
-//             ExprIR::StringExpr(_) => Type::String,
-//             ExprIR::NoneExpr(_) => Type::None,
+    // pub fn infer_call_type(&self, call: &CallIR) -> Option<Type> {
+    //     match &call.func {
+    //         ExprIR::Name(name) => {
+    //             // should resolve to the right target, then check if it has a return type
+    //             todo!()
+    //         }
 
-//             ExprIR::ListExpr(list) => {
-//                 let element_types = list
-//                     .elements
-//                     .iter()
-//                     .map(|element| self.infer_expr_type(element))
-//                     .collect();
+    //         _ => {
+    //             panic!("Call to function invalid")
+    //         }
+    //     }
+    // }
 
-//                 Type::List(element_types)
-//             }
+    fn parse_expr(
+        &self,
+        expr: &ExprIR,
+        program_id: i64,
+    ) -> Type {
+        match expr {
+            ExprIR::Constant(ConstantIR::IntegerLit(_)) => Type::Int,
+            ExprIR::Constant(ConstantIR::FloatLit(_)) => Type::Float,
+            ExprIR::Constant(ConstantIR::BooleanLit(_)) => Type::Bool,
+            ExprIR::Constant(ConstantIR::StringLit(_)) => Type::String,
+            ExprIR::Constant(ConstantIR::NoneLit(_)) => Type::None,
+            ExprIR::Constant(ConstantIR::EllipsisLit(_)) => Type::Ellipsis,
+            ExprIR::Constant(ConstantIR::BytesLit(_)) => Type::Bytes,
+            ExprIR::Constant(ConstantIR::ComplexLit(_)) => Type::Complex,
 
-//             ExprIR::TupleExpr(tuple) => {
-//                 let element_types = tuple
-//                     .elements
-//                     .iter()
-//                     .map(|element| self.infer_expr_type(element))
-//                     .collect();
+            ExprIR::TupleExpr(tuple) => {
+                let element_types = tuple
+                    .elts
+                    .iter()
+                    .map(|element| self.parse_expr(element, program_id))
+                    .collect();
 
-//                 Type::Tuple(element_types)
-//             }
+                Type::Tuple(element_types)
+            }
 
-//             ExprIR::CallExpr(call) => {
-//                 self.infer_call_type(call)
-//             },
+            // defer to later
+            // ExprIR::Call(call) => {
+            //     self.infer_call_type(call)
+            // },
 
-//             ExprIR::BinOpExpr(binop_expr) => {
-//                 self.infer_binary_type(binop_expr.op, &binop_expr.left, &binop_expr.right)
-//             },
+            // ExprIR::BinOpExpr(binop_expr) => {
+            //     self.infer_binary_type(binop_expr.op, &binop_expr.left, &binop_expr.right)
+            // },
 
-//             // name resolution | x: int = a <- we need to find what Type "a" is, is it declared? accessible? unbound?
-//             ExprIR::IdentifierExpr(identifier) => {
-//                 // let symbol_ref = SymbolRef {
-//                 //     program_id: ...,
-//                 //     symbol_id: identifier.name.
-//                 // }
+            // name resolution | x: int = a <- we need to find what Type "a" is, is it declared? accessible? unbound?
+            ExprIR::Name(identifier) => {
+                // let symbol_ref = SymbolRef {
+                //     program_id: ...,
+                //     symbol_id: identifier.name.
+                // }
 
-//                 // need to find by &identifer.name somehow...
-//                 // 1) find ref from name
-//                 // 2) query flow_env with ref
+                // need to find by &identifer.name somehow...
+                // 1) find ref from name
+                // 2) query flow_env with ref
 
-//                 // self.flow_env.get(k)
+                // self.flow_env.get(k)
 
-//                 Type::Unknown
-//             },
+                Type::Unknown
+            },
 
-//             ExprIR::SliceExpr(slice) => {
-//                 todo!()
-//             }
+            ExprIR::SliceExpr(slice) => {
+                todo!()
+            }
 
-//             ExprIR::SubscriptExpr(subscript) => {
-//                 todo!()
-//             }
+            ExprIR::SubscriptExpr(subscript) => {
+                todo!()
+            }
 
-//             ExprIR::AttributeExpr(attribute) => {
-//                 todo!()
-//             }
+            ExprIR::Attribute(attribute) => {
+                todo!()
+            }
 
-//             ExprIR::BoolOpExpr(boolean) => {
-//                 todo!()
-//             }
+            ExprIR::BoolOpExpr(boolean) => {
+                todo!()
+            }
 
-//             ExprIR::UnaryOpExpr(unary) => {
-//                 todo!()
-//             }
+            ExprIR::UnaryOpExpr(unary) => {
+                todo!()
+            }
 
-//             ExprIR::CompareExpr(cmp) => {
-//                 todo!()
-//             }
+            ExprIR::CompareExpr(cmp) => {
+                todo!()
+            }
 
-//             _ => Type::Unknown,
-//         }
-//     }
+            _ => Type::Unknown,
+        }
+    }
 
-//     fn handle_assign(&mut self, id: i64, binding_ir: &BindingIR, flow_env: &mut FlowEnv) {
-//         let target_ref = SymbolRef {
-//             program_id: id,
-//             symbol_id: binding_ir.target_id
-//         };
+    pub fn parse_stmt(
+        &self,
+        program_id: i64,
+        stmt: &StmtIR,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> Option<Type> {
+        match stmt {
+            StmtIR::Assign(assign_stmt) => {
+                let ty = self.parse_expr(&assign_stmt.value, program_id);
+                Some(ty)
+            }
 
-//         let value_type = match &binding_ir.value {
-//             Some(value) => self.infer_expr_type(value),
-//             _other_none => {
-//                 self.diagnostics.push(Diagnostic {
-//                     severity: Severity::ERROR,
-//                     span: Some(binding_ir.span.clone().unwrap()), // weird, why am i asking for option here
-//                     kind: DiagnosticKind::MissingBindingValue,
-//                     message: format!(
-//                         "assignment to `{}` is missing a value",
-//                         binding_ir.id
+            StmtIR::AnnAssign(annassign_stmt) => {
+                Some(self.parse_annotation(
+                    program_id,
+                    annassign_stmt,
+                    diagnostics,
+                ))
+            }
+
+            _ => {
+                None
+            }
+        }
+    }
+
+    fn parse_annotation(
+        &self,
+        program_id: i64,
+        annassign_stmt: &AnnAssignIR,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> Type {
+        // only bindings with annotations arrive here
+        let annotation = &annassign_stmt.annotation;
+
+        let root: Type = match annotation.head.root.as_str() {
+            "int" => Type::Int,
+            "float" => Type::Float,
+            "bool" => Type::Bool,
+            "str" => Type::String,
+            "bytes" => Type::Bytes,
+            "complex" => Type::Complex,
+            "None" => Type::None,
+            _ => self.resolve_annotation_path(
+                // check global symbol table to get the ref, ie is this torch, numpy, Local, true Unknown?
+                annotation.head.root.as_str(),
+                annotation.head.attrs.as_slice(),
+                program_id,
+            ),
+        };
+
+        root
+    }
+
+    fn resolve_annotation_path(
+        &self,
+        root: &str,
+        attrs: &[String],
+        program_id: i64,
+    ) -> Type {
+        let symbol_ref = match self.symbols.lookup(program_id, root) {
+            Some(symbol_ref) => symbol_ref,
+            None => return Type::Unknown,
+        };
+
+        let target = match self.resolutions.imports.get(symbol_ref) {
+            Some(target) => target,
+            None => return Type::Unknown,
+        };
+
+        match target {
+            ResolvedTarget::Local(local_ref) if attrs.is_empty() => {
+                self.by_ref.get(local_ref).cloned().unwrap_or(Type::Unknown)
+            }
+
+            ResolvedTarget::External { module, name } => {
+                self.resolve_external_path(module, name, attrs)
+            }
+
+            _ => Type::Unknown,
+        }
+    }
+
+    fn resolve_external_path(&self, module: &str, imported_name: &str, attrs: &[String]) -> Type {
+        let mut path = Vec::new();
+
+        // `import torch`: the imported name represents the module itself.
+        if imported_name != module {
+            path.push(imported_name);
+        }
+
+        path.extend(attrs.iter().map(String::as_str));
+
+        match (module, path.as_slice()) {
+            ("torch", ["Tensor"]) => Type::Tensor(TensorTypeState::Unresolved),
+
+            ("torch", ["Size"]) => Type::Dim(DimType::Unknown),
+
+            ("torch", ["nn", "Parameter"]) => Type::Tensor(TensorTypeState::Unresolved),
+
+            _ => Type::Unknown,
+        }
+    }
+}
+
+//     pub fn build(
+//         &mut self,
+//         programs: &ProgramTable,
+//         symbols: &GlobalSymbolTable,
+//         resolutions: &ResolutionTable,
+//     ) -> Result<(), Vec<Diagnostic>> {
+//         let mut diagnostics = Vec::new();
+
+//         for (&program_id, program) in &programs.by_id {
+//             for decl in &program.decls {
+//                 let symbol_ref = SymbolRef {
+//                     program_id,
+//                     symbol_id: decl.symbol_id(),
+//                 };
+
+//                 let symbol_type = match decl {
+//                     DeclIR::Binding(binding) => self.parse_binding(
+//                         program_id,
+//                         &binding,
+//                         symbols,
+//                         resolutions,
+//                         &mut diagnostics,
 //                     ),
-//                 });
-//                 Type::Unknown
+
+//                     DeclIR::Function(_) => Type::Callable(CallableType {
+//                         params: Vec::new(),
+//                         return_type: Box::new(Type::Unknown),
+//                     }),
+
+//                     DeclIR::Class(_) => Type::Class(ClassType { symbol: symbol_ref }),
+//                 };
+
+//                 self.by_ref.insert(symbol_ref, symbol_type);
 //             }
-//         };
-
-//         flow_env.by_ref.insert(target_ref, FlowValue::Bound(value_type));
-//     }
-
-//     fn handle_annassign(&mut self, id: i64, binding_ir: &BindingIR, flow_env: &mut FlowEnv) {
-//         let target_ref = SymbolRef {
-//             program_id: id,
-//             symbol_id: binding_ir.target_id
-//         };
-
-//         let expected_type = self.symbol_types.get(&target_ref);
-
-//         let actual_type = match &binding_ir.value {
-//             Some(value) => self.infer_expr_type(value),
-//             _other_none => Type::Unknown,
-//         };
-
-//         if self.is_assignable(&actual_type, &expected_type) {
-//             flow_env.by_ref.insert(target_ref, FlowValue::Bound(expected_type));
 //         }
-//     }
 
-//     pub fn resolve_types(
-//         &mut self
-//     ) {
-//         for (&id, program) in &self.programs.by_id {
-//             let mut env = FlowEnv::new();
-//             self.infer_statements(&program.body, &mut env, id);
-//         }
-//     }
-
-//     pub fn infer_statements(
-//         &mut self,
-//         stmts: &Vec<StmtIR>,
-//         env: &mut FlowEnv,
-//         program_id: i64,
-//     ) {
-//         for stmt in stmts {
-//             self.infer_stmt(stmt, env, program_id);
-//         }
-//     }
-
-//     fn infer_stmt(
-//         &mut self,
-//         stmt: &StmtIR,
-//         env: &mut FlowEnv,
-//         program_id: i64,
-//     ) {
-//         match stmt {
-//             StmtIR::Binding(binding_ir) => {
-//                 println!("entered Binding");
-//                 println!("binding kind: {:?}", binding_ir.kind);
-
-//                 match &binding_ir.kind {
-//                     BindingKind::AnnAssign => {
-//                         println!("ann assign");
-
-//                         self.handle_annassign(program_id, &binding_ir, env)
-//                     }
-
-//                     BindingKind::Assign => {
-//                         println!("plain assignment");
-
-//                         self.handle_assign(program_id, &binding_ir)
-
-//                     }
-
-//                     BindingKind::Unknown => {
-//                         println!("unknown binding");
-//                     }
-//                 }
-//             }
-
-//             StmtIR::ExprStmt(expr_stmt_ir) => {}
-
-//             StmtIR::AugAssign(aug_assign_ir) => {},
-
-//             StmtIR::If(if_stmt) => {
-//                 let mut then_env = env.clone();
-//                 self.infer_statements(&if_stmt.body, &mut then_env, program_id);
-
-//                 let mut else_env = env.clone();
-//                 self.infer_statements(&if_stmt.orelse, &mut else_env, program_id);
-
-//                 // overwrite env
-//                 *env = FlowEnv::merge(&then_env, &else_env);
-//             },
-
-//             StmtIR::WhileLoop(while_loop_ir) => {},
-
-//             StmtIR::ForLoop(for_loop_ir) => {},
-
-//             StmtIR::Function(function_ir) => {},
-
-//             StmtIR::Class(class_ir) => {},
-
-//             StmtIR::Import(import_ir) => {},
-
-//             StmtIR::Return(return_ir) => {},
+//         if diagnostics.is_empty() {
+//             Ok(())
+//         } else {
+//             Err(diagnostics)
 //         }
 //     }
 // }

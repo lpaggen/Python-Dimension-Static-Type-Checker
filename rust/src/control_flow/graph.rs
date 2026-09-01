@@ -36,6 +36,7 @@ impl<'a> Graph<'a> {
             .as_ref()
             .unwrap()
             .outgoing()
+            // .as_slice()
     }
 
     pub fn build(

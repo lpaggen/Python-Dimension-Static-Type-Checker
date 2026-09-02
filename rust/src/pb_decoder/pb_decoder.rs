@@ -1,6 +1,7 @@
 use std::fs;
 use std::io;
 use std::path::PathBuf;
+use std::time::Instant;
 
 use crate::ir::expr_ir::ConstantIR;
 use crate::ir::nodes::annotation_ir::AnnotationHeadIR;
@@ -62,7 +63,11 @@ impl PBDecoder {
     }
 
     pub fn decode_file(path: &PathBuf) -> Result<ProgramIR, Box<dyn std::error::Error + Send + Sync>> {
-        let bytes = fs::read(&path)?;
+        let t = Instant::now();
+        let bytes = fs::read(path)?;
+        println!("  read: {:?}", t.elapsed());
+
+        let t = Instant::now();
         let pb_program = pb::ProgramIr::decode(bytes.as_slice()).map_err(|error| {
             io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -72,6 +77,9 @@ impl PBDecoder {
                 ),
             )
         })?;
+        println!("  protobuf: {:?}", t.elapsed());
+
+        let t = Instant::now();
 
         let scopes = pb_program.scopes.iter().map(Self::convert_scope).collect();
 
@@ -102,6 +110,8 @@ impl PBDecoder {
                 )
             })?;
 
+        println!("  conversion: {:?}", t.elapsed());
+        
         Ok(ProgramIR {
             module_name: pb_program.module_name,
             file_path: pb_program.file_path,
@@ -148,52 +158,6 @@ impl PBDecoder {
             span: Self::convert_optional_span(&import.span),
         }
     }
-
-    // fn convert_decl(decl: &pb::DeclIr) -> Result<DeclIR, Box<dyn std::error::Error>> {
-    //     match &decl.kind {
-    //         Some(pb::decl_ir::Kind::Binding(binding)) => {
-    //             let binding_ir = Self::convert_binding(binding)?;
-    //             Ok(DeclIR::Binding(binding_ir))
-    //         }
-
-    //         Some(pb::decl_ir::Kind::Function(function)) => {
-    //             let function_ir = Self::convert_function(function)?;
-    //             Ok(DeclIR::Function(function_ir))
-    //         }
-
-    //         Some(pb::decl_ir::Kind::ClassDecl(class_decl)) => {
-    //             let class_ir = Self::convert_class(class_decl)?;
-    //             Ok(DeclIR::Class(class_ir))
-    //         }
-
-    //         None => Err("empty DeclIR".into()),
-    //     }
-    // }
-
-    // fn convert_binding(binding: &pb::BindingIr) -> Result<BindingIR, Box<dyn std::error::Error>> {
-    //     let value = match &binding.value {
-    //         Some(value) => Some(Box::new(Self::convert_expr(value)?)),
-    //         // An annotated declaration such as `name: Type` has no value.
-    //         None => None,
-    //     };
-
-    //     let span = Self::convert_optional_span(&binding.span);
-
-    //     let annotation = match &binding.annotation {
-    //         Some(annotation) => Some(Self::convert_annotation(annotation)?),
-    //         None => None,
-    //     };
-
-    //     Ok(BindingIR {
-    //         id: binding.id,
-    //         target_id: binding.target_id,
-    //         annotation: annotation,
-    //         kind: crate::ir::nodes::binding_ir::BindingKind::from(binding.kind), // TODO util to convert back to enum at some stage ?
-    //         value: value,
-    //         scope_id: binding.scope_id,
-    //         span: span,
-    //     })
-    // }
 
     fn convert_annotation(
         annotation: &pb::AnnotationIr,
@@ -1538,6 +1502,26 @@ impl PBDecoder {
                     body: Box::new(body),
                     orelse: Box::new(orelse),
                     span,
+                }))
+            }
+
+            Some(pb::expr_ir::Kind::LambdaExpr(lambda_ir)) => {
+                let args = lambda_ir
+                    .args
+                    .iter()
+                    .map(Self::convert_param)
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                let body = match &lambda_ir.body {
+                    Some(body) => Box::new(Self::convert_expr(body)?),
+                    None => return Err("lambda expression has no body".into()),
+                };
+
+                Ok(ExprIR::LambdaExpr(LambdaIR {
+                    args,
+                    body,
+                    scope_id: lambda_ir.scope_id,
+                    span: Self::convert_optional_span(&lambda_ir.span),
                 }))
             }
 

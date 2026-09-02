@@ -16,6 +16,7 @@ pub mod ifexp_ir;
 pub mod integer_ir;
 pub mod interpolation_ir;
 pub mod joinedstr_ir;
+pub mod lambda_ir;
 pub mod list_ir;
 pub mod name_ir;
 pub mod namedexpr_ir;
@@ -50,6 +51,7 @@ pub use ifexp_ir::IfExpIR;
 pub use integer_ir::IntegerIR;
 pub use interpolation_ir::InterpolationIR;
 pub use joinedstr_ir::{FormattedValueIR, JoinedStrIR};
+pub use lambda_ir::LambdaIR;
 pub use list_ir::ListIR;
 pub use name_ir::NameIR;
 pub use namedexpr_ir::NamedExprIR;
@@ -95,6 +97,7 @@ pub enum ExprIR {
     NamedExpr(NamedExprIR), // := , named NamedExpr in Python for some reason
 
     IfExp(IfExpIR),
+    LambdaExpr(LambdaIR),
 
     GeneratorExp(GeneratorExpIR),
     ListComp(ListCompIR),

@@ -4,3 +4,4 @@ pub mod program_table;
 pub mod resolution_table;
 pub mod resolved_target;
 pub mod symbol_ref;
+pub mod scope_ref;

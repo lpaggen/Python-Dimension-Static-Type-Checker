@@ -1,5 +1,4 @@
 use crate::{
-    diagnostic::diagnostic::Diagnostic,
     linker::{
         global_scope_table::GlobalSymbolTable,
         program_table::ProgramTable,
@@ -39,8 +38,16 @@ impl ResolutionTable {
                 let target = match programs.get_by_name(&import.module_name) {
                     // if in our local project files, Local, else i.e. torch -> Ext
                     Some(_target) => {
-                        let target_program_id = *programs.by_name.get(&import.module_name).unwrap(); // cannot fail
-                        let target_ref = *symbols.global_lookup(target_program_id, imported_name).expect(&format!("culprit: {}", imported_name));  // TODO this actually does fail?!??????
+                        let target_program_id = *programs.by_name.get(
+                            &import.module_name
+                        ).unwrap(); // cannot fail
+                        // scope id 0 -> global scope
+                        let target_ref = symbols.lookup_by_name(
+                            target_program_id, 
+                            0, 
+                            imported_name).expect(
+                                &format!("culprit: {}", imported_name)
+                            );
                         ResolvedTarget::Local(target_ref)
                     }
                     None => ResolvedTarget::External {

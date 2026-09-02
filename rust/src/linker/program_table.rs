@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use crate::ir::program_ir::ProgramIR;
+use crate::{ir::{nodes::ScopeIR, program_ir::ProgramIR}, linker::{scope_ref::ScopeRef, symbol_ref::SymbolRef}};
 
-use rayon::prelude::*;
+// use rayon::prelude::*;
 
 pub struct ProgramTable {
     pub by_id: HashMap<i64, ProgramIR>,
@@ -14,6 +14,7 @@ impl ProgramTable {
         Self {
             by_id: HashMap::new(),
             by_name: HashMap::new(),
+            // scope_map: HashMap::new(),
         }
     }
 

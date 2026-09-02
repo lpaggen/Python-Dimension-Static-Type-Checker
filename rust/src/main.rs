@@ -45,7 +45,7 @@ fn main() -> Result<(), Vec<Diagnostic>> {
 
     let start = Instant::now();
     let mut symbols = GlobalSymbolTable::new();
-    symbols.build_global_symbols(&table);
+    symbols.build(&table);
     println!("symbols:         {:?}", start.elapsed());
 
     let start = Instant::now();

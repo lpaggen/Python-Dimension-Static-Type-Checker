@@ -59,6 +59,7 @@ impl<'ctx> TypeResolver<'ctx> {
     //         }
     //     }
     // }
+    
     fn parse_expr(
         &self,
         expr: &ExprIR,
@@ -200,7 +201,7 @@ impl<'ctx> TypeResolver<'ctx> {
             None => return Type::Unknown,
         };
 
-        let target = match self.resolutions.imports.get(symbol_ref) {
+        let target = match self.resolutions.imports.get(&symbol_ref) {
             Some(target) => target,
             None => return Type::Unknown,
         };

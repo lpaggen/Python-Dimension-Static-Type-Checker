@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::ir::{
     metadata::{ScopeIR, SymbolIR},
     stmt::{StmtIR, import_ir::ImportIR},

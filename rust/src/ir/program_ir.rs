@@ -10,6 +10,6 @@ pub struct ProgramIR {
     pub scopes: Vec<ScopeIR>,
     pub symbols: Vec<SymbolIR>,
     pub imports: Vec<ImportIR>,
-    // pub decls: Vec<DeclIR>,
+    // pub decls: Vec<DeclIR>, // may have been useful to keep classes and functions signatures actually
     pub body: Vec<StmtIR>,
 }

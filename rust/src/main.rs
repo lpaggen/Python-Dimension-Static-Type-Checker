@@ -1,5 +1,6 @@
 use std::time::Instant;
 
+use crate::control_flow::blockflow::BlockFlow;
 use crate::control_flow::programcfg::ProgramCfg;
 use crate::diagnostic::diagnostic::Diagnostic;
 use crate::ir::program_ir::ProgramIR;
@@ -11,6 +12,7 @@ use crate::linker::resolution_table::ResolutionTable;
 // use crate::type_resolver::type_resolver::TypeResolver;
 use crate::pb_decoder::pb_decoder::PBDecoder;
 use crate::control_flow::cfg::Cfg;
+use crate::type_resolver::type_resolver::TypeResolver;
 
 mod diagnostic;
 mod ir;
@@ -43,7 +45,7 @@ fn main() -> Result<(), Vec<Diagnostic>> {
 
     let start = Instant::now();
     let mut symbols = GlobalSymbolTable::new();
-    symbols.build(&table);
+    symbols.build_global_symbols(&table);
     println!("symbols:         {:?}", start.elapsed());
 
     let start = Instant::now();
@@ -66,9 +68,15 @@ fn main() -> Result<(), Vec<Diagnostic>> {
     cfg.build(&table);
     println!("cfg:             {:?}", start.elapsed());
 
+    let start = Instant::now();
+    let mut flow = BlockFlow::new(TypeResolver::new(&symbols, &resolved));
+    flow.build(&cfg);
+    println!("flow analysis:             {:?}", start.elapsed());
+
+
     println!("total pipeline:  {:?}", total_start.elapsed());
 
-    println!("{:?}", cfg.programs.get(&3));
+    // println!("{:?}", cfg.programs.get(&3));
 
     Ok(())
 }

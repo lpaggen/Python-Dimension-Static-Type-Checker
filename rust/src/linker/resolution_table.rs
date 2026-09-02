@@ -40,8 +40,8 @@ impl ResolutionTable {
                     // if in our local project files, Local, else i.e. torch -> Ext
                     Some(_target) => {
                         let target_program_id = *programs.by_name.get(&import.module_name).unwrap(); // cannot fail
-                        let target_ref = symbols.lookup(target_program_id, imported_name).unwrap();
-                        ResolvedTarget::Local(*target_ref)
+                        let target_ref = *symbols.global_lookup(target_program_id, imported_name).expect(&format!("culprit: {}", imported_name));  // TODO this actually does fail?!??????
+                        ResolvedTarget::Local(target_ref)
                     }
                     None => ResolvedTarget::External {
                         module: import.module_name.clone(),

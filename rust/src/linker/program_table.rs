@@ -5,7 +5,6 @@ use crate::ir::program_ir::ProgramIR;
 use rayon::prelude::*;
 
 pub struct ProgramTable {
-    /// ProgramTable is a global table used to resolve imports
     pub by_id: HashMap<i64, ProgramIR>,
     pub by_name: HashMap<String, i64>,
 }

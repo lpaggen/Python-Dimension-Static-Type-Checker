@@ -2,6 +2,7 @@ use crate::diagnostic::diagnostic::Diagnostic;
 use crate::ir::expr::CallIR;
 use crate::ir::stmt::AnnAssignIR;
 use crate::ir::stmt::StmtIR;
+use std::arch::naked_asm;
 use std::collections::HashMap;
 
 use crate::ir::expr_ir::ConstantIR;
@@ -20,6 +21,7 @@ use crate::{
 // !! Type resolver is only used in the CFG phase, we likely won't be calling build() standalone, rather just resolve stmt by stmt
 pub struct TypeResolver<'ctx> {
     pub by_ref: HashMap<SymbolRef, Type>,
+    pub diagnostics: Vec<Diagnostic>,
 
     symbols: &'ctx GlobalSymbolTable,
     resolutions: &'ctx ResolutionTable,
@@ -34,6 +36,7 @@ impl<'ctx> TypeResolver<'ctx> {
             by_ref: HashMap::new(),
             symbols,
             resolutions,
+            diagnostics: Vec::new(),
         }
     }
 
@@ -56,7 +59,6 @@ impl<'ctx> TypeResolver<'ctx> {
     //         }
     //     }
     // }
-
     fn parse_expr(
         &self,
         expr: &ExprIR,
@@ -91,8 +93,9 @@ impl<'ctx> TypeResolver<'ctx> {
             //     self.infer_binary_type(binop_expr.op, &binop_expr.left, &binop_expr.right)
             // },
 
+            // might want to delegate to a later pass? we will see
             // name resolution | x: int = a <- we need to find what Type "a" is, is it declared? accessible? unbound?
-            ExprIR::Name(identifier) => {
+            ExprIR::Name(name) => {
                 // let symbol_ref = SymbolRef {
                 //     program_id: ...,
                 //     symbol_id: identifier.name.
@@ -139,7 +142,6 @@ impl<'ctx> TypeResolver<'ctx> {
         &self,
         program_id: i64,
         stmt: &StmtIR,
-        diagnostics: &mut Vec<Diagnostic>,
     ) -> Option<Type> {
         match stmt {
             StmtIR::Assign(assign_stmt) => {
@@ -151,7 +153,6 @@ impl<'ctx> TypeResolver<'ctx> {
                 Some(self.parse_annotation(
                     program_id,
                     annassign_stmt,
-                    diagnostics,
                 ))
             }
 
@@ -165,7 +166,6 @@ impl<'ctx> TypeResolver<'ctx> {
         &self,
         program_id: i64,
         annassign_stmt: &AnnAssignIR,
-        diagnostics: &mut Vec<Diagnostic>,
     ) -> Type {
         // only bindings with annotations arrive here
         let annotation = &annassign_stmt.annotation;
@@ -195,7 +195,7 @@ impl<'ctx> TypeResolver<'ctx> {
         attrs: &[String],
         program_id: i64,
     ) -> Type {
-        let symbol_ref = match self.symbols.lookup(program_id, root) {
+        let symbol_ref = match self.symbols.global_lookup(program_id, root) {
             Some(symbol_ref) => symbol_ref,
             None => return Type::Unknown,
         };
@@ -218,16 +218,22 @@ impl<'ctx> TypeResolver<'ctx> {
         }
     }
 
+    // WARNING THIS BREAKS FOR: "from torch.nn import Parameter" for example
+    // TODO fix, should be some invariant which makes this work neatly
     fn resolve_external_path(&self, module: &str, imported_name: &str, attrs: &[String]) -> Type {
         let mut path = Vec::new();
 
-        // `import torch`: the imported name represents the module itself.
+        // "import torch": the imported name represents the module itself
+        // ? recall how this works in general
+        // i think through ResolvedSymbol all imports map back to their canonical name
         if imported_name != module {
             path.push(imported_name);
         }
 
         path.extend(attrs.iter().map(String::as_str));
 
+        // so the following could always hold normally
+        // TODO check if it works for "from torch import Tensor", would we still get "torch" as root ? 
         match (module, path.as_slice()) {
             ("torch", ["Tensor"]) => Type::Tensor(TensorTypeState::Unresolved),
 

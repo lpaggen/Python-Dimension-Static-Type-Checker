@@ -32,84 +32,85 @@ impl PBDecoder {
         Self { path: path.into() }
     }
 
-    pub fn decode_dir(&self) -> Result<Vec<ProgramIR>, Box<dyn std::error::Error>> {
+    pub fn decode_dir(&self) -> Result<Vec<ProgramIR>, Box<dyn std::error::Error + Send + Sync>> {
+        let paths: Vec<PathBuf> = fs::read_dir(&self.path)?
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.path())
+            .filter(|path| path.is_file())
+            .collect();
+
+        let mut handles = Vec::new();
+
+        // type checker is wrong, it's a PathBuf
+        for path in paths {
+            handles.push(std::thread::spawn(move || {
+                Self::decode_file(&path)
+            }));
+        }
+
         let mut programs = Vec::new();
 
-        // TODO multithreading, should be straightforward
+        for handle in handles {
+            let program = handle
+                .join()
+                .map_err(|_| "decoder thread panicked")??;
 
-        for entry in fs::read_dir(&self.path)? {
-            let entry = entry?;
-            let path = entry.path();
-
-            if path.is_file() {
-                let bytes = fs::read(&path)?;
-                let pb_program = pb::ProgramIr::decode(bytes.as_slice()).map_err(|error| {
-                    io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        format!(
-                            "failed to decode protobuf file '{}': {error}",
-                            path.display()
-                        ),
-                    )
-                })?;
-
-                // let mut decls: Vec<DeclIR> = Vec::new();
-
-                // for (index, decl) in pb_program.decls.iter().enumerate() {
-                //     let decl_ir = Self::convert_decl(decl).map_err(|error| {
-                //         io::Error::new(
-                //             io::ErrorKind::InvalidData,
-                //             format!(
-                //                 "failed to decode declaration {index} in protobuf file '{}': {error}",
-                //                 path.display()
-                //             ),
-                //         )
-                //     })?;
-                //     decls.push(decl_ir);
-                // }
-
-                let scopes = pb_program.scopes.iter().map(Self::convert_scope).collect();
-
-                let symbols = pb_program
-                    .symbols
-                    .iter()
-                    .map(Self::convert_symbol)
-                    .collect();
-
-                let imports = pb_program
-                    .imports
-                    .iter()
-                    .map(Self::convert_import)
-                    .collect();
-
-                let body = pb_program
-                    .body
-                    .iter()
-                    .map(Self::convert_stmt)
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(|error| {
-                        io::Error::new(
-                            io::ErrorKind::InvalidData,
-                            format!(
-                                "failed to decode module body in protobuf file '{}': {error}",
-                                path.display()
-                            ),
-                        )
-                    })?;
-
-                programs.push(ProgramIR {
-                    module_name: pb_program.module_name,
-                    file_path: pb_program.file_path,
-                    scopes,
-                    symbols,
-                    imports,
-                    // decls,
-                    body,
-                });
-            }
+            programs.push(program);
         }
 
         Ok(programs)
+    }
+
+    pub fn decode_file(path: &PathBuf) -> Result<ProgramIR, Box<dyn std::error::Error + Send + Sync>> {
+        let bytes = fs::read(&path)?;
+        let pb_program = pb::ProgramIr::decode(bytes.as_slice()).map_err(|error| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "failed to decode protobuf file '{}': {error}",
+                    path.display()
+                ),
+            )
+        })?;
+
+        let scopes = pb_program.scopes.iter().map(Self::convert_scope).collect();
+
+        let symbols = pb_program
+            .symbols
+            .iter()
+            .map(Self::convert_symbol)
+            .collect();
+
+        let imports = pb_program
+            .imports
+            .iter()
+            .map(Self::convert_import)
+            .collect();
+
+        let body = pb_program
+            .body
+            .iter()
+            .map(Self::convert_stmt)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!(
+                        "failed to decode module body in protobuf file '{}': {error}",
+                        path.display()
+                    ),
+                )
+            })?;
+
+        Ok(ProgramIR {
+            module_name: pb_program.module_name,
+            file_path: pb_program.file_path,
+            scopes,
+            symbols,
+            imports,
+            // decls,
+            body,
+        })
     }
 
     fn convert_scope(scope: &pb::ScopeIr) -> ScopeIR {

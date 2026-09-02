@@ -15,6 +15,8 @@ pub enum Terminator<'a> {
     Return(Option<&'a ExprIR>),
 
     Raise(Raise<'a>),
+
+    Exit  // block final exit (no successors), so we don't return None
 }
 
 impl<'a> Terminator<'a> {
@@ -42,7 +44,9 @@ impl<'a> Terminator<'a> {
                 vec![*goto]
             }
 
-            Terminator::Raise(_) | Terminator::Return(_) => {
+            Terminator::Raise(_) 
+            | Terminator::Return(_)
+            | Terminator::Exit => {
                 vec![]
             }
         }

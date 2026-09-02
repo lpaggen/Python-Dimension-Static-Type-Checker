@@ -49,10 +49,12 @@ class FunctionDefIR(StmtIR):
 
         # stmt = _pb2.DeclIR()
         # stmt.function.CopyFrom(proto)
-        return proto
+        return _pb2.StmtIR(
+            function=proto
+        )
 
-    def to_stmt_proto(self):
-        fn = self.to_proto()
-        stmt = _pb2.StmtIR()
-        stmt.function.CopyFrom(fn)
-        return stmt
+    # def to_stmt_proto(self):
+    #     fn = self.to_proto()
+    #     stmt = _pb2.StmtIR()
+    #     stmt.function.CopyFrom(fn)
+    #     return stmt

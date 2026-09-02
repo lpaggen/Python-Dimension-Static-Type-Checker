@@ -563,7 +563,15 @@ message ExprIR {
     YieldFromIR yield_from = 26;
     TemplateStrIR template_str = 27;
     InterpolationIR interpolation = 28;
+    LambdaIR lambda_expr = 29;
   }
+}
+
+message LambdaIR {
+  repeated ArgIR args = 1;
+  ExprIR body = 2;
+  int64 scope_id = 3;
+  SourceSpan span = 4;
 }
 
 enum ArgKind {

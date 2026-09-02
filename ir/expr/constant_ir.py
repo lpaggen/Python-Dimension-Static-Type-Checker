@@ -1,3 +1,4 @@
+from abc import abstractmethod
 from dataclasses import dataclass
 
 from common.span import SourceSpan
@@ -7,13 +8,12 @@ from ir.expr.expr_ir import ExprIR
 
 @dataclass
 class ConstantIR(ExprIR):
-    value: ExprIR
+    value: object
     # not including "kind" field because it seems like legacy metadata
 
+    @abstractmethod
     def to_proto(self):
-        return _pb2.ExprIR(
-            constant=self.to_proto()
-        )
+        raise NotImplementedError
 
 
 @dataclass
@@ -34,12 +34,20 @@ class BooleanIR(ConstantIR):
             )
         )
 
-
 @dataclass
 class BytesIR(ConstantIR):
     value: bytes
     span: SourceSpan
 
+    def to_proto(self):
+        return _pb2.ExprIR(
+            constant=_pb2.ConstantIR(
+                bytes_lit=_pb2.BytesIR(
+                    value=self.value,
+                    span=self.span.to_proto(),
+                )
+            )
+        )
 
 @dataclass
 class ComplexIR(ConstantIR):
@@ -48,7 +56,15 @@ class ComplexIR(ConstantIR):
     span: SourceSpan | None
 
     def to_proto(self):
-        return _pb2.ExprIR(ComplexIR(real=self.real, imag=self.imag))
+        return _pb2.ExprIR(
+            constant=_pb2.ConstantIR(
+                complex_lit=_pb2.ComplexIR(
+                    real=self.real,
+                    imag=self.imag,
+                    span=self.span.to_proto() if self.span is not None else None,
+                )
+            )
+        )
 
 
 @dataclass

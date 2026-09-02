@@ -2,12 +2,13 @@ use crate::diagnostic::diagnostic::Diagnostic;
 use crate::ir::expr::CallIR;
 use crate::ir::stmt::AnnAssignIR;
 use crate::ir::stmt::StmtIR;
+use crate::linker::symbol_ref;
 use std::arch::naked_asm;
 use std::collections::HashMap;
 
 use crate::ir::expr_ir::ConstantIR;
 use crate::ir::expr_ir::ExprIR;
-use crate::linker::global_scope_table::GlobalSymbolTable;
+use crate::linker::scope_table::GlobalSymbolTable;
 use crate::linker::resolution_table::ResolutionTable;
 use crate::linker::resolved_target::ResolvedTarget;
 use crate::types::types::DimType;
@@ -59,7 +60,7 @@ impl<'ctx> TypeResolver<'ctx> {
     //         }
     //     }
     // }
-    
+
     fn parse_expr(
         &self,
         expr: &ExprIR,
@@ -96,20 +97,24 @@ impl<'ctx> TypeResolver<'ctx> {
 
             // might want to delegate to a later pass? we will see
             // name resolution | x: int = a <- we need to find what Type "a" is, is it declared? accessible? unbound?
-            ExprIR::Name(name) => {
-                // let symbol_ref = SymbolRef {
-                //     program_id: ...,
-                //     symbol_id: identifier.name.
-                // }
+            // AND THEREFORE ENTIRELY DEPENDS ON FLOW STATE BEING COMPLETE!!!!!!!!!!!!!!!!!!!!
+            // ExprIR::Name(name) => {
+            //     let symbol_ref = match &self.symbols.lookup_by_name(
+            //         program_id, 
+            //         name.use_scope_id, 
+            //         &name.id
+            //     ) {
+            //         Some(reference) => {
 
-                // need to find by &identifer.name somehow...
-                // 1) find ref from name
-                // 2) query flow_env with ref
+            //         },
 
-                // self.flow_env.get(k)
+            //         None => {
+            //             Type::Unknown
+            //         }
+            //     }
 
-                Type::Unknown
-            },
+            //     Type::Unknown
+            // },
 
             ExprIR::SliceExpr(slice) => {
                 todo!()
@@ -139,7 +144,7 @@ impl<'ctx> TypeResolver<'ctx> {
         }
     }
 
-    pub fn parse_stmt(
+    fn resolve_type(
         &self,
         program_id: i64,
         stmt: &StmtIR,

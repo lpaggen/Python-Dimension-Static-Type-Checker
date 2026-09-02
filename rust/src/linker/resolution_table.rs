@@ -1,6 +1,6 @@
 use crate::{
     linker::{
-        global_scope_table::GlobalSymbolTable,
+        scope_table::GlobalSymbolTable,
         program_table::ProgramTable,
         resolved_target::ResolvedTarget::{self},
         symbol_ref::SymbolRef,
@@ -41,10 +41,9 @@ impl ResolutionTable {
                         let target_program_id = *programs.by_name.get(
                             &import.module_name
                         ).unwrap(); // cannot fail
-                        // scope id 0 -> global scope
                         let target_ref = symbols.lookup_by_name(
                             target_program_id, 
-                            0, 
+                            0, // global scope
                             imported_name).expect(
                                 &format!("culprit: {}", imported_name)
                             );

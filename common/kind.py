@@ -11,11 +11,11 @@ class ScopeKind(IntEnum):
 
 class SymbolKind(IntEnum):
     SYMBOL_UNKNOWN = 0
-    SYMBOL_MODULE_ALIAS = 1
-    SYMBOL_VARIABLE = 2
-    SYMBOL_FUNCTION = 3
-    SYMBOL_CLASS = 4
-    SYMBOL_PARAM = 5
+    SYMBOL_VARIABLE = 1
+    SYMBOL_FUNCTION = 2
+    SYMBOL_CLASS = 3
+    SYMBOL_PARAM = 4
+    SYMBOL_MODULE_ALIAS = 5
 
 
 class BindingKind(IntEnum):

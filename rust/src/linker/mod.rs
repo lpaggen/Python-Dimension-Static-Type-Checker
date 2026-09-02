@@ -1,4 +1,4 @@
-pub mod global_scope_table;
+pub mod scope_table;
 pub mod import_graph;
 pub mod program_table;
 pub mod resolution_table;

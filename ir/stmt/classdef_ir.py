@@ -31,7 +31,7 @@ class ClassDefIR(StmtIR):
             body_scope_id=self.body_scope_id,
         )
 
-        proto.body.extend([stmt_to_proto(stmt) for stmt in self.body])
+        proto.body.extend([stmt.to_proto() for stmt in self.body])
         proto.bases.extend([base.to_proto() for base in self.bases])
         proto.keywords.extend([keyword.to_proto() for keyword in self.keywords])
         proto.decorator_list.extend(
@@ -44,10 +44,12 @@ class ClassDefIR(StmtIR):
 
         # stmt = _pb2.DeclIR()
         # stmt.class_decl.CopyFrom(proto)
-        return proto
+        return _pb2.StmtIR(
+            class_decl=proto
+        )
 
-    def to_stmt_proto(self):
-        fn = self.to_proto()
-        stmt = _pb2.StmtIR()
-        stmt.class_decl.CopyFrom(fn)
-        return stmt
+    # def to_stmt_proto(self):
+    #     fn = self.to_proto()
+    #     stmt = _pb2.StmtIR()
+    #     stmt.class_decl.CopyFrom(fn)
+    #     return stmt

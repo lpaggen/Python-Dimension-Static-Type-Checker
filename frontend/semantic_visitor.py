@@ -418,6 +418,10 @@ class SemanticBuilder(ast.NodeVisitor):
         )
 
     def visit_AnnAssign(self, node: ast.AnnAssign):
+        self.declare_assignment_target(
+            node.target,
+            SourceSpan.span(node.target, self.file_path),
+        )
         return AnnAssignIR(
             target=self.parse_expr(node.target),
             annotation=self.lower_annotation(node.annotation),
@@ -806,6 +810,12 @@ class SemanticBuilder(ast.NodeVisitor):
         raise NotImplementedError(f"Unsupported annotation head: {type(node).__name__}")
 
     def visit_Assign(self, node: ast.Assign):
+        for target in node.targets:
+            self.declare_assignment_target(
+                target,
+                SourceSpan.span(target, self.file_path),
+            )
+
         return AssignIR(
             target=[self.parse_expr(expr) for expr in node.targets],
             value=self.parse_expr(node.value),
@@ -863,7 +873,6 @@ class SemanticBuilder(ast.NodeVisitor):
             ]
 
     def declare_assignment_target(self, target: ast.AST, span: SourceSpan):
-        """Declare names bound by targets which are not represented by BindingIR."""
         if isinstance(target, ast.Name):
             self.builder.get_or_declare_symbol(
                 name=target.id,
@@ -915,7 +924,7 @@ class SemanticBuilder(ast.NodeVisitor):
         # first parse the posonly, then move to the posOrKeyword
         # there are N posonlyargs in order, then there are M posorkeyword
         for i, arg in enumerate(positional):
-            if i < len(positional):
+            if i < len(args.posonlyargs):
                 kind = ArgKind.POSITIONAL_ONLY
             else:
                 kind = ArgKind.POSITIONAL_OR_KEYWORD
@@ -941,7 +950,7 @@ class SemanticBuilder(ast.NodeVisitor):
         # can only come after vararg, has either None default or a default is provided
         # ex -> *d, e, f=2 -> kwonlyargs[e, f] , kw_defaults[None, 2]
         for arg, _default in zip(args.kwonlyargs, args.kw_defaults):
-            default = self.parse_expr(_default) if default is not None else None
+            default = self.parse_expr(_default) if _default is not None else None
             params.append(self.lower_single_param(arg=arg, kind=ArgKind.KEYWORD_ONLY, default=default))
 
         # **arg

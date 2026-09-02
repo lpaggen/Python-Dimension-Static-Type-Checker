@@ -4,19 +4,19 @@ use crate::{control_flow::{
     basic_block::BasicBlock, block_id::BlockID, cfg::Cfg, flowstate::FlowState, graph::Graph, programcfg::ProgramCfg
 }, ir::stmt::{StmtIR, annassign_ir}, type_resolver::type_resolver::TypeResolver};
 
-pub struct BlockFlow<'ctx> {
+pub struct BlockFlow {
     pub incoming: HashMap<BlockID, FlowState>,
     pub outgoing: HashMap<BlockID, FlowState>,
 
-    type_resolver: TypeResolver<'ctx>,
+    // type_resolver: TypeResolver<'ctx>,
 }
 
-impl<'ctx> BlockFlow<'ctx> {
-    pub fn new(type_resolver: TypeResolver<'ctx>) -> Self {
+impl BlockFlow {
+    pub fn new() -> Self {
         Self {
             incoming: HashMap::new(),
             outgoing: HashMap::new(),
-            type_resolver,
+            // type_resolver,
         }
     }
 
@@ -28,6 +28,18 @@ impl<'ctx> BlockFlow<'ctx> {
         let entry = BlockID {id: 0};  // start at entry always
 
         let graph = &programcfg.module;
+
+        // TODO this is a good idea, need to figure out the implementation
+
+        // let entry_state = FlowState::new();
+        // for symbol in &programcfg.module. {
+        //     let symbol_ref = SymbolRef {
+        //         program_id: programcfg.id,
+        //         symbol_id: symbol.id,
+        //     };
+
+        //     entry_state.register_unbound(&symbol_ref);
+        // }
 
         self.incoming.insert(entry, FlowState::new());
 
@@ -64,11 +76,19 @@ impl<'ctx> BlockFlow<'ctx> {
                 // now merge the outgoing states of the current block's predecessors
                 let merged = FlowState::merge(states);
 
-                // if successor is B1 depends on B0, just set IN[B1] = merge(OUT(predecessors[B1])), that's it
-                self.incoming.insert(*successor, merged);
-            }
+                let changed = self
+                    .incoming
+                    .get(&successor)
+                    .map(|old| old != &merged)
+                    .unwrap_or(true);
 
-            queue.extend(successors);
+                // if successor is B1 depends on B0, just set IN[B1] = merge(OUT(predecessors[B1])), that's it
+                // we only want to do this if something has changed, else we run into infinite loops
+                if changed {
+                    self.incoming.insert(*successor, merged);
+                    queue.push_back(*successor);
+                }
+            }
         }
     }
 
@@ -81,13 +101,11 @@ impl<'ctx> BlockFlow<'ctx> {
             }
 
             StmtIR::AnnAssign(annassign) => { // !! fix API for symbol_types eventually
-                let target_type = self.type_resolver.parse_stmt(program_id, stmt);
+                // let target_type = self.type_resolver.parse_stmt(program_id, stmt);
                 // let symbol_ref = annassign.
             }
 
-            _ => {
-                println!("ignore for now")
-            }
+            _ => {}
         }
     }
 

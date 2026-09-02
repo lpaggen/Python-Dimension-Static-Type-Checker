@@ -34,7 +34,7 @@ impl<'a> Graph<'a> {
             .unwrap()
             .terminator
             .as_ref()
-            .unwrap()
+            .unwrap_or(&Terminator::Exit)
             .outgoing()
             // .as_slice()
     }

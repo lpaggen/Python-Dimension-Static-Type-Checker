@@ -4,7 +4,7 @@ use crate::control_flow::blockflow::BlockFlow;
 use crate::control_flow::programcfg::ProgramCfg;
 use crate::diagnostic::diagnostic::Diagnostic;
 use crate::ir::program_ir::ProgramIR;
-use crate::linker::global_scope_table::GlobalSymbolTable;
+use crate::linker::scope_table::GlobalSymbolTable;
 use crate::linker::import_graph::ImportGraph;
 use crate::linker::program_table::ProgramTable;
 use crate::linker::resolution_table::ResolutionTable;
@@ -69,9 +69,9 @@ fn main() -> Result<(), Vec<Diagnostic>> {
     println!("cfg:             {:?}", start.elapsed());
 
     let start = Instant::now();
-    let mut flow = BlockFlow::new(TypeResolver::new(&symbols, &resolved));
+    let mut flow = BlockFlow::new();
     flow.build(&cfg);
-    println!("flow analysis:             {:?}", start.elapsed());
+    println!("flow analysis:   {:?}", start.elapsed());
 
 
     println!("total pipeline:  {:?}", total_start.elapsed());

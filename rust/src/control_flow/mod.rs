@@ -12,3 +12,4 @@ pub mod programcfg;
 pub mod flowstate;
 pub mod bindingstate;
 pub mod blockflow;
+pub mod bound_type;

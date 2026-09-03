@@ -22,6 +22,18 @@ pub enum Type {
     Unknown, // may be a valid type, we just don't consider it in this tool
 }
 
+impl Type {
+    pub fn is_numeric(&self) -> bool {
+        matches!(
+            self,
+            Type::Bool
+                | Type::Int
+                | Type::Float
+                | Type::Complex
+        )
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct CallableType {
     pub params: Vec<Type>,

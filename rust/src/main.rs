@@ -69,8 +69,12 @@ fn main() -> Result<(), Vec<Diagnostic>> {
     println!("cfg:             {:?}", start.elapsed());
 
     let start = Instant::now();
-    let mut flow = BlockFlow::new();
-    flow.build(&cfg);
+    let mut flow = BlockFlow::new(
+        TypeResolver::new(
+            &symbols, 
+            &resolved)
+    );
+    flow.build(&cfg, &table);
     println!("flow analysis:   {:?}", start.elapsed());
 
 

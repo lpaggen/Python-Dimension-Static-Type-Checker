@@ -1,47 +1,52 @@
 use std::{collections::{HashMap, VecDeque}, ops::Deref};
 
 use crate::{control_flow::{
-    basic_block::BasicBlock, block_id::BlockID, cfg::Cfg, flowstate::FlowState, graph::Graph, programcfg::ProgramCfg
-}, ir::stmt::{StmtIR, annassign_ir}, type_resolver::type_resolver::TypeResolver};
+    basic_block::BasicBlock, bindingstate::BindingState, block_id::BlockID, bound_type::TypedBinding, cfg::Cfg, flowstate::FlowState, graph::Graph, programcfg::ProgramCfg
+}, ir::{expr::ExprIR, nodes::SymbolIR, stmt::{StmtIR, annassign_ir}}, linker::{program_table::ProgramTable, symbol_ref::SymbolRef}, type_resolver::type_resolver::TypeResolver, types::types::Type};
 
-pub struct BlockFlow {
+pub struct BlockFlow<'ctx> {
     pub incoming: HashMap<BlockID, FlowState>,
     pub outgoing: HashMap<BlockID, FlowState>,
 
-    // type_resolver: TypeResolver<'ctx>,
+    type_resolver: TypeResolver<'ctx>,
 }
 
-impl BlockFlow {
-    pub fn new() -> Self {
+impl<'ctx> BlockFlow<'ctx> {
+    pub fn new(type_resolver: TypeResolver<'ctx>) -> Self {
         Self {
             incoming: HashMap::new(),
             outgoing: HashMap::new(),
-            // type_resolver,
+            type_resolver,
         }
     }
 
     // for every program, go one by one to resolve CFG instructions Bound, Unbound, MaybeUnbound and their type
     // we want to end up with something like: Bound(int | float), etc., so we need bound status + type inference
     // TODO fix huge bug, terminator None is getting unwrapped, causes issues
-    pub fn analyze_cfg(&mut self, programcfg: &ProgramCfg) {
+    pub fn analyze_cfg(&mut self, programcfg: &ProgramCfg, symbols: &Vec<SymbolIR>) {
 
         let entry = BlockID {id: 0};  // start at entry always
 
         let graph = &programcfg.module;
 
-        // TODO this is a good idea, need to figure out the implementation
+        // declare all symbols as Unbound and Unknown first, update their status as we go
+        let mut entry_state = FlowState::new();
+        for symbol in symbols {
+            let symbol_ref = SymbolRef {
+                program_id: programcfg.id,
+                symbol_id: symbol.id,
+            };
 
-        // let entry_state = FlowState::new();
-        // for symbol in &programcfg.module. {
-        //     let symbol_ref = SymbolRef {
-        //         program_id: programcfg.id,
-        //         symbol_id: symbol.id,
-        //     };
+            entry_state.by_ref.insert(
+                symbol_ref,
+                TypedBinding {
+                    binding: BindingState::Unbound,
+                    ty: Type::Unknown,
+                },
+            );
+        }
 
-        //     entry_state.register_unbound(&symbol_ref);
-        // }
-
-        self.incoming.insert(entry, FlowState::new());
+        self.incoming.insert(entry, entry_state);
 
         let mut queue: VecDeque<BlockID> = VecDeque::new();
         queue.push_back(entry);
@@ -94,24 +99,31 @@ impl BlockFlow {
 
     pub fn analyze_stmt(&mut self, stmt: &StmtIR, state: &mut FlowState, program_id: i64) {
         match stmt {
-            // both these should call parse_stmt from symbol_type_table.rs
             StmtIR::Assign(assign) => {
-                // !!!!! needs support for MULTIPLE TARGETS, so multiple types maybe
-                // let symbol_ref = assign.
+                let value_type =
+                    self.type_resolver
+                        .parse_expr(&assign.value, program_id, state);
+
+                for target in &assign.targets {
+                    // self.bind_target(target, &value_type, state, program_id);
+                }
             }
 
             StmtIR::AnnAssign(annassign) => { // !! fix API for symbol_types eventually
-                // let target_type = self.type_resolver.parse_stmt(program_id, stmt);
-                // let symbol_ref = annassign.
+                println!("{annassign:?}");
+                let target_type = self.type_resolver.resolve_type(program_id, stmt, state);
             }
 
             _ => {}
         }
     }
 
-    pub fn build(&mut self, cfg: &Cfg) {
-        for (_id, programcfg) in &cfg.programs {
-            self.analyze_cfg(programcfg);
+    pub fn build(&mut self, cfg: &Cfg, programs: &ProgramTable) {
+        for (id, programcfg) in &cfg.programs {
+            self.analyze_cfg(
+                programcfg,
+                &programs.by_id.get(id).unwrap().symbols
+            );
         }
     }
 }

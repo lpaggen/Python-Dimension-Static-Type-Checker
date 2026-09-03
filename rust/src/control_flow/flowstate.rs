@@ -1,22 +1,22 @@
-use std::{collections::HashMap, hash::Hash};
+use std::collections::HashMap;
 
 use crate::{
-    control_flow::{bindingstate::BindingState, block_id::BlockID}, linker::symbol_ref::SymbolRef, types::types::Type
+    control_flow::{bindingstate::BindingState, bound_type::TypedBinding}, linker::symbol_ref::SymbolRef, types::types::Type
 };
 
 #[derive(Clone, PartialEq)]
 pub struct FlowState {
-    pub by_ref: HashMap<SymbolRef, BindingState>
+    pub by_ref: HashMap<SymbolRef, TypedBinding>
 }
 
 impl FlowState {
-    pub fn bind(&mut self, symbol_ref: &SymbolRef) {
-        self.by_ref.insert(*symbol_ref, BindingState::Bound);
-    }
+    // pub fn bind(&mut self, symbol_ref: &SymbolRef) {
+    //     self.by_ref.insert(*symbol_ref, BindingState::Bound);
+    // }
 
     // very practical use for this, ignore binding status first, only care for type, update status as we go
     pub fn register_unbound(&mut self, symbol_ref: &SymbolRef) {
-        self.by_ref.insert(*symbol_ref, BindingState::Unbound);
+        self.by_ref.insert(*symbol_ref, TypedBinding { binding: BindingState::Unbound, ty: Type::Unknown });
     }
 
     pub fn new() -> Self {
@@ -35,7 +35,8 @@ impl FlowState {
                     // either is exists, we want to update its binding
                     Some(existing) => {
                         // figure out how to stop cloning 
-                        *existing = existing.clone().merge_binding(binding.clone());  // calling BindingState's merge !!
+                        // this is a weird implementation, TODO refactor in later build
+                        *existing = existing.merge_binding(binding.binding.clone());
                     },
 
                     // or it doesn't exist yet, just insert

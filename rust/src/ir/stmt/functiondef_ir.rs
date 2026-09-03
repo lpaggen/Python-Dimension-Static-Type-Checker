@@ -1,5 +1,4 @@
 use crate::ir::nodes::TypeParamIR;
-use crate::ir::nodes::annotation_ir::AnnotationIR;
 use crate::ir::{expr_ir::ExprIR, span_ir::SourceSpan, stmt_ir::StmtIR};
 
 #[derive(Debug, Clone)]
@@ -31,7 +30,7 @@ pub struct ArgIR {
     pub symbol_id: i64,
     pub arg: String,
     pub kind: ArgKind,
-    pub annotation: Option<AnnotationIR>,
+    pub annotation: Option<ExprIR>,
     pub default: Option<Box<ExprIR>>,
     pub span: Option<SourceSpan>,
 }
@@ -51,7 +50,7 @@ pub struct FunctionDefIR {
     pub body_scope_id: i64,
     pub args: Vec<ArgIR>,
     pub body: Vec<StmtIR>,
-    pub returns: Option<AnnotationIR>,
+    pub returns: Option<ExprIR>,
     pub decorator_list: Vec<ExprIR>,
     pub type_comment: Option<String>,
     pub type_params: Vec<TypeParamIR>,

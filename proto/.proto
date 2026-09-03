@@ -137,7 +137,7 @@ message AssignIR {
 
 message AnnAssignIR {
   ExprIR target = 1;
-  AnnotationIR annotation = 2;
+  ExprIR annotation = 2;
   optional ExprIR value = 3;
   int64 simple = 4;
   optional SourceSpan span = 6;
@@ -306,7 +306,7 @@ message FunctionDefIR {
   int64 body_scope_id = 5;
   repeated ArgIR args = 6;
   repeated StmtIR body = 7;
-  optional AnnotationIR returns = 8;
+  optional ExprIR returns = 8;
   repeated ExprIR decorator_list = 9;
   optional SourceSpan span = 10;
   optional string type_comment = 11;
@@ -317,7 +317,7 @@ message ArgIR {
   int64 symbol_id = 1;
   string arg = 2;
   ArgKind kind = 3;
-  optional AnnotationIR annotation = 4;
+  optional ExprIR annotation = 4;
   optional ExprIR default = 5;
   optional SourceSpan span = 6;
 }
@@ -688,19 +688,6 @@ message SliceIR {
   optional ExprIR lower = 1;
   optional ExprIR upper = 2;
   optional ExprIR step = 3;
-  optional SourceSpan span = 4;
-}
-
-message AnnotationIR {
-  AnnotationHeadIR head = 1;
-  repeated ExprIR args = 2;
-  optional SourceSpan span = 3;
-}
-
-message AnnotationHeadIR {
-  string root = 1;
-  repeated string attrs = 2;
-  optional int64 scope_id = 3;
   optional SourceSpan span = 4;
 }
 

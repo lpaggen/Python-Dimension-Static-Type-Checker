@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 from common.span import SourceSpan
 from generated import _pb2
-from ir.annotation.annotation_ir import AnnotationIR
+from ir.expr.expr_ir import ExprIR
 from ir.ir_node import IRNode
 
 
@@ -20,7 +20,7 @@ class ArgIR(IRNode):
     symbol_id: int
     arg: str
     kind: ArgKind
-    annotation: AnnotationIR | None
+    annotation: ExprIR | None
     default: object | None
     span: SourceSpan
 

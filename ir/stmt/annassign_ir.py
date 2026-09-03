@@ -2,14 +2,13 @@ from dataclasses import dataclass
 
 from common.span import SourceSpan
 from generated import _pb2
-from ir.annotation.annotation_ir import AnnotationIR
 from ir.expr.expr_ir import ExprIR
 from ir.stmt.stmt_ir import StmtIR
 
 @dataclass
 class AnnAssignIR(StmtIR):
     target: ExprIR
-    annotation: AnnotationIR
+    annotation: ExprIR
     value: ExprIR | None
     simple: int
     span: SourceSpan | None

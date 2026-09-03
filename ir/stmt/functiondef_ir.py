@@ -2,7 +2,6 @@ from dataclasses import dataclass
 
 from common.span import SourceSpan
 from common.typeparam_ir import TypeParamIR
-from ir.annotation.annotation_ir import AnnotationIR
 from ir.arg.arg_ir import ArgIR
 from ir.expr.expr_ir import ExprIR
 from generated import _pb2
@@ -19,7 +18,7 @@ class FunctionDefIR(StmtIR):
     args: list[ArgIR]
     body: list[StmtIR]
     decorator_list: list[ExprIR]
-    returns: AnnotationIR | None
+    returns: ExprIR | None
     type_comment: str | None
     type_params: list[TypeParamIR]
     span: SourceSpan

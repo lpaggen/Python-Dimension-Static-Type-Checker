@@ -1,5 +1,8 @@
+import torch
+
+
 if cond:
-    x = 1
+    x = torch.tensor([2, 3, 4])
 else:
     x = 2.0
 

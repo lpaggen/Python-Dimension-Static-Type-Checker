@@ -2,6 +2,8 @@ use crate::control_flow::bindingstate::BindingState;
 use crate::control_flow::bound_type::TypedBinding;
 use crate::control_flow::flowstate::FlowState;
 use crate::diagnostic::diagnostic::Diagnostic;
+use crate::diagnostic::diagnostic::DiagnosticKind;
+use crate::diagnostic::diagnostic::Severity;
 use crate::ir::expr::BinOpIR;
 use crate::ir::expr::CallIR;
 use crate::ir::expr::NameIR;
@@ -11,6 +13,7 @@ use crate::ir::stmt::AnnAssignIR;
 use crate::ir::stmt::StmtIR;
 use crate::linker::symbol_ref;
 use std::collections::HashMap;
+use std::fmt::format;
 
 use crate::ir::expr_ir::ConstantIR;
 use crate::ir::expr_ir::ExprIR;
@@ -83,11 +86,48 @@ impl<'ctx> TypeResolver<'ctx> {
             ExprIR::Constant(ConstantIR::BytesLit(_)) => Type::Bytes,
             ExprIR::Constant(ConstantIR::ComplexLit(_)) => Type::Complex,
 
-            // can be many things, notably torch.tensor(...) 
+            // can be many things, notably torch.tensor(...)
             // so this is where we start parsing tensors, amongst other things
-            ExprIR::Call(callexpr) => {
-                // println!("{:?}", callexpr);
-                Type::Unknown
+            ExprIR::Call(call) => {
+                match &*call.func {
+                    ExprIR::Name(name) => {
+                        // foo()
+                        Type::Unknown
+                    }
+
+                    ExprIR::Attribute(attr) => {
+                        // torch.tensor()
+                        // obj.method()
+                        // torch.nn.functional.relu()
+                        println!("{:?}", attr);
+                        Type::Unknown
+                    }
+
+                    ExprIR::SubscriptExpr(subscript) => {
+                        // handlers[i]()
+                        Type::Unknown
+                    }
+
+                    ExprIR::Call(inner_call) => {
+                        // factory()()
+                        Type::Unknown
+                    }
+
+                    ExprIR::LambdaExpr(lambda) => {
+                        // (lambda x: x)(1)
+                        Type::Unknown
+                    }
+
+                    ExprIR::IfExp(ifexp) => {
+                        // (a if cond else b)()
+                        Type::Unknown
+                    }
+
+                    _ => {
+                        // valid expression, but not handled yet
+                        Type::Unknown
+                    }
+                }
             }
 
             ExprIR::TupleExpr(tuple) => {
@@ -178,11 +218,8 @@ impl<'ctx> TypeResolver<'ctx> {
             //     self.infer_binary_type(binop_expr.op, &binop_expr.left, &binop_expr.right)
             // },
 
-            // might want to delegate to a later pass? we will see
             // name resolution | x: int = a <- we need to find what Type "a" is, is it declared? accessible? unbound?
-            // we'll update as we go
-
-            // also this depends on the type of the annotation
+            // we'll update as we query the states
             ExprIR::Name(name) => {
                 match self.symbols.lookup_by_name(
                     program_id,
@@ -221,6 +258,7 @@ impl<'ctx> TypeResolver<'ctx> {
             }
 
             ExprIR::Attribute(attribute) => {
+                println!("{attribute:?}");
                 Type::Unknown
             }
 
@@ -256,7 +294,9 @@ impl<'ctx> TypeResolver<'ctx> {
         }
 
         match (left, right) {
-            (Type::String, Type::String) => Type::String,
+            (Type::String, Type::String) => {
+                Type::String
+            },
 
             (Type::List(a), Type::List(b)) => {
                 // Type::List(self.merge_element_types(a, b))
@@ -301,6 +341,7 @@ impl<'ctx> TypeResolver<'ctx> {
     // so these paths are always valid
     fn resolve_external_annotation(&self, module: &str, name: &str) -> Type {
         match (module, name) {
+            // PyTorch
             ("torch", "Tensor") => {
                 Type::Tensor(TensorTypeState::Unresolved)
             }
@@ -313,7 +354,36 @@ impl<'ctx> TypeResolver<'ctx> {
                 Type::Tensor(TensorTypeState::Unresolved)
             }
 
-            // TODO complete list as we need more and more types
+            // NumPy
+            ("numpy", "ndarray") => {
+                Type::Tensor(TensorTypeState::Unresolved)
+            }
+
+            // JAX
+            ("jax", "Array") => {
+                Type::Tensor(TensorTypeState::Unresolved)
+            }
+
+            ("jax.numpy", "ndarray") => {
+                Type::Tensor(TensorTypeState::Unresolved)
+            }
+
+            // TensorFlow
+            ("tensorflow", "Tensor") => {
+                Type::Tensor(TensorTypeState::Unresolved)
+            }
+
+            ("tensorflow", "Variable") => {
+                Type::Tensor(TensorTypeState::Unresolved)
+            }
+
+            ("tensorflow", "SparseTensor") => {
+                Type::Tensor(TensorTypeState::Unresolved)
+            }
+
+            ("tensorflow", "RaggedTensor") => {
+                Type::Tensor(TensorTypeState::Unresolved)
+            }
 
             _ => Type::Unknown,
         }
@@ -393,7 +463,7 @@ impl<'ctx> TypeResolver<'ctx> {
     // }
 
     pub fn resolve_type(
-        &self,
+        &mut self,
         program_id: i64,
         stmt: &StmtIR,
         state: &mut FlowState,
@@ -428,6 +498,13 @@ impl<'ctx> TypeResolver<'ctx> {
                             annotation_type
                         } else {
                             // TODO + emit a diagnostic warning
+                            self.diagnostics.push(
+                                Diagnostic { 
+                                    severity: Severity::ERROR, 
+                                    span: annassign_stmt.span.clone(), 
+                                    kind: DiagnosticKind::MismatchedAnnotationType, 
+                                    message: format!("annotation {:?} does not match value type {:?}", annotation_type, value_type),
+                                });
                             Type::Unknown
                         }
                     },

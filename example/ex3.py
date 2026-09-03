@@ -1,21 +1,21 @@
-import torch
+# import torch
 
-batch: int
-features: int
-classes: int
+# batch: int
+# features: int
+# classes: int
 
-X: torch.Tensor[batch, features]
-Y: torch.Tensor[batch]
+# X: torch.Tensor[batch, features]
+# Y: torch.Tensor[batch]
 
-W: torch.Tensor[features, classes]
+# W: torch.Tensor[features, classes]
 
-for epoch in range(10):
+# for epoch in range(10):
 
-    logits = torch.matmul(X, W)
+#     logits = torch.matmul(X, W)
 
-    loss = torch.nn.functional.cross_entropy(
-        logits,
-        Y,
-    )
+#     loss = torch.nn.functional.cross_entropy(
+#         logits,
+#         Y,
+#     )
 
-    loss.backward()
+#     loss.backward()

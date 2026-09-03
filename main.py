@@ -7,6 +7,8 @@ import time
 
 from frontend.semantic_visitor import SemanticBuilder
 
+# TODO check which files have not changed, we do not need to generate anything for those files
+# also remove old files which no longer exist from .pb
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(

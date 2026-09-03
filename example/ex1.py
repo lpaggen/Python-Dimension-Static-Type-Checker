@@ -1,294 +1,294 @@
-import torch
-import torch.nn as nn
-from typing import Optional, Tuple
-from .ex5 import m
+# import torch
+# import torch.nn as nn
+# from typing import Optional, Tuple
+# from .ex5 import m
 
-# Type hinting constraints for the compiler's static analysis
-M: int = 128
-K: int = 64
-N: int = 32
+# # Type hinting constraints for the compiler's static analysis
+# M: int = 128
+# K: int = 64
+# N: int = 32
 
-x = 5
+# x = 5
 
-match x:
-    case [x] as y:
-        ...
-    case _:
-        ...
+# match x:
+#     case [x] as y:
+#         ...
+#     case _:
+#         ...
 
-b = [x for x in range(10)]
+# b = [x for x in range(10)]
 
-c = f"sin({x}) is {45.3223332:.3}"
+# c = f"sin({x}) is {45.3223332:.3}"
 
-assert x == 5
+# assert x == 5
 
-# from enum import Enum
-
-
-# class Color(Enum):
-#     RED = 1
-#     BLUE = 2
+# # from enum import Enum
 
 
-# class Point:
-#     __match_args__ = ("x", "y")
-
-#     def __init__(self, x, y):
-#         self.x = x
-#         self.y = y
+# # class Color(Enum):
+# #     RED = 1
+# #     BLUE = 2
 
 
-# def test_patterns(a):
+# # class Point:
+# #     __match_args__ = ("x", "y")
 
-#     # ---------------------------------------------------------
-#     # ValuePatternIR
-#     # SingletonPatternIR
-#     # OrPatternIR
-#     # ---------------------------------------------------------
-#     match a:
-#         # ValuePatternIR
-#         case 1:
-#             pass
-
-#         # ValuePatternIR
-#         case "foo":
-#             pass
-
-#         # ValuePatternIR - dotted value
-#         case Color.RED:
-#             pass
-
-#         # SingletonPatternIR
-#         case None:
-#             pass
-
-#         # SingletonPatternIR
-#         case True:
-#             pass
-
-#         # SingletonPatternIR
-#         case False:
-#             pass
-
-#         # OrPatternIR containing ValuePatternIR nodes
-#         case 2 | 3:
-#             pass
-
-#         # OrPatternIR
-#         case "yes" | "y":
-#             pass
-
-#         case _:
-#             pass
+# #     def __init__(self, x, y):
+# #         self.x = x
+# #         self.y = y
 
 
-#     # ---------------------------------------------------------
-#     # SequencePatternIR
-#     # StarPatternIR
-#     # CapturePatternIR nested inside sequences
-#     # WildcardPatternIR nested inside sequences
-#     # ---------------------------------------------------------
-#     match a:
+# # def test_patterns(a):
 
-#         # SequencePatternIR
-#         #   CapturePatternIR("x")
-#         #   CapturePatternIR("y")
-#         case [x, y]:
-#             pass
+# #     # ---------------------------------------------------------
+# #     # ValuePatternIR
+# #     # SingletonPatternIR
+# #     # OrPatternIR
+# #     # ---------------------------------------------------------
+# #     match a:
+# #         # ValuePatternIR
+# #         case 1:
+# #             pass
 
-#         # SequencePatternIR using tuple syntax
-#         case (x, y, z):
-#             pass
+# #         # ValuePatternIR
+# #         case "foo":
+# #             pass
 
-#         # SequencePatternIR
-#         #   CapturePatternIR("head")
-#         #   StarPatternIR("rest")
-#         case [head, *rest]:
-#             pass
+# #         # ValuePatternIR - dotted value
+# #         case Color.RED:
+# #             pass
 
-#         # StarPatternIR(name=None)
-#         case [head, *_, tail]:
-#             pass
+# #         # SingletonPatternIR
+# #         case None:
+# #             pass
 
-#         # WildcardPatternIR nested in sequence
-#         case [x, _, y]:
-#             pass
+# #         # SingletonPatternIR
+# #         case True:
+# #             pass
 
-#         case _:
-#             pass
+# #         # SingletonPatternIR
+# #         case False:
+# #             pass
 
+# #         # OrPatternIR containing ValuePatternIR nodes
+# #         case 2 | 3:
+# #             pass
 
-#     # ---------------------------------------------------------
-#     # MappingPatternIR
-#     # ---------------------------------------------------------
-#     match a:
+# #         # OrPatternIR
+# #         case "yes" | "y":
+# #             pass
 
-#         # MappingPatternIR
-#         case {"x": x}:
-#             pass
-
-#         # MappingPatternIR with multiple keys
-#         case {"x": x, "y": y}:
-#             pass
-
-#         # MappingPatternIR with rest
-#         case {"x": x, **rest}:
-#             pass
-
-#         # Nested patterns inside mapping
-#         case {"point": [x, y]}:
-#             pass
-
-#         case _:
-#             pass
+# #         case _:
+# #             pass
 
 
-#     # ---------------------------------------------------------
-#     # ClassPatternIR
-#     # ---------------------------------------------------------
-#     match a:
+# #     # ---------------------------------------------------------
+# #     # SequencePatternIR
+# #     # StarPatternIR
+# #     # CapturePatternIR nested inside sequences
+# #     # WildcardPatternIR nested inside sequences
+# #     # ---------------------------------------------------------
+# #     match a:
 
-#         # positional_patterns
-#         case Point(x, y):
-#             pass
+# #         # SequencePatternIR
+# #         #   CapturePatternIR("x")
+# #         #   CapturePatternIR("y")
+# #         case [x, y]:
+# #             pass
 
-#         # keyword_names / keyword_patterns
-#         case Point(x=x, y=y):
-#             pass
+# #         # SequencePatternIR using tuple syntax
+# #         case (x, y, z):
+# #             pass
 
-#         # Both positional and keyword patterns
-#         #
-#         # Would require a class with >=3 matchable attributes,
-#         # so omitted for Point(x, y).
+# #         # SequencePatternIR
+# #         #   CapturePatternIR("head")
+# #         #   StarPatternIR("rest")
+# #         case [head, *rest]:
+# #             pass
 
-#         case _:
-#             pass
+# #         # StarPatternIR(name=None)
+# #         case [head, *_, tail]:
+# #             pass
 
+# #         # WildcardPatternIR nested in sequence
+# #         case [x, _, y]:
+# #             pass
 
-#     # ---------------------------------------------------------
-#     # AsPatternIR
-#     # ---------------------------------------------------------
-#     match a:
-
-#         # AsPatternIR(
-#         #     SequencePatternIR(...),
-#         #     name="point"
-#         # )
-#         case [x, y] as point:
-#             pass
-
-#         # AsPatternIR(
-#         #     OrPatternIR(...),
-#         #     name="value"
-#         # )
-#         case (1 | 2) as value:
-#             pass
-
-#         # Nested class + as pattern
-#         case Point(x, y) as point_obj:
-#             pass
-
-#         case _:
-#             pass
+# #         case _:
+# #             pass
 
 
-#     # ---------------------------------------------------------
-#     # CapturePatternIR
-#     #
-#     # MUST be last because it matches absolutely anything.
-#     # ---------------------------------------------------------
-#     match a:
-#         case captured:
-#             pass
+# #     # ---------------------------------------------------------
+# #     # MappingPatternIR
+# #     # ---------------------------------------------------------
+# #     match a:
+
+# #         # MappingPatternIR
+# #         case {"x": x}:
+# #             pass
+
+# #         # MappingPatternIR with multiple keys
+# #         case {"x": x, "y": y}:
+# #             pass
+
+# #         # MappingPatternIR with rest
+# #         case {"x": x, **rest}:
+# #             pass
+
+# #         # Nested patterns inside mapping
+# #         case {"point": [x, y]}:
+# #             pass
+
+# #         case _:
+# #             pass
 
 
-#     # ---------------------------------------------------------
-#     # WildcardPatternIR
-#     #
-#     # Also MUST be last because it matches absolutely anything.
-#     # ---------------------------------------------------------
-#     match a:
-#         case _:
-#             pass
+# #     # ---------------------------------------------------------
+# #     # ClassPatternIR
+# #     # ---------------------------------------------------------
+# #     match a:
 
-class CustomCompilerTestLayer(nn.Module):
-    """
-    A structurally complex layer designed to stress-test compiler optimizations
-    like dead-code elimination, loop unrolling, and auto-differentiation graphs.
-    """
-    def __init__(self, in_features: int, out_features: int):
-        super().__init__()
-        self.weight = nn.Parameter(torch.randn(in_features, out_features))
-        self.bias = nn.Parameter(torch.zeros(out_features))
-        self.register_buffer("running_scale", torch.ones(1))
+# #         # positional_patterns
+# #         case Point(x, y):
+# #             pass
 
-    def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> Tuple[torch.Tensor, torch.Tensor]:
-        # 1. Standard Matrix Multiplication & Broadcasting
-        h = torch.matmul(x, self.weight) + self.bias
+# #         # keyword_names / keyword_patterns
+# #         case Point(x=x, y=y):
+# #             pass
+
+# #         # Both positional and keyword patterns
+# #         #
+# #         # Would require a class with >=3 matchable attributes,
+# #         # so omitted for Point(x, y).
+
+# #         case _:
+# #             pass
+
+
+# #     # ---------------------------------------------------------
+# #     # AsPatternIR
+# #     # ---------------------------------------------------------
+# #     match a:
+
+# #         # AsPatternIR(
+# #         #     SequencePatternIR(...),
+# #         #     name="point"
+# #         # )
+# #         case [x, y] as point:
+# #             pass
+
+# #         # AsPatternIR(
+# #         #     OrPatternIR(...),
+# #         #     name="value"
+# #         # )
+# #         case (1 | 2) as value:
+# #             pass
+
+# #         # Nested class + as pattern
+# #         case Point(x, y) as point_obj:
+# #             pass
+
+# #         case _:
+# #             pass
+
+
+# #     # ---------------------------------------------------------
+# #     # CapturePatternIR
+# #     #
+# #     # MUST be last because it matches absolutely anything.
+# #     # ---------------------------------------------------------
+# #     match a:
+# #         case captured:
+# #             pass
+
+
+# #     # ---------------------------------------------------------
+# #     # WildcardPatternIR
+# #     #
+# #     # Also MUST be last because it matches absolutely anything.
+# #     # ---------------------------------------------------------
+# #     match a:
+# #         case _:
+# #             pass
+
+# class CustomCompilerTestLayer(nn.Module):
+#     """
+#     A structurally complex layer designed to stress-test compiler optimizations
+#     like dead-code elimination, loop unrolling, and auto-differentiation graphs.
+#     """
+#     def __init__(self, in_features: int, out_features: int):
+#         super().__init__()
+#         self.weight = nn.Parameter(torch.randn(in_features, out_features))
+#         self.bias = nn.Parameter(torch.zeros(out_features))
+#         self.register_buffer("running_scale", torch.ones(1))
+
+#     def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> Tuple[torch.Tensor, torch.Tensor]:
+#         # 1. Standard Matrix Multiplication & Broadcasting
+#         h = torch.matmul(x, self.weight) + self.bias
         
-        # 2. Conditional Control Flow (Tests branch prediction / graph capturing)
-        if mask is not None:
-            # Dynamic slicing and in-place mutation
-            h = h * mask
-        else:
-            h = torch.nn.functional.relu(h)
+#         # 2. Conditional Control Flow (Tests branch prediction / graph capturing)
+#         if mask is not None:
+#             # Dynamic slicing and in-place mutation
+#             h = h * mask
+#         else:
+#             h = torch.nn.functional.relu(h)
 
-        # 3. Non-linear Loop Dependencies (Stresses loop unrolling and recurrence analysis)
-        accumulator = torch.zeros_like(h)
-        for i in range(3):
-            # Inter-loop dependency with dynamic scaling
-            accumulator = accumulator + torch.sin(h * (i + 1.0)) * self.running_scale
+#         # 3. Non-linear Loop Dependencies (Stresses loop unrolling and recurrence analysis)
+#         accumulator = torch.zeros_like(h)
+#         for i in range(3):
+#             # Inter-loop dependency with dynamic scaling
+#             accumulator = accumulator + torch.sin(h * (i + 1.0)) * self.running_scale
 
-        # 4. Memory Views and Layout Transpositions
-        # Changes memory layout from contiguous to non-contiguous
-        mutated_view = accumulator.transpose(0, -1).contiguous().transpose(0, -1)
+#         # 4. Memory Views and Layout Transpositions
+#         # Changes memory layout from contiguous to non-contiguous
+#         mutated_view = accumulator.transpose(0, -1).contiguous().transpose(0, -1)
         
-        return mutated_view, h
+#         return mutated_view, h
 
-def verify_compiler_pipeline():
-    print("Initializing compiler stress test...")
+# def verify_compiler_pipeline():
+#     print("Initializing compiler stress test...")
     
-    # Setup inputs
-    A: torch.Tensor = torch.randn(M, K, requires_grad=True)
-    B: torch.Tensor = torch.randn(K, N)
-    dynamic_mask: torch.Tensor = (torch.rand(M, N) > 0.5).float()
+#     # Setup inputs
+#     A: torch.Tensor = torch.randn(M, K, requires_grad=True)
+#     B: torch.Tensor = torch.randn(K, N)
+#     dynamic_mask: torch.Tensor = (torch.rand(M, N) > 0.5).float()
 
-    # Instantiate complex layer
-    layer = CustomCompilerTestLayer(in_features=N, out_features=N)
+#     # Instantiate complex layer
+#     layer = CustomCompilerTestLayer(in_features=N, out_features=N)
 
-    # --- PHASE 1: Matrix Multiplications and Tensor Ops ---
-    # Testing matrix multiplication tracking
-    C = torch.matmul(A, B) 
+#     # --- PHASE 1: Matrix Multiplications and Tensor Ops ---
+#     # Testing matrix multiplication tracking
+#     C = torch.matmul(A, B) 
     
-    # Dead code simulation (compiler should optimize this, but track the graph)
-    dead_tensor = A + A
-    ignored_scale = B * 2.0
+#     # Dead code simulation (compiler should optimize this, but track the graph)
+#     dead_tensor = A + A
+#     ignored_scale = B * 2.0
     
-    # --- PHASE 2: Graph Execution and Control Flow ---
-    # First pass: Executing branch A (with mask)
-    out1, hidden1 = layer(C, mask=dynamic_mask)
+#     # --- PHASE 2: Graph Execution and Control Flow ---
+#     # First pass: Executing branch A (with mask)
+#     out1, hidden1 = layer(C, mask=dynamic_mask)
     
-    # Second pass: Executing branch B (without mask - forces re-evaluation if JIT compiled)
-    out2, hidden2 = layer(C, mask=None)
+#     # Second pass: Executing branch B (without mask - forces re-evaluation if JIT compiled)
+#     out2, hidden2 = layer(C, mask=None)
     
-    # --- PHASE 3: High-Dimensional Reductions ---
-    # Combining outputs via advanced reductions
-    loss = (out1.sum() + out2.mean()) * 0.5
+#     # --- PHASE 3: High-Dimensional Reductions ---
+#     # Combining outputs via advanced reductions
+#     loss = (out1.sum() + out2.mean()) * 0.5
     
-    # --- PHASE 4: Autograd and Backward Graph Tracing ---
-    # This checks if the compiler successfully preserves backward gradient hooks
-    loss.backward()
+#     # --- PHASE 4: Autograd and Backward Graph Tracing ---
+#     # This checks if the compiler successfully preserves backward gradient hooks
+#     loss.backward()
     
-    # Assert gradient propagation sanity
-    if A.grad is not None:
-        print(f"Compiler Test Passed! Gradient Shape Match: {A.grad.shape == A.shape}")
-        print(f"Loss Value: {loss.item():.4f}")
-    else:
-        raise RuntimeError("Compiler failed to preserve Autograd gradient paths.")
+#     # Assert gradient propagation sanity
+#     if A.grad is not None:
+#         print(f"Compiler Test Passed! Gradient Shape Match: {A.grad.shape == A.shape}")
+#         print(f"Loss Value: {loss.item():.4f}")
+#     else:
+#         raise RuntimeError("Compiler failed to preserve Autograd gradient paths.")
 
-if __name__ == "__main__":
-    # Wrap in a try-catch to isolate compilation crashes from runtime errors
-    try:
-        verify_compiler_pipeline()
-    except Exception as e:
-        print(f"Compiler/Runtime crashed with error: {e}")
+# if __name__ == "__main__":
+#     # Wrap in a try-catch to isolate compilation crashes from runtime errors
+#     try:
+#         verify_compiler_pipeline()
+#     except Exception as e:
+#         print(f"Compiler/Runtime crashed with error: {e}")

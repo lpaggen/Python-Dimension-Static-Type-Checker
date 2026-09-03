@@ -55,13 +55,11 @@ from ir.stmt.with_ir import WithIR, WithItemIR
 from .ir_builder import IRBuilder
 from ir.program_ir import ProgramIR
 from common.span import SourceSpan
-from ir.annotation.annotation_ir import AnnotationIR
-from ir.annotation.annotationhead_ir import AnnotationHeadIR
 from ir.arg.arg_ir import ArgIR, ArgKind
 from ir.stmt.return_ir import ReturnIR
 from common.operators import Operator
 from ir.stmt.augassign_ir import AugAssignIR
-from common.kind import ScopeKind, SymbolKind, BindingKind, ImportKind
+from common.kind import ScopeKind, SymbolKind, ImportKind
 from ir.pattern.pattern_ir import AsPatternIR, OrPatternIR, StarPatternIR, ClassPatternIR, ValuePatternIR, CapturePatternIR, MappingPatternIR, SequencePatternIR, WildcardPatternIR, SingletonPatternIR, PatternIR
 
 
@@ -365,7 +363,7 @@ class SemanticBuilder(ast.NodeVisitor):
             body_scope_id=body_scope_id,
             args=params,
             body=body,
-            returns=self.lower_annotation(node.returns) if node.returns else None,
+            returns=self.parse_expr(node.returns) if node.returns else None,
             decorator_list=[self.parse_expr(d) for d in node.decorator_list],
             type_comment=node.type_comment,
             type_params=[self.lower_type_param(param) for param in node.type_params],
@@ -424,7 +422,7 @@ class SemanticBuilder(ast.NodeVisitor):
         )
         return AnnAssignIR(
             target=self.parse_expr(node.target),
-            annotation=self.lower_annotation(node.annotation),
+            annotation=self.parse_expr(node.annotation),
             value=self.parse_expr(node.value) if node.value is not None else None,
             simple=node.simple,
             span=SourceSpan.span(node, self.file_path)
@@ -754,60 +752,67 @@ class SemanticBuilder(ast.NodeVisitor):
             span=SourceSpan.span(node, self.file_path),
         )
 
-    def lower_annotation(self, annotation: ast.AST):
-        if isinstance(annotation, ast.Name):  # simple types, int float str etc.
-            return AnnotationIR(
-                head=AnnotationHeadIR(
-                    root=annotation.id,
-                    attrs=[],
-                    scope_id=self.current_scope(),
-                    span=SourceSpan.span(annotation, self.file_path),
-                ),
-                args=[],
-            )
+    # def lower_annotation(self, annotation: ast.AST):
+    #     if isinstance(annotation, ast.Name):  # simple types, int float str etc.
+    #         return AnnotationIR(
+    #             head=AnnotationHeadIR(
+    #                 root=annotation.id,
+    #                 attrs=[],
+    #                 scope_id=self.current_scope(),
+    #                 span=SourceSpan.span(annotation, self.file_path),
+    #             ),
+    #             args=[],
+    #         )
 
-        if isinstance(annotation, ast.Subscript):  # complex types, torch.Tensor, np.ndarray, torch.Tensor[2, 3] ...
-            head=self.lower_annotation_head(annotation.value)
-            if isinstance(annotation.slice, ast.Name):
-                return AnnotationIR(
-                    head=head,
-                    args=[self.parse_expr(annotation.slice)]
-                )
-            if isinstance(annotation.slice, ast.Tuple):
-                return AnnotationIR(
-                head=head,
-                args=[self.parse_expr(i) for i in annotation.slice.elts] #TODO this breaks for anything non-dimensional
-            )
-            return AnnotationIR(
-                head=head,
-                args=[self.parse_expr(annotation.slice)] #TODO this breaks for anything non-dimensional
-            )
+    #     if isinstance(annotation, ast.Subscript):  # complex types, torch.Tensor, np.ndarray, torch.Tensor[2, 3] ...
+    #         head=self.lower_annotation_head(annotation.value)
+    #         if isinstance(annotation.slice, ast.Name):
+    #             return AnnotationIR(
+    #                 head=head,
+    #                 args=[self.parse_expr(annotation.slice)]
+    #             )
+    #         if isinstance(annotation.slice, ast.Tuple):
+    #             return AnnotationIR(
+    #             head=head,
+    #             args=[self.parse_expr(i) for i in annotation.slice.elts] #TODO this breaks for anything non-dimensional
+    #         )
+    #         return AnnotationIR(
+    #             head=head,
+    #             args=[self.parse_expr(annotation.slice)] #TODO this breaks for anything non-dimensional
+    #         )
 
-        return AnnotationIR(  # case where annotation = Attribute
-                head=self.lower_annotation_head(annotation.value),
-                args=[]
-            )
-    
-    def lower_annotation_head(self, node: ast.AST) -> AnnotationHeadIR:
-        parts = []
-        current = node
+    #     # TODO this is wrong when tested on "requests" lib
+    #     # the long-term fix is to deprecate my custom AnnotationIR/AnnotationHeadIR in favor of ExprIR
+    #     # but maybe something else can be done in the meantime, will figure it out in a later build. 
+    #     # currently what breaks is {x: int | None} , the | operation should result in some kind of union
+    #     if isinstance(annotation, ast.expr):
+    #         raise TypeError(annotation, SourceSpan.span(annotation, self.file_path))
 
-        while isinstance(current, ast.Attribute):
-            parts.append(current.attr)
-            current = current.value
+    #     return AnnotationIR(  # case where annotation = Attribute
+    #             head=self.lower_annotation_head(annotation.value),
+    #             args=[]
+    #         )
 
-        if isinstance(current, ast.Name):
-            root = current.id
-            attrs = list(reversed(parts))
+    # def lower_annotation_head(self, node: ast.AST) -> AnnotationHeadIR:
+    #     parts = []
+    #     current = node
 
-            return AnnotationHeadIR(
-                root=root,
-                attrs=attrs,
-                scope_id=self.current_scope(),
-                span=SourceSpan.span(node, self.file_path),
-            )
+    #     while isinstance(current, ast.Attribute):
+    #         parts.append(current.attr)
+    #         current = current.value
 
-        raise NotImplementedError(f"Unsupported annotation head: {type(node).__name__}")
+    #     if isinstance(current, ast.Name):
+    #         root = current.id
+    #         attrs = list(reversed(parts))
+
+    #         return AnnotationHeadIR(
+    #             root=root,
+    #             attrs=attrs,
+    #             scope_id=self.current_scope(),
+    #             span=SourceSpan.span(node, self.file_path),
+    #         )
+
+    #     raise NotImplementedError(f"Unsupported annotation head: {type(node).__name__}")
 
     def visit_Assign(self, node: ast.Assign):
         for target in node.targets:
@@ -904,7 +909,7 @@ class SemanticBuilder(ast.NodeVisitor):
             arg=arg.arg,
             kind=kind,
             annotation=(
-                self.lower_annotation(arg.annotation)
+                self.parse_expr(arg.annotation)
                 if arg.annotation is not None
                 else None
             ),

@@ -27,7 +27,7 @@ use crate::{
 // probably won't need 'by_ref' since this struct might just be owned by the CFG pass in a later build
 // !! Type resolver is only used in the CFG phase, we likely won't be calling build() standalone, rather just resolve stmt by stmt
 pub struct TypeResolver<'ctx> {
-    pub by_ref: HashMap<SymbolRef, Type>,
+    // pub by_ref: HashMap<SymbolRef, Type>,
     pub diagnostics: Vec<Diagnostic>,
 
     symbols: &'ctx GlobalSymbolTable,
@@ -40,19 +40,19 @@ impl<'ctx> TypeResolver<'ctx> {
         resolutions: &'ctx ResolutionTable,
     ) -> Self {
         Self {
-            by_ref: HashMap::new(),
+            // by_ref: HashMap::new(),
             symbols,
             resolutions,
             diagnostics: Vec::new(),
         }
     }
 
-    pub fn get(&self, symbol_ref: &SymbolRef) -> Type {
-        self.by_ref
-            .get(symbol_ref)
-            .cloned()
-            .unwrap_or(Type::Unknown)
-    }
+    // pub fn get(&self, symbol_ref: &SymbolRef) -> Type {
+    //     self.by_ref
+    //         .get(symbol_ref)
+    //         .cloned()
+    //         .unwrap_or(Type::Unknown)
+    // }
 
     // pub fn infer_call_type(&self, call: &CallIR) -> Option<Type> {
     //     match &call.func {
@@ -86,7 +86,7 @@ impl<'ctx> TypeResolver<'ctx> {
             // can be many things, notably torch.tensor(...) 
             // so this is where we start parsing tensors, amongst other things
             ExprIR::Call(callexpr) => {
-                println!("{:?}", callexpr);
+                // println!("{:?}", callexpr);
                 Type::Unknown
             }
 
@@ -180,43 +180,37 @@ impl<'ctx> TypeResolver<'ctx> {
 
             // might want to delegate to a later pass? we will see
             // name resolution | x: int = a <- we need to find what Type "a" is, is it declared? accessible? unbound?
-            // AND THEREFORE ENTIRELY DEPENDS ON FLOW STATE BEING COMPLETE!!!!!!!!!!!!!!!!!!!!
+            // we'll update as we go
 
             // also this depends on the type of the annotation
             ExprIR::Name(name) => {
-                let symbol_ref = match &self.symbols.lookup_by_name(
-                    program_id, 
-                    name.use_scope_id, 
-                    &name.id
+                match self.symbols.lookup_by_name(
+                    program_id,
+                    name.use_scope_id,
+                    &name.id,
                 ) {
                     Some(reference) => {
-                        reference
-                    },
+                        match state.by_ref.get(&reference) {
+                            Some(TypedBinding {
+                                binding: BindingState::Bound,
+                                ty,
+                            }) => ty.clone(),
 
-                    None => {
-                        panic!("not found symbol")
+                            Some(TypedBinding {
+                                binding: BindingState::MaybeUnbound,
+                                ty,
+                            }) => {
+                                // add warning here
+                                ty.clone()
+                            }
+
+                            _ => Type::Unknown,
+                        }
                     }
-                };
 
-                // match state.by_ref.get(symbol_ref) {
-                //     Some(TypedBinding {
-                //         binding: BindingState::Bound,
-                //         ty,
-                //     }) => ty,clone(),
-
-                //     Some(TypedBinding {
-                //         binding: BindingState::MaybeUnbound,
-                //         ty,
-                //     }) => {
-                //         // add warning here
-                //         ty.clone()
-                //     }
-
-                //     _ => Type::Unknown
-                // }
-
-                Type::Unknown
-            },
+                    None => Type::Unknown,
+                }
+            }
 
             ExprIR::SliceExpr(slice) => {
                 Type::Unknown
@@ -338,10 +332,15 @@ impl<'ctx> TypeResolver<'ctx> {
 
         match target {
             ResolvedTarget::Local(local_ref) => {
-                self.by_ref.get(local_ref).cloned().unwrap_or(Type::Unknown)
+                // self.by_ref.get(local_ref).cloned().unwrap_or(Type::Unknown)
+                Type::Unknown
+                // TODO fix, we are missing a bit of information here
             }
 
-            ResolvedTarget::External { module, name } => {
+            ResolvedTarget::External { 
+                module, 
+                name 
+            } => {
                 self.resolve_external_annotation(module, name)
             }
 
@@ -388,9 +387,10 @@ impl<'ctx> TypeResolver<'ctx> {
         }
     }
 
-    fn types_compatible(&self, left: &Type, right: &Type) -> bool {
-        false
-    }
+    // needed ?
+    // fn types_compatible(&self, left: &Type, right: &Type) -> bool {
+    //     false
+    // }
 
     pub fn resolve_type(
         &self,
@@ -422,7 +422,9 @@ impl<'ctx> TypeResolver<'ctx> {
                             state
                         );
 
-                        if self.types_compatible(&value_type, &annotation_type) {
+                        // force annotation == actual ? -> too strict, tensor(unknown) can be ok for a tensor with declared dims
+                        // TODO fix in later build
+                        if value_type == annotation_type {
                             annotation_type
                         } else {
                             // TODO + emit a diagnostic warning
@@ -437,89 +439,6 @@ impl<'ctx> TypeResolver<'ctx> {
             _ => {
                 panic!()
             }
-        }
-    }
-
-    // fn parse_annotation(
-    //     &self,
-    //     program_id: i64,
-    //     annassign_stmt: &AnnAssignIR,
-    // ) -> Type {
-    //     // only bindings with annotations arrive here
-    //     let annotation = &annassign_stmt.annotation;
-
-    //     let root: Type = match annotation.head.root.as_str() {
-    //         "int" => Type::Int,
-    //         "float" => Type::Float,
-    //         "bool" => Type::Bool,
-    //         "str" => Type::String,
-    //         "bytes" => Type::Bytes,
-    //         "complex" => Type::Complex,
-    //         "None" => Type::None,
-    //         _ => self.resolve_annotation_path(
-    //             // check global symbol table to get the ref, ie is this torch, numpy, Local, true Unknown?
-    //             annotation.head.root.as_str(),
-    //             annotation.head.attrs.as_slice(),
-    //             program_id,
-    //         ),
-    //     };
-
-    //     root
-    // }
-
-    fn resolve_annotation_path(
-        &self,
-        root: &str,
-        attrs: &[String],
-        program_id: i64,
-    ) -> Type {
-        let symbol_ref = match self.symbols.global_lookup(program_id, root) {
-            Some(symbol_ref) => symbol_ref,
-            None => return Type::Unknown,
-        };
-
-        let target = match self.resolutions.imports.get(&symbol_ref) {
-            Some(target) => target,
-            None => return Type::Unknown,
-        };
-
-        match target {
-            ResolvedTarget::Local(local_ref) if attrs.is_empty() => {
-                self.by_ref.get(local_ref).cloned().unwrap_or(Type::Unknown)
-            }
-
-            ResolvedTarget::External { module, name } => {
-                self.resolve_external_path(module, name, attrs)
-            }
-
-            _ => Type::Unknown,
-        }
-    }
-
-    // WARNING THIS BREAKS FOR: "from torch.nn import Parameter" for example
-    // TODO fix, should be some invariant which makes this work neatly
-    fn resolve_external_path(&self, module: &str, imported_name: &str, attrs: &[String]) -> Type {
-        let mut path = Vec::new();
-
-        // "import torch": the imported name represents the module itself
-        // ? recall how this works in general
-        // i think through ResolvedSymbol all imports map back to their canonical name
-        if imported_name != module {
-            path.push(imported_name);
-        }
-
-        path.extend(attrs.iter().map(String::as_str));
-
-        // so the following could always hold normally
-        // TODO check if it works for "from torch import Tensor", would we still get "torch" as root ? 
-        match (module, path.as_slice()) {
-            ("torch", ["Tensor"]) => Type::Tensor(TensorTypeState::Unresolved),
-
-            ("torch", ["Size"]) => Type::Dim(DimType::Unknown),
-
-            ("torch", ["nn", "Parameter"]) => Type::Tensor(TensorTypeState::Unresolved),
-
-            _ => Type::Unknown,
         }
     }
 }

@@ -13,3 +13,4 @@ pub mod flowstate;
 pub mod bindingstate;
 pub mod blockflow;
 pub mod bound_type;
+pub mod resolved_binding;

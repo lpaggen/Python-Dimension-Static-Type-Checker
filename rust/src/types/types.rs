@@ -1,7 +1,9 @@
+use std::collections::HashSet;
+
 use crate::linker::symbol_ref::SymbolRef;
 
 // to do rename all to *Type for clarity
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub enum Type {
     Tensor(TensorTypeState), // annotation knows it's a tensor, but doesn't know dimensions or dtype
     Int,
@@ -32,26 +34,53 @@ impl Type {
                 | Type::Complex
         )
     }
+
+    pub fn merge(self, other: Type) -> Type {
+        if self == other {
+            return self;
+        }
+
+        match (self, other) {
+            (Type::Union(mut left), Type::Union(right)) => {
+                left.extend(right);
+                Type::Union(left)
+            }
+
+            (Type::Union(mut items), other) => {
+                items.push(other);
+                Type::Union(items)
+            }
+
+            (other, Type::Union(mut items)) => {
+                items.push(other);
+                Type::Union(items)
+            }
+
+            (left, right) => {
+                Type::Union(vec![left, right])
+            }
+        }
+    }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub struct CallableType {
     pub params: Vec<Type>,
     pub return_type: Box<Type>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub struct ClassType {
     pub symbol: SymbolRef,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub enum TensorTypeState {
     Resolved(TensorType),
     Unresolved,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub struct TensorType {
     pub shape: Vec<DimType>,
     pub dtype: Option<DType>,

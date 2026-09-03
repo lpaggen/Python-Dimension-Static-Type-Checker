@@ -72,7 +72,9 @@ fn main() -> Result<(), Vec<Diagnostic>> {
     let mut flow = BlockFlow::new(
         TypeResolver::new(
             &symbols, 
-            &resolved)
+            &resolved),
+        &symbols,
+        &resolved
     );
     flow.build(&cfg, &table);
     println!("flow analysis:   {:?}", start.elapsed());

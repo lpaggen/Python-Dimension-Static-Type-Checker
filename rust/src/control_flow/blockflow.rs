@@ -2,21 +2,26 @@ use std::{collections::{HashMap, VecDeque}, ops::Deref};
 
 use crate::{control_flow::{
     basic_block::BasicBlock, bindingstate::BindingState, block_id::BlockID, bound_type::TypedBinding, cfg::Cfg, flowstate::FlowState, graph::Graph, programcfg::ProgramCfg
-}, ir::{expr::ExprIR, nodes::SymbolIR, stmt::{StmtIR, annassign_ir}}, linker::{program_table::ProgramTable, symbol_ref::SymbolRef}, type_resolver::type_resolver::TypeResolver, types::types::Type};
+}, ir::{expr::ExprIR, nodes::SymbolIR, stmt::{StmtIR, annassign_ir}}, linker::{program_table::ProgramTable, resolution_table::{self, ResolutionTable}, scope_table::GlobalSymbolTable, symbol_ref::SymbolRef}, type_resolver::type_resolver::TypeResolver, types::types::Type};
 
 pub struct BlockFlow<'ctx> {
     pub incoming: HashMap<BlockID, FlowState>,
     pub outgoing: HashMap<BlockID, FlowState>,
 
+    symbols: &'ctx GlobalSymbolTable,
+    resolutions: &'ctx ResolutionTable,
+
     type_resolver: TypeResolver<'ctx>,
 }
 
 impl<'ctx> BlockFlow<'ctx> {
-    pub fn new(type_resolver: TypeResolver<'ctx>) -> Self {
+    pub fn new(type_resolver: TypeResolver<'ctx>, symbol_table: &'ctx GlobalSymbolTable, resolution_table: &'ctx ResolutionTable) -> Self {
         Self {
             incoming: HashMap::new(),
             outgoing: HashMap::new(),
             type_resolver,
+            symbols: symbol_table,
+            resolutions: resolution_table,
         }
     }
 
@@ -37,13 +42,7 @@ impl<'ctx> BlockFlow<'ctx> {
                 symbol_id: symbol.id,
             };
 
-            entry_state.by_ref.insert(
-                symbol_ref,
-                TypedBinding {
-                    binding: BindingState::Unbound,
-                    ty: Type::Unknown,
-                },
-            );
+            entry_state.register_unbound(&symbol_ref);
         }
 
         self.incoming.insert(entry, entry_state);
@@ -59,9 +58,6 @@ impl<'ctx> BlockFlow<'ctx> {
             let mut state = self.incoming[&id].clone();
 
             for &stmt in &block.statements {
-                // do_something(), specifics matter later 
-                // probably we want to populate everything with UNBOUND(TYPE) first, then update binding status? 
-                // yes, this is the right step moving ahead, makes life easier
                 self.analyze_stmt(stmt, &mut state, programcfg.id);
             }
 
@@ -97,7 +93,12 @@ impl<'ctx> BlockFlow<'ctx> {
         }
     }
 
-    pub fn analyze_stmt(&mut self, stmt: &StmtIR, state: &mut FlowState, program_id: i64) {
+    pub fn analyze_stmt(
+        &mut self,
+        stmt: &StmtIR,
+        state: &mut FlowState,
+        program_id: i64,
+    ) {
         match stmt {
             StmtIR::Assign(assign) => {
                 let value_type =
@@ -105,13 +106,47 @@ impl<'ctx> BlockFlow<'ctx> {
                         .parse_expr(&assign.value, program_id, state);
 
                 for target in &assign.targets {
-                    // self.bind_target(target, &value_type, state, program_id);
+                    if let ExprIR::Name(name) = target {
+                        let symbol_ref = match self.symbols.lookup_by_name(
+                            program_id,
+                            name.use_scope_id,
+                            &name.id,
+                        ) {
+                            Some(symbol_ref) => {
+                                symbol_ref
+                            }
+
+                            None => {
+                                // TODO diag, DO NOT FAIL SILENTLY
+                                continue;
+                            }
+                        };
+
+                        state.bind(
+                            &symbol_ref,
+                            value_type.clone(),
+                        );
+                    }
                 }
             }
 
-            StmtIR::AnnAssign(annassign) => { // !! fix API for symbol_types eventually
-                println!("{annassign:?}");
+            StmtIR::AnnAssign(annassign) => {
+                // println!("{annassign:?}");
                 let target_type = self.type_resolver.resolve_type(program_id, stmt, state);
+                    if let ExprIR::Name(name) = &annassign.target {
+                        let symbol_ref = self.symbols
+                            .lookup_by_name(
+                                program_id,
+                                name.use_scope_id,
+                                &name.id,
+                            )
+                            .unwrap();
+
+                        state.bind(
+                            &symbol_ref,
+                            target_type.clone(),
+                        );
+                    }
             }
 
             _ => {}

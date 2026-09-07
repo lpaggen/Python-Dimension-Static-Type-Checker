@@ -180,6 +180,7 @@ dependencies = [
  "prost-build",
  "prost-types",
  "rayon",
+ "z3",
 ]
 
 [[package]]
@@ -191,6 +192,12 @@ dependencies = [
  "fixedbitset",
  "indexmap",
 ]
+
+[[package]]
+name = "pkg-config"
+version = "0.3.34"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 
 [[package]]
 name = "prettyplease"
@@ -383,4 +390,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ae137229bcbd6cdf0f7b80a31df61766145077ddf49416a728b02cb3921ff3fc"
 dependencies = [
  "windows-link",
+]
+
+[[package]]
+name = "z3"
+version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08975512fd325de2a15eede8ed293b2189c745e0770886fae2b30ae229c5b886"
+dependencies = [
+ "log",
+ "z3-sys",
+]
+
+[[package]]
+name = "z3-sys"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96975839f50a909f6ec19671e5c06d7f0d6fc67287a120e1b010c5f8d91944d6"
+dependencies = [
+ "pkg-config",
 ]

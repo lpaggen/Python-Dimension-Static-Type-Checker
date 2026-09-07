@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use crate::linker::symbol_ref::SymbolRef;
 
 // to do rename all to *Type for clarity
@@ -83,7 +81,7 @@ pub enum TensorTypeState {
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub struct TensorType {
     pub shape: Vec<DimType>,
-    pub dtype: Option<DType>,
+    pub dtype: DType,  // TODO ensure we don't need Option here
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -114,7 +112,7 @@ pub enum DType {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum DimType {
-    Known(i64),
-    Symbol(String), // might become SymbolRef instead, easier to resolve
+    Known(i64), // could use Int yes, but more clear this way
+    Symbol(z3::ast::Int), // might become SymbolRef instead, easier to resolve
     Unknown,
 }

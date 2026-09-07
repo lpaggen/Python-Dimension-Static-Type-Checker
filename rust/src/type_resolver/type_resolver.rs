@@ -4,23 +4,32 @@ use crate::control_flow::flowstate::FlowState;
 use crate::diagnostic::diagnostic::Diagnostic;
 use crate::diagnostic::diagnostic::DiagnosticKind;
 use crate::diagnostic::diagnostic::Severity;
+use crate::ir::expr::AttributeIR;
 use crate::ir::expr::BinOpIR;
 use crate::ir::expr::CallIR;
+use crate::ir::expr::KeywordIR;
 use crate::ir::expr::NameIR;
 use crate::ir::operator;
 use crate::ir::operator::Operator;
 use crate::ir::stmt::AnnAssignIR;
 use crate::ir::stmt::StmtIR;
 use crate::linker::symbol_ref;
-use std::collections::HashMap;
-use std::fmt::format;
+use crate::type_resolver::library::KnownFunction;
+use crate::type_resolver::library::KnownLibrary;
+use crate::type_resolver::library::KnownLibrary::PyTorch;
+use crate::type_resolver::library::Library;
+use crate::type_resolver::library::NumPyFunction;
+use crate::type_resolver::library::ResolvedAttributePath;
+use crate::type_resolver::library::TorchFunction;
 
 use crate::ir::expr_ir::ConstantIR;
 use crate::ir::expr_ir::ExprIR;
 use crate::linker::scope_table::GlobalSymbolTable;
 use crate::linker::resolution_table::ResolutionTable;
 use crate::linker::resolved_target::ResolvedTarget;
+use crate::types::types::DType;
 use crate::types::types::DimType;
+use crate::types::types::TensorType;
 use crate::types::types::TensorTypeState;
 use crate::types::types::Type;
 use crate::{
@@ -70,6 +79,334 @@ impl<'ctx> TypeResolver<'ctx> {
     //     }
     // }
 
+    // similar to resolve_external_annotation, not the same return type
+    fn resolve_known_function(
+        &self,
+        root: KnownLibrary,
+        attrs: &[String],
+    ) -> Option<KnownFunction> {
+        match (root, attrs) {
+            // PyTorch
+            (KnownLibrary::PyTorch, [name])
+                if name == "tensor" =>
+            {
+                Some(KnownFunction::Torch(TorchFunction::Tensor))
+            }
+
+            (KnownLibrary::PyTorch, [name])
+                if name == "zeros" =>
+            {
+                Some(KnownFunction::Torch(TorchFunction::Zeros))
+            }
+
+            (KnownLibrary::PyTorch, [name])
+                if name == "ones" =>
+            {
+                Some(KnownFunction::Torch(TorchFunction::Ones))
+            }
+
+            (KnownLibrary::PyTorch, [name])
+                if name == "empty" =>
+            {
+                Some(KnownFunction::Torch(TorchFunction::Empty))
+            }
+
+            (KnownLibrary::PyTorch, [name])
+                if name == "arange" =>
+            {
+                Some(KnownFunction::Torch(TorchFunction::Arange))
+            }
+
+            (KnownLibrary::PyTorch, [name])
+                if name == "reshape" =>
+            {
+                Some(KnownFunction::Torch(TorchFunction::Reshape))
+            }
+
+            (KnownLibrary::PyTorch, [name])
+                if name == "cat" =>
+            {
+                Some(KnownFunction::Torch(TorchFunction::Cat))
+            }
+
+            (KnownLibrary::PyTorch, [name])
+                if name == "stack" =>
+            {
+                Some(KnownFunction::Torch(TorchFunction::Stack))
+            }
+
+            (KnownLibrary::PyTorch, [name])
+                if name == "matmul" =>
+            {
+                Some(KnownFunction::Torch(TorchFunction::Matmul))
+            }
+
+            (KnownLibrary::PyTorch, [nn, functional, relu])
+                if nn == "nn"
+                    && functional == "functional"
+                    && relu == "relu" =>
+            {
+                Some(KnownFunction::Torch(TorchFunction::Relu))
+            }
+
+            // NumPy
+            (KnownLibrary::NumPy, [name])
+                if name == "array" =>
+            {
+                Some(KnownFunction::NumPy(NumPyFunction::Array))
+            }
+
+            (KnownLibrary::NumPy, [name])
+                if name == "zeros" =>
+            {
+                Some(KnownFunction::NumPy(NumPyFunction::Zeros))
+            }
+
+            (KnownLibrary::NumPy, [name])
+                if name == "ones" =>
+            {
+                Some(KnownFunction::NumPy(NumPyFunction::Ones))
+            }
+
+            (KnownLibrary::NumPy, [name])
+                if name == "empty" =>
+            {
+                Some(KnownFunction::NumPy(NumPyFunction::Empty))
+            }
+
+            (KnownLibrary::NumPy, [name])
+                if name == "arange" =>
+            {
+                Some(KnownFunction::NumPy(NumPyFunction::Arange))
+            }
+
+            (KnownLibrary::NumPy, [name])
+                if name == "reshape" =>
+            {
+                Some(KnownFunction::NumPy(NumPyFunction::Reshape))
+            }
+
+            (KnownLibrary::NumPy, [name])
+                if name == "concatenate" =>
+            {
+                Some(KnownFunction::NumPy(NumPyFunction::Concatenate))
+            }
+
+            (KnownLibrary::NumPy, [name])
+                if name == "stack" =>
+            {
+                Some(KnownFunction::NumPy(NumPyFunction::Stack))
+            }
+
+            (KnownLibrary::NumPy, [name])
+                if name == "matmul" =>
+            {
+                Some(KnownFunction::NumPy(NumPyFunction::Matmul))
+            }
+
+            _ => None,
+        }
+    }
+
+    fn resolve_name_root(
+        &self,
+        name: &NameIR,
+        program_id: i64,
+    ) -> Option<KnownLibrary> {
+        let symbol_ref = self
+            .symbols
+            .lookup_by_name(program_id, name.use_scope_id, &name.id)?;
+
+        let target = self
+            .resolutions
+            .imports
+            .get(&symbol_ref)?;
+
+        match target {
+            ResolvedTarget::External { module, name: _ } => {
+                KnownLibrary::from_str(module)
+            }
+
+            ResolvedTarget::Local(_) => None,
+        }
+    }
+
+    fn resolve_attribute(
+        &self,
+        attr: &AttributeIR,
+        program_id: i64,
+    ) -> Option<ResolvedAttributePath> {
+        match &*attr.value {
+            ExprIR::Name(name) => {
+                Some(ResolvedAttributePath {
+                    root: self.resolve_name_root(name, program_id)?,
+                    attrs: vec![attr.attr.clone()],
+                })
+            }
+
+            ExprIR::Attribute(inner) => {
+                let mut path = self
+                    .resolve_attribute(inner, program_id)?;
+
+                path
+                    .attrs
+                    .push(
+                        attr
+                        .attr
+                        .clone()
+                    );
+
+                Some(path)
+            }
+
+            _ => None,
+        }
+    }
+
+    fn infer_tensor_list(&self, expr: &ExprIR) -> Vec<DimType> {
+        todo!()
+    }
+
+    fn infer_tensor_data(&self, expr: &ExprIR, program_id: i64) -> Option<TensorType> {
+        let default_dtype = DType::Unknown;
+        match expr {
+            ExprIR::Constant(ConstantIR::IntegerLit(_)) => {
+                Some(TensorType { 
+                    shape: vec![],
+                    dtype: default_dtype  // not enough info to infer precision int8, int64, etc.
+                })
+            }
+        
+            ExprIR::Constant(ConstantIR::FloatLit(_)) => {
+                Some(TensorType { 
+                    shape: vec![], 
+                    dtype: default_dtype
+                })
+            }
+
+            // torch.tensor[[3, 4, 5]] etc
+            ExprIR::ListExpr(_) => {
+                Some(TensorType { 
+                    shape: self.infer_tensor_list(expr), 
+                    dtype: default_dtype
+                })
+            },
+
+            ExprIR::TupleExpr(_) => {
+                todo!()
+                // self.infer_tensor_tuple
+            }
+
+            _ => {
+                None
+            }
+        }
+    }
+
+    // support both bare name and torch.whatever
+    fn infer_tensor_dtype(
+        &self,
+        kw: &KeywordIR,
+        program_id: i64,
+    ) -> DType {
+        if kw.arg.as_deref() != Some("dtype") {
+            return DType::Unknown;
+        }
+
+        match &*kw.value {
+            // e.g. dtype=float32
+            ExprIR::Name(name) => {
+                match name.id.as_str() {
+                    "bool" => DType::Bool,
+
+                    "uint8" => DType::UInt8,
+
+                    "int8" => DType::Int8,
+                    "int16" => DType::Int16,
+                    "int32" => DType::Int32,
+                    "int64" => DType::Int64,
+
+                    "float16" => DType::Float16,
+                    "float32" => DType::Float32,
+                    "float64" => DType::Float64,
+
+                    "complex64" => DType::Complex64,
+                    "complex128" => DType::Complex128,
+
+                    _ => DType::Unknown,
+                }
+            }
+
+            // e.g. dtype=torch.float32
+            ExprIR::Attribute(attr) => {
+                let Some(path) = self.resolve_attribute(attr, program_id) else {
+                    return DType::Unknown;
+                };
+
+                match (path.root, path.attrs.as_slice()) {
+                    (KnownLibrary::PyTorch, [name]) => {
+                        match name.as_str() {
+                            "bool" => DType::Bool,
+
+                            "uint8" => DType::UInt8,
+
+                            "int8" => DType::Int8,
+                            "int16" => DType::Int16,
+                            "int32" => DType::Int32,
+                            "int64" => DType::Int64,
+
+                            "float16" => DType::Float16,
+                            "float32" => DType::Float32,
+                            "float64" => DType::Float64,
+
+                            "complex64" => DType::Complex64,
+                            "complex128" => DType::Complex128,
+
+                            _ => DType::Unknown,
+                        }
+                    }
+
+                    _ => DType::Unknown,
+                }
+            }
+
+            _ => DType::Unknown,
+        }
+    }
+
+    // get more information about the tensors, their dtype, their dimensions etc
+    fn infer_torch_tensor(&self, 
+        call: &CallIR, 
+        program_id: i64
+    ) -> Type {
+        // pytorch tensor can look like: torch.tensor(3), torch.tensor([...]), need to parse possible variants
+        let Some(data_arg) = call.args.first() else {
+            // diag
+            return Type::Unknown
+        };
+
+        let Some(mut info) = self.infer_tensor_data(data_arg, program_id) else {
+            return Type::Tensor(TensorTypeState::Unresolved)
+        };
+
+        let dtype = match call
+            .keywords
+            .iter()
+            .find(|kw| kw.arg.as_deref() == Some("dtype")) {
+                Some(kw) => self.infer_tensor_dtype(kw, program_id),
+                None => DType::Unknown
+            };
+
+        // maybe add some check for int and float found not good etc? 
+        // will see if it makes sense to do that
+
+        info.dtype = dtype;
+
+        Type::Unknown
+
+        // resolve dtype, find argument "dtype" and resolve if exists else unknown dtype (? double check)
+    }
+
     pub fn parse_expr(
         &self,
         expr: &ExprIR,
@@ -96,11 +433,28 @@ impl<'ctx> TypeResolver<'ctx> {
                     }
 
                     ExprIR::Attribute(attr) => {
-                        // torch.tensor()
-                        // obj.method()
-                        // torch.nn.functional.relu()
-                        println!("{:?}", attr);
-                        Type::Unknown
+                        let Some(path) = self.resolve_attribute(attr, program_id) else {
+                            return Type::Unknown
+                        };
+
+                        let Some(known_function) = self.resolve_known_function(path.root, &path.attrs) else {
+                            return Type::Unknown;
+                        };
+
+                        match known_function {
+                            KnownFunction::Torch(TorchFunction::Tensor) => {
+                                // infer torch.tensor(...)
+                                self.infer_torch_tensor(call, program_id)
+                            }
+
+                            KnownFunction::Torch(TorchFunction::Matmul) => {
+                                // infer torch.matmul(...)
+                                todo!()
+                            }
+
+                            // add the rest when happy with the basic examples
+                            _ => Type::Unknown,
+                        }
                     }
 
                     ExprIR::SubscriptExpr(subscript) => {
@@ -339,6 +693,7 @@ impl<'ctx> TypeResolver<'ctx> {
 
     // recall everything maps from SymbolRef to a canonical External type which has the disambiguated name
     // so these paths are always valid
+    // TODO merge logic with Attribute parsing + fix because this can't handle longer attributes
     fn resolve_external_annotation(&self, module: &str, name: &str) -> Type {
         match (module, name) {
             // PyTorch

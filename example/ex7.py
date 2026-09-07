@@ -1,8 +1,8 @@
-import torch
+import torch as t
 
 
 if cond:
-    x = torch.tensor([2, 3, 4])
+    x = t.tensor(3, dtype=t.float32)
 else:
     x = 2.0
 

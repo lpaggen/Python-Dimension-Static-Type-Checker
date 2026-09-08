@@ -143,6 +143,12 @@ impl<'ctx> TypeResolver<'ctx> {
                 Some(KnownFunction::Torch(TorchFunction::Matmul))
             }
 
+            // (KnownLibrary::PyTorch, [name])
+            //     if name == "mm" =>
+            // {
+            //     Some(KnownFunction::Torch(TorchFunction::MatrixMatrix))
+            // }
+
             (KnownLibrary::PyTorch, [nn, functional, relu])
                 if nn == "nn"
                     && functional == "functional"
@@ -268,7 +274,7 @@ impl<'ctx> TypeResolver<'ctx> {
     fn infer_tensor_list(&self, expr: &ExprIR) -> Vec<DimType> {
         match expr {
             ExprIR::ListExpr(list) => {
-                let len = list.elts.len();
+                let len = list.elts.len().try_into().unwrap();
 
                 if len == 0 {
                     return vec![DimType::Known(0)];
@@ -438,9 +444,115 @@ impl<'ctx> TypeResolver<'ctx> {
 
         info.dtype = dtype;
 
-        Type::Unknown
+        Type::Tensor(TensorTypeState::Resolved(info))
 
         // resolve dtype, find argument "dtype" and resolve if exists else unknown dtype (? double check)
+    }
+
+    fn require_dims_equal(
+        &self,
+        a: &DimType,
+        b: &DimType,
+        state: &mut FlowState,
+    ) -> bool {
+        match (a, b) {
+            (DimType::Known(a), DimType::Known(b)) => a == b,
+
+            (DimType::Known(a), DimType::Symbol(b)) => {
+                state.constraints.push(b.eq(&z3::ast::Int::from_i64(*a)));
+                true
+            }
+
+            (DimType::Symbol(a), DimType::Known(b)) => {
+                state.constraints.push(a.eq(&z3::ast::Int::from_i64(*b)));
+                true
+            }
+
+            (DimType::Symbol(a), DimType::Symbol(b)) => {
+                state.constraints.push(a.eq(b));
+                true
+            }
+
+            _ => false,
+        }
+    }
+
+    fn require_matmul_dtype(
+        &self,
+        lhs: &DType,
+        rhs: &DType,
+    ) -> Option<DType> {
+        match (lhs, rhs) {
+            (DType::Unknown, _) | (_, DType::Unknown) => {
+                None
+            }
+
+            (a, b) if a == b => {
+                Some(a.clone())
+            }
+
+            _ => {
+                // incompatible matmul operand dtypes
+                None
+            }
+        }
+    }
+
+    fn infer_torch_matmul(&self, call: &CallIR, program_id: i64, state: &mut FlowState) -> Type {
+        let Some(first_arg) = call.args.get(0) else {
+            return Type::Unknown
+        };
+
+        let type_first = self.parse_expr(first_arg, program_id, state);
+
+        let Some(second_arg) = call.args.get(1) else {
+            return Type::Unknown;
+        };
+
+        let type_second = self.parse_expr(second_arg, program_id, state);
+
+        println!("{type_first:?}");
+        println!("{type_second:?}");
+
+        match (type_first, type_second) {
+            (   // two fully resolved tensors (? unresolved should not even be passed here ? TODO double check)
+                Type::Tensor(TensorTypeState::Resolved(TensorType {
+                    shape: shape_a,
+                    dtype: dtype_a,
+                })),
+                Type::Tensor(TensorTypeState::Resolved(TensorType {
+                    shape: shape_b,
+                    dtype: dtype_b,
+                })),
+            ) => {
+                let result_shape = if self.require_dims_equal(
+                    &shape_a[1], 
+                    &shape_b[0], 
+                    state
+                ) {
+                    vec![
+                    shape_a[0].clone(),
+                    shape_b[1].clone(),
+                    ]
+                } else {
+                    // diag
+                    return Type::Unknown;
+                };
+
+                let Some(result_dtype) = self.require_matmul_dtype(&dtype_a, &dtype_b) else {
+                    return Type::Unknown;
+                };
+
+                Type::Tensor(TensorTypeState::Resolved(TensorType { 
+                    shape: result_shape, 
+                    dtype: result_dtype,
+                }))
+            }
+
+            _ => {
+                Type::Unknown
+            }
+        }    
     }
 
     pub fn parse_expr(
@@ -469,6 +581,7 @@ impl<'ctx> TypeResolver<'ctx> {
                     }
 
                     ExprIR::Attribute(attr) => {
+                        // ex torch.attribute... <- recursive type
                         let Some(path) = self.resolve_attribute(attr, program_id) else {
                             return Type::Unknown
                         };
@@ -485,7 +598,7 @@ impl<'ctx> TypeResolver<'ctx> {
 
                             KnownFunction::Torch(TorchFunction::Matmul) => {
                                 // infer torch.matmul(...)
-                                todo!()
+                                self.infer_torch_matmul(call, program_id, state)
                             }
 
                             // add the rest when happy with the basic examples

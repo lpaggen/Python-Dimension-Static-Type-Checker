@@ -6,7 +6,8 @@ use crate::{
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct FlowState {
-    pub by_ref: HashMap<SymbolRef, TypedBinding>
+    pub by_ref: HashMap<SymbolRef, TypedBinding>,
+    pub constraints: Vec<z3::ast::Bool>,
 }
 
 impl FlowState {
@@ -25,6 +26,7 @@ impl FlowState {
     pub fn new() -> Self {
         Self {
             by_ref: HashMap::new(),
+            constraints: Vec::new(),
         }
     }
 

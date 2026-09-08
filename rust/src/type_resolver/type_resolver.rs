@@ -1,3 +1,5 @@
+use rayon::vec;
+
 use crate::control_flow::bindingstate::BindingState;
 use crate::control_flow::bound_type::TypedBinding;
 use crate::control_flow::flowstate::FlowState;
@@ -264,7 +266,38 @@ impl<'ctx> TypeResolver<'ctx> {
     }
 
     fn infer_tensor_list(&self, expr: &ExprIR) -> Vec<DimType> {
-        todo!()
+        match expr {
+            ExprIR::ListExpr(list) => {
+                let len = list.elts.len();
+
+                if len == 0 {
+                    return vec![DimType::Known(0)];
+                }
+
+                let first_shape = self.infer_tensor_list(&list.elts[0]);
+
+                for elt in &list.elts[1..] {
+                    let shape = self.infer_tensor_list(elt);
+
+                    if shape != first_shape {
+                        // diag
+                        return vec![];
+                    }
+                }
+
+                let mut shape = vec![DimType::Known(len)];
+                shape.extend(first_shape);
+                shape
+            }
+
+            ExprIR::Constant(_) => {
+                vec![]
+            }
+
+            _ => {
+                vec![]
+            }
+        }
     }
 
     fn infer_tensor_data(&self, expr: &ExprIR, program_id: i64) -> Option<TensorType> {
@@ -292,9 +325,12 @@ impl<'ctx> TypeResolver<'ctx> {
                 })
             },
 
+            // should be same logic as the list ? TODO double check
             ExprIR::TupleExpr(_) => {
-                todo!()
-                // self.infer_tensor_tuple
+                Some(TensorType { 
+                    shape: self.infer_tensor_list(expr), 
+                    dtype: default_dtype
+                })
             }
 
             _ => {

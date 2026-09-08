@@ -112,7 +112,7 @@ pub enum DType {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum DimType {
-    Known(i64), // could use Int yes, but more clear this way
+    Known(usize), // could use Int yes, but more clear this way
     Symbol(z3::ast::Int), // might become SymbolRef instead, easier to resolve
     Unknown,
 }

@@ -317,14 +317,14 @@ impl<'ctx> TypeResolver<'ctx> {
             ExprIR::Constant(ConstantIR::IntegerLit(_)) => {
                 Some(TensorType { 
                     shape: vec![],
-                    dtype: default_dtype  // not enough info to infer precision int8, int64, etc.
+                    dtype: DType::Int64  // TODO double check if this is the right default
                 })
             }
         
             ExprIR::Constant(ConstantIR::FloatLit(_)) => {
                 Some(TensorType { 
                     shape: vec![], 
-                    dtype: default_dtype
+                    dtype: DType::Float64
                 })
             }
 
@@ -569,7 +569,7 @@ impl<'ctx> TypeResolver<'ctx> {
                     return Type::Unknown;
                 };
 
-                Type::Tensor(TensorTypeState::Resolved(TensorType { 
+                Type::Tensor(TensorTypeState::Resolved(TensorType {
                     shape: result_shape, 
                     dtype: result_dtype,
                 }))

@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
+use z3::ast::Ast;
+
 use crate::{
-    control_flow::{bindingstate::BindingState, bound_type::TypedBinding}, linker::symbol_ref::SymbolRef, types::types::Type
+    control_flow::{bindingstate::BindingState, bound_type::TypedBinding}, linker::symbol_ref::SymbolRef, types::types::{GuardedType, Type}
 };
 
 #[derive(Clone, PartialEq, Debug)]
@@ -36,6 +38,9 @@ impl FlowState {
         // init with false, accumulate new facts as we go
         let mut merged = FlowState::new(z3::ast::Bool::from_bool(false));
 
+        // there may be a better way to store this, currently this is the best i can come up with
+        let mut binding_guards: HashMap<SymbolRef, z3::ast::Bool> = HashMap::new();
+
         // only reachable if any one of the INCOMING edges is reachable
         for state in states {
             merged.guard = z3::ast::Bool::or(&[
@@ -47,14 +52,61 @@ impl FlowState {
                 match merged.by_ref.get_mut(&id) {
 
                     // either is exists, we want to update its binding
+                    // TODO check soundness of this system
                     Some(existing) => {
                         // figure out how to stop cloning 
-                        *existing = existing.merge_binding(binding.clone());
+                        // *existing = existing.merge_binding(binding.clone());
+
+                        // and merge the guards
+                        let previous_guard = binding_guards
+                            .get(id)
+                            .unwrap()
+                            .clone();
+
+                        existing.binding = existing
+                            .binding
+                            .clone()
+                            .merge_binding(binding.binding.clone());
+
+                        if existing.ty != binding.ty {
+                            match &mut existing.ty {
+                                Type::FlowUnion(alternatives) => {
+                                    alternatives.push(GuardedType {
+                                        guard: state.guard.clone(),
+                                        ty: binding.ty.clone(),
+                                    });
+                                }
+
+                                _ => {
+                                    let previous_ty = // TODO check if this even works 
+                                        std::mem::replace(&mut existing.ty, Type::Unknown);
+
+                                    existing.ty = Type::FlowUnion(vec![
+                                        GuardedType {
+                                            guard: previous_guard.clone(),
+                                            ty: previous_ty,
+                                        },
+                                        GuardedType {
+                                            guard: state.guard.clone(),
+                                            ty: binding.ty.clone(),
+                                        },
+                                    ]);
+                                }
+                            }
+                        }
+                         binding_guards.insert(
+                             *id, 
+                             z3::ast::Bool::or(&[
+                                 &previous_guard.simplify(), // Fixed: no change needed here, but ensure it's properly cloned above
+                                 &state.guard,
+                             ])
+                         );
                     },
 
                     // or it doesn't exist yet, just insert
                     None => {
                         merged.by_ref.insert(*id, binding.clone());
+                        binding_guards.insert(*id, state.guard.clone().simplify());
                     }
                 }
             }

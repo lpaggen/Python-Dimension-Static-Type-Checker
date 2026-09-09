@@ -63,10 +63,21 @@ fn main() -> Result<(), Vec<Diagnostic>> {
     // types.build(&table, &symbols, &resolved)?;
     // println!("symbol types:    {:?}", start.elapsed());
 
-    let start = Instant::now();
-    let mut cfg = Cfg::new();
-    cfg.build(&table);
-    println!("cfg:             {:?}", start.elapsed());
+     let start = Instant::now();
+     let mut cfg = Cfg::new();
+     cfg.build(&table);
+     println!("cfg:             {:?}", start.elapsed());
+     
+     // Print CFG information
+     println!("=== CFG Information ===");
+     for (program_id, program_cfg) in &cfg.programs {
+         println!("Program ID: {}", program_id);
+         println!("Blocks: {:?}", program_cfg.module.blocks.len());
+         for (block_id, block) in &program_cfg.module.blocks {
+             println!("  Block {}: {} statements", block_id.id, block.statements.len());
+         }
+     }
+     println!("=======================");
 
     let start = Instant::now();
     let mut flow = BlockFlow::new(

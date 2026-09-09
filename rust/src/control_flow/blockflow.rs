@@ -2,7 +2,7 @@ use std::{collections::{HashMap, VecDeque}, ops::Deref};
 
 use crate::{control_flow::{
     basic_block::BasicBlock, bindingstate::BindingState, block_id::BlockID, bound_type::TypedBinding, cfg::Cfg, flowstate::FlowState, graph::Graph, programcfg::ProgramCfg, terminator::Terminator
-}, ir::{expr::{ConstantIR, ExprIR}, nodes::SymbolIR, operator::Operator, stmt::{StmtIR, annassign_ir}}, linker::{program_table::ProgramTable, resolution_table::{self, ResolutionTable}, scope_table::GlobalSymbolTable, symbol_ref::SymbolRef}, type_resolver::type_resolver::TypeResolver, types::types::Type};
+}, ir::{expr::{CompareIR, ConstantIR, ExprIR}, nodes::SymbolIR, operator::Operator, stmt::{StmtIR, annassign_ir}}, linker::{program_table::ProgramTable, resolution_table::{self, ResolutionTable}, scope_table::GlobalSymbolTable, symbol_ref::SymbolRef}, type_resolver::type_resolver::TypeResolver, types::types::Type};
 
 pub struct BlockFlow<'ctx> {
     pub incoming: HashMap<BlockID, FlowState>,
@@ -50,7 +50,7 @@ impl<'ctx> BlockFlow<'ctx> {
 
     }
 
-    fn to_z3_bool(&self, expr: &ExprIR) -> z3::ast::Bool {
+    fn to_z3_bool(&self, expr: &ExprIR, program_id: i64) -> z3::ast::Bool {
         match expr {
             ExprIR::Constant(ConstantIR::IntegerLit(intlit)) => {
                 z3::ast::Bool::from_bool(intlit.value != 0)
@@ -86,11 +86,25 @@ impl<'ctx> BlockFlow<'ctx> {
                 )
             },
 
+            // TODO expand on this, this is super basic and won't scale
+            ExprIR::Name(name) => {
+                let symbol_ref = self
+                    .symbols
+                    .lookup_by_name(program_id, name.use_scope_id, &name.id)
+                    .unwrap();
+
+                z3::ast::Bool::new_const(format!(
+                    "truthy_{}_{}",
+                    symbol_ref.program_id,
+                    symbol_ref.symbol_id,
+                ))
+            }
+
             ExprIR::BoolOpExpr(boolop) => {
                 let guards: Vec<z3::ast::Bool> = boolop
                     .values
                     .iter()
-                    .map(|expr| self.to_z3_bool(expr))
+                    .map(|expr| self.to_z3_bool(expr, program_id))
                     .collect();
 
                 match boolop.op {
@@ -114,10 +128,8 @@ impl<'ctx> BlockFlow<'ctx> {
                 }
             },
 
-            // add Comparison, Calls, etc etc etc everything we can, Name, whatever works
-
             _ => {  // default to assume accessible branch TODO check
-                z3::ast::Bool::from_bool(true)
+                todo!()
             }
         }
     }
@@ -167,7 +179,7 @@ impl<'ctx> BlockFlow<'ctx> {
             match block.terminator.as_ref() {
                 Some(Terminator::Branch(branch)) => {
 
-                    let z3_guard = self.to_z3_bool(&branch.condition);
+                    let z3_guard = self.to_z3_bool(&branch.condition, programcfg.id);
 
                     let mut true_state = state.clone();
 

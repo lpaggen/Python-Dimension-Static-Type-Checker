@@ -43,7 +43,7 @@ impl Type {
             (Type::Union(mut left), Type::Union(right)) => {
                 left.extend(right);
                 Type::Union(left)
-            }
+            },
 
             (Type::Union(mut items), other) => {
                 items.push(other);

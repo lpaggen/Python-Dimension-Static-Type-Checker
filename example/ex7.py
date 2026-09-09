@@ -3,6 +3,11 @@ import torch as t
 y = t.tensor([3, 5, 6])
 x = t.tensor([[3, 4, 5]])
 
+def foo():
+    pass
+
+cond = foo()
+
 if cond:
     x = t.tensor([[3, 4, 5]])
 else:

@@ -40,7 +40,6 @@ impl FlowState {
                     // either is exists, we want to update its binding
                     Some(existing) => {
                         // figure out how to stop cloning 
-                        // this is a weird implementation, TODO refactor in later build
                         *existing = existing.merge_binding(binding.clone());
                     },
 

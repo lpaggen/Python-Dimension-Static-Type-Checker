@@ -17,6 +17,7 @@ pub enum Type {
     Class(ClassType),
     Dim(DimType),
     Union(Vec<Type>), // represent if-else-then branches, where variable types depend on conditions
+    FlowUnion(Vec<GuardedType>),
     //Module(ModuleType),
     Ellipsis,
     Unknown, // may be a valid type, we just don't consider it in this tool
@@ -27,9 +28,9 @@ impl Type {
         matches!(
             self,
             Type::Bool
-                | Type::Int
-                | Type::Float
-                | Type::Complex
+            | Type::Int
+            | Type::Float
+            | Type::Complex
         )
     }
 
@@ -59,6 +60,12 @@ impl Type {
             }
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
+pub struct GuardedType {
+    pub guard: z3::ast::Bool,  // TODO check if this makes any sense at all
+    pub ty: Type,
 }
 
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]

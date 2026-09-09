@@ -74,7 +74,6 @@ fn main() -> Result<(), Vec<Diagnostic>> {
             &symbols, 
             &resolved),
         &symbols,
-        &resolved
     );
     flow.build(&cfg, &table);
     println!("flow analysis:   {:?}", start.elapsed());

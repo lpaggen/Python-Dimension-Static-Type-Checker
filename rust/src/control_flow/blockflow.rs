@@ -9,19 +9,17 @@ pub struct BlockFlow<'ctx> {
     pub outgoing: HashMap<BlockID, FlowState>,
 
     symbols: &'ctx GlobalSymbolTable,
-    resolutions: &'ctx ResolutionTable,
 
     type_resolver: TypeResolver<'ctx>,
 }
 
 impl<'ctx> BlockFlow<'ctx> {
-    pub fn new(type_resolver: TypeResolver<'ctx>, symbol_table: &'ctx GlobalSymbolTable, resolution_table: &'ctx ResolutionTable) -> Self {
+    pub fn new(type_resolver: TypeResolver<'ctx>, symbol_table: &'ctx GlobalSymbolTable) -> Self {
         Self {
             incoming: HashMap::new(),
             outgoing: HashMap::new(),
             type_resolver,
             symbols: symbol_table,
-            resolutions: resolution_table,
         }
     }
 
@@ -36,6 +34,7 @@ impl<'ctx> BlockFlow<'ctx> {
 
         // declare all symbols as Unbound and Unknown first, update their status as we go
         let mut entry_state = FlowState::new();
+
         for symbol in symbols {
             let symbol_ref = SymbolRef {
                 program_id: programcfg.id,

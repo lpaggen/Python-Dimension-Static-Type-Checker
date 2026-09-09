@@ -498,6 +498,10 @@ impl<'ctx> TypeResolver<'ctx> {
         }
     }
 
+    fn infer_torch_matmul_type_tensor_to_tensor(&self, ) {
+        todo!()
+    }
+
     fn infer_torch_matmul(&self, call: &CallIR, program_id: i64, state: &mut FlowState) -> Type {
         let Some(first_arg) = call.args.get(0) else {
             return Type::Unknown
@@ -547,7 +551,29 @@ impl<'ctx> TypeResolver<'ctx> {
                     shape: result_shape, 
                     dtype: result_dtype,
                 }))
-            }
+            },
+
+            (
+                Type::Union(uniontype),
+                Type::Tensor(TensorTypeState::Resolved(TensorType {
+                    shape: shape_b,
+                    dtype: dtype_b,
+                })),
+            ) => {  // we should make recursive calls to handle unions? unsure how? TODO
+                println!("union with first type union second type is a tensor");
+                todo!()
+            },
+
+            (
+                Type::Tensor(TensorTypeState::Resolved(TensorType {
+                    shape: shape_a,
+                    dtype: dtype_a,
+                })),
+                Type::Union(uniontype),
+            ) => {  // we should make recursive calls to handle unions? unsure how? TODO
+                println!("union with second type union first type is a tensor");
+                todo!()
+            },
 
             _ => {
                 Type::Unknown

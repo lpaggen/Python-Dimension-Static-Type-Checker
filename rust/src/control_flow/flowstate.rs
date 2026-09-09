@@ -6,6 +6,7 @@ use crate::{
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct FlowState {
+    pub guard: z3::ast::Bool,  // if no guard, simply assume true, mathematically true = None, forgo Option<>
     pub by_ref: HashMap<SymbolRef, TypedBinding>,
     pub constraints: Vec<z3::ast::Bool>,
 }
@@ -23,17 +24,25 @@ impl FlowState {
         self.by_ref.insert(*symbol_ref, TypedBinding { binding: BindingState::Unbound, ty: Type::Unknown });
     }
 
-    pub fn new() -> Self {
+    pub fn new(guard: z3::ast::Bool) -> Self {
         Self {
             by_ref: HashMap::new(),
             constraints: Vec::new(),
+            guard
         }
     }
 
     pub fn merge<'a>(states: impl IntoIterator<Item = &'a FlowState>) -> FlowState {
-        let mut merged = FlowState::new();
+        // init with false, accumulate new facts as we go
+        let mut merged = FlowState::new(z3::ast::Bool::from_bool(false));
 
+        // only reachable if any one of the INCOMING edges is reachable
         for state in states {
+            merged.guard = z3::ast::Bool::or(&[
+                &merged.guard,
+                &state.guard,
+            ]);
+
             for (id, binding) in &state.by_ref {
                 match merged.by_ref.get_mut(&id) {
 

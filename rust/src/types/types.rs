@@ -16,8 +16,8 @@ pub enum Type {
     Callable(CallableType), // functions
     Class(ClassType),
     Dim(DimType),
-    Union(Vec<Type>), // represent if-else-then branches, where variable types depend on conditions
-    FlowUnion(Vec<GuardedType>),
+    Union(Vec<Type>),  // mainly for logical unions, -> x: int | None -> Union(int, None)
+    FlowUnion(Vec<GuardedType>),  // represent if-else-then branches, where variable types depend on conditions
     //Module(ModuleType),
     Ellipsis,
     Unknown, // may be a valid type, we just don't consider it in this tool

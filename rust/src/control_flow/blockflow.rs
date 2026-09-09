@@ -2,7 +2,7 @@ use std::{collections::{HashMap, VecDeque}, ops::Deref};
 
 use crate::{control_flow::{
     basic_block::BasicBlock, bindingstate::BindingState, block_id::BlockID, bound_type::TypedBinding, cfg::Cfg, flowstate::FlowState, graph::Graph, programcfg::ProgramCfg, terminator::Terminator
-}, ir::{expr::ExprIR, nodes::SymbolIR, stmt::{StmtIR, annassign_ir}}, linker::{program_table::ProgramTable, resolution_table::{self, ResolutionTable}, scope_table::GlobalSymbolTable, symbol_ref::SymbolRef}, type_resolver::type_resolver::TypeResolver, types::types::Type};
+}, ir::{expr::{ConstantIR, ExprIR}, nodes::SymbolIR, operator::Operator, stmt::{StmtIR, annassign_ir}}, linker::{program_table::ProgramTable, resolution_table::{self, ResolutionTable}, scope_table::GlobalSymbolTable, symbol_ref::SymbolRef}, type_resolver::type_resolver::TypeResolver, types::types::Type};
 
 pub struct BlockFlow<'ctx> {
     pub incoming: HashMap<BlockID, FlowState>,
@@ -50,6 +50,78 @@ impl<'ctx> BlockFlow<'ctx> {
 
     }
 
+    fn to_z3_bool(&self, expr: &ExprIR) -> z3::ast::Bool {
+        match expr {
+            ExprIR::Constant(ConstantIR::IntegerLit(intlit)) => {
+                z3::ast::Bool::from_bool(intlit.value != 0)
+            }
+
+            ExprIR::Constant(ConstantIR::FloatLit(floatlit)) => {
+                z3::ast::Bool::from_bool(floatlit.value != 0.0)
+            }
+
+            ExprIR::Constant(ConstantIR::BooleanLit(booleanlit)) => {
+                z3::ast::Bool::from_bool(booleanlit.value)
+            }
+
+            ExprIR::Constant(ConstantIR::StringLit(stringlit)) => {
+                z3::ast::Bool::from_bool(!stringlit.value.is_empty())
+            }
+
+            ExprIR::Constant(ConstantIR::NoneLit(_)) => {
+                z3::ast::Bool::from_bool(false)
+            }
+
+            ExprIR::Constant(ConstantIR::EllipsisLit(_)) => {
+                z3::ast::Bool::from_bool(true)
+            }
+
+            ExprIR::Constant(ConstantIR::BytesLit(byteslit)) => {
+                z3::ast::Bool::from_bool(!byteslit.value.is_empty())
+            }
+
+            ExprIR::Constant(ConstantIR::ComplexLit(complexlit)) => {
+                z3::ast::Bool::from_bool(
+                    complexlit.real != 0.0 || complexlit.imag != 0.0
+                )
+            },
+
+            ExprIR::BoolOpExpr(boolop) => {
+                let guards: Vec<z3::ast::Bool> = boolop
+                    .values
+                    .iter()
+                    .map(|expr| self.to_z3_bool(expr))
+                    .collect();
+
+                match boolop.op {
+                    Operator::And => {
+                        let refs: Vec<&z3::ast::Bool> = guards
+                            .iter()
+                            .collect();
+                        z3::ast::Bool::and(&refs)
+                    }
+
+                    Operator::Or => {
+                        let refs: Vec<&z3::ast::Bool> = guards
+                            .iter()
+                            .collect();
+                        z3::ast::Bool::or(&refs)
+                    }
+
+                    _ => {
+                        todo!()
+                    }
+                }
+            },
+
+            // add Comparison, Calls, etc etc etc everything we can, Name, whatever works
+
+            _ => {  // default to assume accessible branch TODO check
+                z3::ast::Bool::from_bool(true)
+            }
+        }
+    }
+
     // for every program, go one by one to resolve CFG instructions Bound, Unbound, MaybeUnbound and their type
     // we want to end up with something like: Bound(int | float), etc., so we need bound status + type inference
     // TODO fix huge bug, terminator None is getting unwrapped, causes issues
@@ -60,7 +132,8 @@ impl<'ctx> BlockFlow<'ctx> {
         let graph = &programcfg.module;
 
         // declare all symbols as Unbound and Unknown first, update their status as we go
-        let mut entry_state = FlowState::new();
+        // true guard means the block is reachable
+        let mut entry_state = FlowState::new(z3::ast::Bool::from_bool(true));
 
         for symbol in symbols {
             let symbol_ref = SymbolRef {
@@ -93,20 +166,25 @@ impl<'ctx> BlockFlow<'ctx> {
             // this helps later for z3 and for error reporting, we can tell the user why something may fail
             match block.terminator.as_ref() {
                 Some(Terminator::Branch(branch)) => {
-                    let guard = self
-                        .type_resolver
-                        .parse_expr(
-                        branch.condition, 
-                        programcfg.id, 
-                        &mut state
-                    );
 
-                    // then just check if it's Type::Bool and convert to rust bool ?
-                    // dosomething()
+                    let z3_guard = self.to_z3_bool(&branch.condition);
 
                     let mut true_state = state.clone();
 
                     let mut false_state = state.clone();
+
+                    // parent condition AND current guard
+                    true_state.guard = z3::ast::Bool::and(&[
+                        &state.guard,
+                        &z3_guard,
+                    ]);
+
+                    let not_condition = z3_guard.not();
+
+                    false_state.guard = z3::ast::Bool::and(&[
+                        &state.guard,
+                        &not_condition,
+                    ]);
 
                     self.edge_states.insert(
                         (id, branch.true_target), 
@@ -114,7 +192,7 @@ impl<'ctx> BlockFlow<'ctx> {
                     );
 
                     self.edge_states.insert(
-                        (id, branch.true_target), 
+                        (id, branch.false_target), 
                         false_state
                     );
 

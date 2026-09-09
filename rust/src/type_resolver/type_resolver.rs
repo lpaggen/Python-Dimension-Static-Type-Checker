@@ -11,11 +11,9 @@ use crate::ir::expr::BinOpIR;
 use crate::ir::expr::CallIR;
 use crate::ir::expr::KeywordIR;
 use crate::ir::expr::NameIR;
-use crate::ir::operator;
 use crate::ir::operator::Operator;
 use crate::ir::stmt::AnnAssignIR;
 use crate::ir::stmt::StmtIR;
-use crate::linker::symbol_ref;
 use crate::type_resolver::library::KnownFunction;
 use crate::type_resolver::library::KnownLibrary;
 use crate::type_resolver::library::KnownLibrary::PyTorch;
@@ -271,7 +269,7 @@ impl<'ctx> TypeResolver<'ctx> {
         }
     }
 
-    fn infer_tensor_list(&self, expr: &ExprIR) -> Vec<DimType> {
+    fn infer_tensor_list(&mut self, expr: &ExprIR) -> Vec<DimType> {
         match expr {
             ExprIR::ListExpr(list) => {
                 let len = list.elts.len().try_into().unwrap();
@@ -286,7 +284,14 @@ impl<'ctx> TypeResolver<'ctx> {
                     let shape = self.infer_tensor_list(elt);
 
                     if shape != first_shape {
-                        // diag
+                        self.diagnostics.push(
+                            Diagnostic {
+                                severity: Severity::ERROR,
+                                span: list.span.clone(),
+                                kind: DiagnosticKind::ShapeError,
+                                message: "tensor data has inconsistent nested dimensions".to_string(),
+                            }
+                        );
                         return vec![];
                     }
                 }
@@ -306,7 +311,7 @@ impl<'ctx> TypeResolver<'ctx> {
         }
     }
 
-    fn infer_tensor_data(&self, expr: &ExprIR, program_id: i64) -> Option<TensorType> {
+    fn infer_tensor_data(&mut self, expr: &ExprIR, program_id: i64) -> Option<TensorType> {
         let default_dtype = DType::Unknown;
         match expr {
             ExprIR::Constant(ConstantIR::IntegerLit(_)) => {
@@ -417,13 +422,20 @@ impl<'ctx> TypeResolver<'ctx> {
     }
 
     // get more information about the tensors, their dtype, their dimensions etc
-    fn infer_torch_tensor(&self, 
+    fn infer_torch_tensor(&mut self,
         call: &CallIR, 
         program_id: i64
     ) -> Type {
         // pytorch tensor can look like: torch.tensor(3), torch.tensor([...]), need to parse possible variants
         let Some(data_arg) = call.args.first() else {
-            // diag
+            self.diagnostics.push(
+                Diagnostic {
+                    severity: Severity::ERROR,
+                    span: call.span.clone(),
+                    kind: DiagnosticKind::TypeError,
+                    message: "torch.tensor requires a data argument".to_string(),
+                }
+            );
             return Type::Unknown
         };
 
@@ -502,7 +514,7 @@ impl<'ctx> TypeResolver<'ctx> {
         todo!()
     }
 
-    fn infer_torch_matmul(&self, call: &CallIR, program_id: i64, state: &mut FlowState) -> Type {
+    fn infer_torch_matmul(&mut self, call: &CallIR, program_id: i64, state: &mut FlowState) -> Type {
         let Some(first_arg) = call.args.get(0) else {
             return Type::Unknown
         };
@@ -539,7 +551,17 @@ impl<'ctx> TypeResolver<'ctx> {
                     shape_b[1].clone(),
                     ]
                 } else {
-                    // diag
+                    self.diagnostics.push(
+                        Diagnostic {
+                            severity: Severity::ERROR,
+                            span: call.span.clone(),
+                            kind: DiagnosticKind::ShapeError,
+                            message: format!(
+                                "matmul dimensions are incompatible: {:?} and {:?}",
+                                shape_a[1], shape_b[0]
+                            ),
+                        }
+                    );
                     return Type::Unknown;
                 };
 
@@ -582,7 +604,7 @@ impl<'ctx> TypeResolver<'ctx> {
     }
 
     pub fn parse_expr(
-        &self,
+        &mut self,
         expr: &ExprIR,
         program_id: i64,
         state: &mut FlowState,
@@ -687,10 +709,9 @@ impl<'ctx> TypeResolver<'ctx> {
                     },
 
                     Operator::Add => {
-                        self.resolve_add(
-                            self.parse_expr(&binop.left, program_id, state),
-                            self.parse_expr(&binop.right, program_id, state),
-                        )
+                        let left = self.parse_expr(&binop.left, program_id, state);
+                        let right = self.parse_expr(&binop.right, program_id, state);
+                        self.resolve_add(left, right)
                     },
 
                     Operator::Sub => todo!(),

@@ -1,12 +1,12 @@
 use std::{collections::{HashMap, VecDeque}, ops::Deref};
 
 use crate::{control_flow::{
-    basic_block::BasicBlock, bindingstate::BindingState, block_id::BlockID, bound_type::TypedBinding, cfg::Cfg, flowstate::FlowState, graph::Graph, programcfg::ProgramCfg
+    basic_block::BasicBlock, bindingstate::BindingState, block_id::BlockID, bound_type::TypedBinding, cfg::Cfg, flowstate::FlowState, graph::Graph, programcfg::ProgramCfg, terminator::Terminator
 }, ir::{expr::ExprIR, nodes::SymbolIR, stmt::{StmtIR, annassign_ir}}, linker::{program_table::ProgramTable, resolution_table::{self, ResolutionTable}, scope_table::GlobalSymbolTable, symbol_ref::SymbolRef}, type_resolver::type_resolver::TypeResolver, types::types::Type};
 
 pub struct BlockFlow<'ctx> {
     pub incoming: HashMap<BlockID, FlowState>,
-    pub outgoing: HashMap<BlockID, FlowState>,
+    pub edge_states: HashMap<(BlockID, BlockID), FlowState>,  // necessary to preserve conditional guards on branches
 
     symbols: &'ctx GlobalSymbolTable,
 
@@ -17,10 +17,37 @@ impl<'ctx> BlockFlow<'ctx> {
     pub fn new(type_resolver: TypeResolver<'ctx>, symbol_table: &'ctx GlobalSymbolTable) -> Self {
         Self {
             incoming: HashMap::new(),
-            outgoing: HashMap::new(),
+            edge_states: HashMap::new(),
             type_resolver,
             symbols: symbol_table,
         }
+    }
+
+    fn update_successor(&mut self, graph: &Graph, successor: BlockID, queue: &mut VecDeque<BlockID>) {
+        let successor_block = &graph.blocks[&successor];
+
+        // find outgoing states of current block's predecessors
+        let states = successor_block
+            .incoming
+            .iter()
+            .filter_map(|pred| self.edge_states.get(&(*pred, successor)));
+
+        // now merge the outgoing states of the current block's predecessors
+        let merged = FlowState::merge(states);
+
+        let changed = self
+            .incoming
+            .get(&successor)
+            .map(|old| old != &merged)
+            .unwrap_or(true);
+
+        // if successor is B1 depends on B0, just set IN[B1] = merge(OUT(predecessors[B1])), that's it
+        // we only want to do this if something has changed, else we run into infinite loops
+        if changed {
+            self.incoming.insert(successor, merged);
+            queue.push_back(successor);
+        }
+
     }
 
     // for every program, go one by one to resolve CFG instructions Bound, Unbound, MaybeUnbound and their type
@@ -62,31 +89,60 @@ impl<'ctx> BlockFlow<'ctx> {
 
             let successors = graph.get_outgoing_ids(&id);
 
-            self.outgoing.insert(id, state);
+            // update true and false targets with the guard, true gets "guard" false gets "NOT guard"
+            // this helps later for z3 and for error reporting, we can tell the user why something may fail
+            match block.terminator.as_ref() {
+                Some(Terminator::Branch(branch)) => {
+                    let guard = self
+                        .type_resolver
+                        .parse_expr(
+                        branch.condition, 
+                        programcfg.id, 
+                        &mut state
+                    );
 
-            for successor in &successors {
-                let successor_block = &graph.blocks[successor];
+                    // then just check if it's Type::Bool and convert to rust bool ?
+                    // dosomething()
 
-                // find outgoing states of current block's predecessors
-                let states = successor_block
-                    .incoming
-                    .iter()
-                    .filter_map(|pred| self.outgoing.get(pred));
+                    let mut true_state = state.clone();
 
-                // now merge the outgoing states of the current block's predecessors
-                let merged = FlowState::merge(states);
+                    let mut false_state = state.clone();
 
-                let changed = self
-                    .incoming
-                    .get(&successor)
-                    .map(|old| old != &merged)
-                    .unwrap_or(true);
+                    self.edge_states.insert(
+                        (id, branch.true_target), 
+                        true_state
+                    );
 
-                // if successor is B1 depends on B0, just set IN[B1] = merge(OUT(predecessors[B1])), that's it
-                // we only want to do this if something has changed, else we run into infinite loops
-                if changed {
-                    self.incoming.insert(*successor, merged);
-                    queue.push_back(*successor);
+                    self.edge_states.insert(
+                        (id, branch.true_target), 
+                        false_state
+                    );
+
+                    self.update_successor(
+                        graph, 
+                        branch.true_target, 
+                        &mut queue
+                    );
+
+                    self.update_successor(
+                        graph, 
+                        branch.false_target, 
+                        &mut queue
+                    );
+                },
+
+                _ => {
+                    for successor in successors {
+                        self.edge_states.insert(
+                            (id, successor),
+                            state.clone(),
+                        );
+
+                        self.update_successor(
+                            graph, 
+                            successor, 
+                            &mut queue);
+                    }
                 }
             }
         }

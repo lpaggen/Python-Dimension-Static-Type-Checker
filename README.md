@@ -1,6 +1,5 @@
-# WARNING THIS IS A WORK IN PROGRESS, README IS AHEAD OF THE ACTUAL CODE FUNCTIONALITIES
-
 # Torch Shape Checker (Z3-powered)
+## WORK IN PROGRESS, IT ONLY SUPPORTS MATMUL FOR NOW
 
 ![Python](https://img.shields.io/badge/python-3.14+-blue.svg)
 ![Z3](https://img.shields.io/badge/Z3-SMT%20Solver-green.svg)

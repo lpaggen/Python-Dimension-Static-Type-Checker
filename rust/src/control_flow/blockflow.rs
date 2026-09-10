@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, VecDeque}, ops::Deref};
+use std::{collections::{HashMap, HashSet, VecDeque}, ops::Deref};
 
 use crate::{control_flow::{
     basic_block::BasicBlock, bindingstate::BindingState, block_id::BlockID, bound_type::TypedBinding, cfg::Cfg, flowstate::FlowState, graph::Graph, programcfg::ProgramCfg, terminator::Terminator
@@ -23,7 +23,7 @@ impl<'ctx> BlockFlow<'ctx> {
         }
     }
 
-    fn update_successor(&mut self, graph: &Graph, successor: BlockID, queue: &mut VecDeque<BlockID>) {
+    fn update_successor(&mut self, graph: &Graph, successor: BlockID, queue: &mut VecDeque<BlockID>, queued: &mut HashSet<BlockID>,) {
         let successor_block = &graph.blocks[&successor];
 
         // find outgoing states of current block's predecessors
@@ -45,7 +45,10 @@ impl<'ctx> BlockFlow<'ctx> {
         // we only want to do this if something has changed, else we run into infinite loops
         if changed {
             self.incoming.insert(successor, merged);
-            queue.push_back(successor);
+
+            if queued.insert(successor) {  // just means it wasn't there, Rust returns true
+                queue.push_back(successor);
+            }
         }
 
     }
@@ -159,10 +162,15 @@ impl<'ctx> BlockFlow<'ctx> {
         self.incoming.insert(entry, entry_state);
 
         let mut queue: VecDeque<BlockID> = VecDeque::new();
+        let mut queued: HashSet<BlockID> = HashSet::new();  // prevents duplicate updates on branches
+
         queue.push_back(entry);
+        queued.insert(entry);
 
         // suppose this has B3
         while let Some(id) = queue.pop_front() {
+            queued.remove(&id);
+
             let block = graph.blocks.get(&id).unwrap();
 
             // this just gets IN[B3], which we know from merge(OUT[predecessors])
@@ -211,13 +219,15 @@ impl<'ctx> BlockFlow<'ctx> {
                     self.update_successor(
                         graph, 
                         branch.true_target, 
-                        &mut queue
+                        &mut queue,
+                        &mut queued
                     );
 
                     self.update_successor(
                         graph, 
                         branch.false_target, 
-                        &mut queue
+                        &mut queue,
+                        &mut queued
                     );
                 },
 
@@ -231,7 +241,9 @@ impl<'ctx> BlockFlow<'ctx> {
                         self.update_successor(
                             graph, 
                             successor, 
-                            &mut queue);
+                            &mut queue,
+                            &mut queued
+                        );
                     }
                 }
             }

@@ -1,4 +1,5 @@
 use rayon::vec;
+use z3::ast::Ast;
 
 use crate::control_flow::bindingstate::BindingState;
 use crate::control_flow::bound_type::TypedBinding;
@@ -14,6 +15,7 @@ use crate::ir::expr::ListIR;
 use crate::ir::expr::NameIR;
 use crate::ir::expr::TupleIR;
 use crate::ir::operator::Operator;
+use crate::ir::span_ir::SourceSpan;
 use crate::ir::stmt::AnnAssignIR;
 use crate::ir::stmt::StmtIR;
 use crate::type_resolver::library::KnownFunction;
@@ -31,6 +33,7 @@ use crate::linker::resolution_table::ResolutionTable;
 use crate::linker::resolved_target::ResolvedTarget;
 use crate::types::types::DType;
 use crate::types::types::DimType;
+use crate::types::types::GuardedType;
 use crate::types::types::TensorType;
 use crate::types::types::TensorTypeState;
 use crate::types::types::Type;
@@ -343,8 +346,6 @@ impl<'ctx> TypeResolver<'ctx> {
 
     // follow PyTorch numeric promotion rules
     fn resolve_common_dtype(&self, element_types: &[DType]) -> DType {
-        println!("elements: {:?}", element_types);
-
         let result = if element_types.is_empty() {
             DType::Unknown
         } else if element_types.contains(&DType::Float64) {
@@ -513,31 +514,301 @@ impl<'ctx> TypeResolver<'ctx> {
         // resolve dtype, find argument "dtype" and resolve if exists else unknown dtype (? double check)
     }
 
-    fn require_dims_equal(
-        &self,
-        a: &DimType,
-        b: &DimType,
+    // fn require_dims_equal(
+    //     &self,
+    //     a: &DimType,
+    //     b: &DimType,
+    //     state: &mut FlowState,
+    // ) -> bool {
+    //     match (a, b) {
+    //         (DimType::Known(a), DimType::Known(b)) => a == b,
+
+    //         (DimType::Known(a), DimType::Symbol(b)) => {
+    //             state.constraints.push(b.eq(&z3::ast::Int::from_i64(*a)));
+    //             true
+    //         }
+
+    //         (DimType::Symbol(a), DimType::Known(b)) => {
+    //             state.constraints.push(a.eq(&z3::ast::Int::from_i64(*b)));
+    //             true
+    //         }
+
+    //         (DimType::Symbol(a), DimType::Symbol(b)) => {
+    //             state.constraints.push(a.eq(b));
+    //             true
+    //         }
+
+    //         _ => false,
+    //     }
+    // }
+
+fn require_dims_equal(
+    &self,
+    a: &DimType,
+    b: &DimType,
+    state: &mut FlowState,
+) -> bool {
+    let equality = match (a, b) {
+        (DimType::Known(a), DimType::Known(b)) => {
+            z3::ast::Int::from_i64(*a)
+                .eq(z3::ast::Int::from_i64(*b))
+        }
+
+        (DimType::Known(a), DimType::Symbol(b)) => {
+            b.eq(z3::ast::Int::from_i64(*a))
+        }
+
+        (DimType::Symbol(a), DimType::Known(b)) => {
+            a.eq(z3::ast::Int::from_i64(*b))
+        }
+
+        (DimType::Symbol(a), DimType::Symbol(b)) => {
+            a.eq(b)
+        }
+
+        _ => return false,
+    };
+
+    let solver = z3::Solver::new();
+
+    // Everything we already know
+    for constraint in &state.constraints {
+        solver.assert(constraint);
+    }
+
+    // Current FlowUnion path
+    solver.assert(&state.guard);
+
+    // Requirement imposed by matmul
+    solver.assert(&equality);
+
+    match solver.check() {
+        z3::SatResult::Sat => {
+            println!(
+                "✓ feasible: {:?} == {:?} under guard {:?}",
+                a, b, state.guard.simplify()
+            );
+
+            // Keep the newly established fact.
+            state.constraints.push(equality);
+
+            true
+        }
+
+        z3::SatResult::Unsat => {
+            println!(
+                "✗ UNSAT — pruning path: {:?} == {:?} under guard {:?}",
+                a, b, state.guard.simplify()
+            );
+
+            false
+        }
+
+        z3::SatResult::Unknown => {
+            // Conservatively don't prune something Z3 couldn't prove impossible.
+            println!("? Z3 returned unknown");
+            true
+        }
+    }
+}
+
+    fn torch_shapes_compatible(
+        &mut self,
+        left: &Type,
+        right: &Type,
         state: &mut FlowState,
-    ) -> bool {
-        match (a, b) {
-            (DimType::Known(a), DimType::Known(b)) => a == b,
+    ) -> Type {
+        match (left, right) {
+            (
+                Type::Tensor(TensorTypeState::Resolved(TensorType {
+                    shape: shape_a,
+                    dtype: dtype_a,
+                })),
+                Type::Tensor(TensorTypeState::Resolved(TensorType {
+                    shape: shape_b,
+                    dtype: dtype_b,
+                })),
+            ) => {
+                let Some(result_dtype) =
+                    self.require_matmul_dtype(&dtype_a, &dtype_b)
+                else {
+                    return Type::Unknown;
+                };
 
-            (DimType::Known(a), DimType::Symbol(b)) => {
-                state.constraints.push(b.eq(&z3::ast::Int::from_i64(*a)));
-                true
+                // the rest only works for rank >= 2, so first we want
+                // an early return if it involves scalars
+                match (shape_a.len(), shape_b.len()) {
+                    (0, _) | (_, 0) => {  // invalid matmul
+                        Type::Int  // depends on float or not i guess, TODO fix later
+                    }
+
+                    (1, 1) => {  // [K] @ [K] -> scalar
+                        let result_shape = if self.require_dims_equal(
+                            &shape_a[0], 
+                            &shape_b[0], 
+                            state
+                        ) {
+                            vec![
+                                DimType::Known(1),
+                                DimType::Known(1),
+                            ]
+                        } else { 
+                            return Type::Unknown
+                        };
+
+                        Type::Tensor(TensorTypeState::Resolved(TensorType {
+                            shape: result_shape,
+                            dtype: result_dtype,
+                        }))
+                    },
+
+                    (1, _) => {  // [K] @ [..., K, N]
+                        let result_shape = if self.require_dims_equal(
+                            &shape_a[0], 
+                            &shape_b[shape_b.len() - 1], 
+                            state
+                        ) {
+                            let mut shape = shape_b[..shape_b.len() - 2].to_vec();
+                            shape.push(shape_b[shape_b.len() - 1].clone());
+                            shape
+                        } else { 
+                            return Type::Unknown
+                        };
+
+                        Type::Tensor(TensorTypeState::Resolved(TensorType {
+                            shape: result_shape,
+                            dtype: result_dtype,
+                        }))
+                    }
+
+                    (_, 1) => {  // [..., M, K] @ [K]
+                        let result_shape = if self.require_dims_equal(
+                            &shape_a[shape_a.len() - 1], 
+                            &shape_b[0], 
+                            state
+                        ) {
+                            let mut shape = shape_a[..shape_a.len() - 2].to_vec();
+                            shape.push(shape_a[shape_a.len() - 1].clone());
+                            shape
+                        } else { 
+                            return Type::Unknown
+                        };
+
+                        Type::Tensor(TensorTypeState::Resolved(TensorType {
+                            shape: result_shape,
+                            dtype: result_dtype,
+                        }))
+                    }
+
+                    _ => {  // both rank >= 2
+                        let result_shape = if self.require_dims_equal(
+                            &shape_a[shape_a.len() - 1],
+                            &shape_b[shape_b.len() - 2],
+                            state,
+                        ) {
+                            vec![
+                                shape_a[0].clone(),
+                                shape_b[1].clone(),
+                            ]
+                        } else {
+                            return Type::Unknown;
+                        };
+
+                        let Some(result_dtype) =
+                            self.require_matmul_dtype(&dtype_a, &dtype_b)
+                        else {
+                            return Type::Unknown;
+                        };
+
+                        Type::Tensor(TensorTypeState::Resolved(TensorType {
+                            shape: result_shape,
+                            dtype: result_dtype,
+                        }))
+                    }
+                }
             }
 
-            (DimType::Symbol(a), DimType::Known(b)) => {
-                state.constraints.push(a.eq(&z3::ast::Int::from_i64(*b)));
-                true
+            (
+                Type::FlowUnion(uniontype),
+                Type::Tensor(TensorTypeState::Resolved(_)),
+            ) => {
+                let parent_guard = state.guard.clone();
+                let mut results = Vec::new();
+
+                for guarded in uniontype {
+                    let branch_guard = z3::ast::Bool::and(&[
+                        &parent_guard,
+                        &guarded.guard,
+                    ]);
+
+                    state.guard = branch_guard.clone();
+
+                    let result = self.torch_shapes_compatible(
+                        &guarded.ty,
+                        right,
+                        state,
+                    );
+
+                    match result {
+                        Type::FlowUnion(inner) => {
+                            results.extend(inner);
+                        }
+
+                        ty => {
+                            results.push(GuardedType {
+                                guard: branch_guard,
+                                ty,
+                            });
+                        }
+                    }
+                }
+
+                state.guard = parent_guard;
+
+                Type::FlowUnion(results)
             }
 
-            (DimType::Symbol(a), DimType::Symbol(b)) => {
-                state.constraints.push(a.eq(b));
-                true
+            (
+                Type::Tensor(TensorTypeState::Resolved(_)),
+                Type::FlowUnion(uniontype),
+            ) => {
+                let parent_guard = state.guard.clone();
+                let mut results = Vec::new();
+
+                for guarded in uniontype {
+                    let branch_guard = z3::ast::Bool::and(&[
+                        &parent_guard,
+                        &guarded.guard,
+                    ]);
+
+                    state.guard = branch_guard.clone();
+
+                    let result = self.torch_shapes_compatible(
+                        left,
+                        &guarded.ty,
+                        state,
+                    );
+
+                    match result {
+                        Type::FlowUnion(inner) => {
+                            results.extend(inner);
+                        }
+
+                        ty => {
+                            results.push(GuardedType {
+                                guard: branch_guard,
+                                ty,
+                            });
+                        }
+                    }
+                }
+
+                state.guard = parent_guard;
+
+                Type::FlowUnion(results)
             }
 
-            _ => false,
+            _ => Type::Unknown,
         }
     }
 
@@ -562,10 +833,6 @@ impl<'ctx> TypeResolver<'ctx> {
         }
     }
 
-    fn infer_torch_matmul_type_tensor_to_tensor(&self, ) {
-        todo!()
-    }
-
     fn infer_torch_matmul(&mut self, call: &CallIR, program_id: i64, state: &mut FlowState) -> Type {
         let Some(first_arg) = call.args.get(0) else {
             return Type::Unknown
@@ -579,80 +846,11 @@ impl<'ctx> TypeResolver<'ctx> {
 
         let type_second = self.parse_expr(second_arg, program_id, state);
 
-        println!("{type_first:?}");
-        println!("{type_second:?}");
-
-        match (type_first, type_second) {
-            (   // two fully resolved tensors (? unresolved should not even be passed here ? TODO double check)
-                Type::Tensor(TensorTypeState::Resolved(TensorType {
-                    shape: shape_a,
-                    dtype: dtype_a,
-                })),
-                Type::Tensor(TensorTypeState::Resolved(TensorType {
-                    shape: shape_b,
-                    dtype: dtype_b,
-                })),
-            ) => {
-                let result_shape = if self.require_dims_equal(
-                    &shape_a[1], 
-                    &shape_b[0], 
-                    state
-                ) {
-                    vec![
-                    shape_a[0].clone(),
-                    shape_b[1].clone(),
-                    ]
-                } else {
-                    self.diagnostics.push(
-                        Diagnostic {
-                            severity: Severity::ERROR,
-                            span: call.span.clone(),
-                            kind: DiagnosticKind::ShapeError,
-                            message: format!(
-                                "matmul dimensions are incompatible: {:?} and {:?}",
-                                shape_a[1], shape_b[0]
-                            ),
-                        }
-                    );
-                    return Type::Unknown;
-                };
-
-                let Some(result_dtype) = self.require_matmul_dtype(&dtype_a, &dtype_b) else {
-                    return Type::Unknown;
-                };
-
-                Type::Tensor(TensorTypeState::Resolved(TensorType {
-                    shape: result_shape, 
-                    dtype: result_dtype,
-                }))
-            },
-
-            (
-                Type::Union(uniontype),
-                Type::Tensor(TensorTypeState::Resolved(TensorType {
-                    shape: shape_b,
-                    dtype: dtype_b,
-                })),
-            ) => {  // we should make recursive calls to handle unions? unsure how? TODO
-                println!("union with first type union second type is a tensor");
-                todo!()
-            },
-
-            (
-                Type::Tensor(TensorTypeState::Resolved(TensorType {
-                    shape: shape_a,
-                    dtype: dtype_a,
-                })),
-                Type::Union(uniontype),
-            ) => {  // we should make recursive calls to handle unions? unsure how? TODO
-                println!("union with second type union first type is a tensor");
-                todo!()
-            },
-
-            _ => {
-                Type::Unknown
-            }
-        }    
+        self.torch_shapes_compatible(
+            &type_first, 
+            &type_second, 
+            state, 
+        )
     }
 
     pub fn parse_expr(

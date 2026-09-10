@@ -97,7 +97,7 @@ impl FlowState {
                          binding_guards.insert(
                              *id, 
                              z3::ast::Bool::or(&[
-                                 &previous_guard.simplify(), // Fixed: no change needed here, but ensure it's properly cloned above
+                                 &previous_guard, // Fixed: no change needed here, but ensure it's properly cloned above
                                  &state.guard,
                              ])
                          );
@@ -106,7 +106,7 @@ impl FlowState {
                     // or it doesn't exist yet, just insert
                     None => {
                         merged.by_ref.insert(*id, binding.clone());
-                        binding_guards.insert(*id, state.guard.clone().simplify());
+                        binding_guards.insert(*id, state.guard.clone());
                     }
                 }
             }

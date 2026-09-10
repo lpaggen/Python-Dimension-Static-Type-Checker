@@ -10,7 +10,9 @@ use crate::ir::expr::AttributeIR;
 use crate::ir::expr::BinOpIR;
 use crate::ir::expr::CallIR;
 use crate::ir::expr::KeywordIR;
+use crate::ir::expr::ListIR;
 use crate::ir::expr::NameIR;
+use crate::ir::expr::TupleIR;
 use crate::ir::operator::Operator;
 use crate::ir::stmt::AnnAssignIR;
 use crate::ir::stmt::StmtIR;
@@ -311,6 +313,56 @@ impl<'ctx> TypeResolver<'ctx> {
         }
     }
 
+    fn infer_container_element_types(&mut self, expr: &ExprIR, program_id: i64) -> DType {
+        match expr {
+            ExprIR::ListExpr(list_expr) => {
+                let mut element_types = Vec::new();
+                
+                for element in &list_expr.elts {
+                    if let Some(element_type) = self.infer_tensor_data(element, program_id) {
+                        element_types.push(element_type.dtype);
+                    }
+                }
+                
+                self.resolve_common_dtype(&element_types)
+            }
+            ExprIR::TupleExpr(tuple_expr) => {
+                let mut element_types = Vec::new();
+                
+                for element in &tuple_expr.elts {
+                    if let Some(element_type) = self.infer_tensor_data(element, program_id) {
+                        element_types.push(element_type.dtype);
+                    }
+                }
+
+                self.resolve_common_dtype(&element_types)
+            }
+            _ => DType::Unknown
+        }
+    }
+
+    // follow PyTorch numeric promotion rules
+    fn resolve_common_dtype(&self, element_types: &[DType]) -> DType {
+        println!("elements: {:?}", element_types);
+
+        let result = if element_types.is_empty() {
+            DType::Unknown
+        } else if element_types.contains(&DType::Float64) {
+            DType::Float64
+        } else if element_types.contains(&DType::Float32) {
+            DType::Float32
+        } else if element_types.contains(&DType::Int64) {
+            DType::Int64
+        } else if element_types.contains(&DType::Int32) {
+            DType::Int32
+        } else {
+            DType::Unknown
+        };
+
+        result
+    }
+
+
     fn infer_tensor_data(&mut self, expr: &ExprIR, program_id: i64) -> Option<TensorType> {
         let default_dtype = DType::Unknown;
         match expr {
@@ -332,7 +384,7 @@ impl<'ctx> TypeResolver<'ctx> {
             ExprIR::ListExpr(_) => {
                 Some(TensorType { 
                     shape: self.infer_tensor_list(expr), 
-                    dtype: default_dtype
+                    dtype: self.infer_container_element_types(expr, program_id),
                 })
             },
 
@@ -340,7 +392,7 @@ impl<'ctx> TypeResolver<'ctx> {
             ExprIR::TupleExpr(_) => {
                 Some(TensorType { 
                     shape: self.infer_tensor_list(expr), 
-                    dtype: default_dtype
+                    dtype: self.infer_container_element_types(expr, program_id),
                 })
             }
 
@@ -448,7 +500,7 @@ impl<'ctx> TypeResolver<'ctx> {
             .iter()
             .find(|kw| kw.arg.as_deref() == Some("dtype")) {
                 Some(kw) => self.infer_tensor_dtype(kw, program_id),
-                None => DType::Unknown
+                None => info.dtype
             };
 
         // maybe add some check for int and float found not good etc? 

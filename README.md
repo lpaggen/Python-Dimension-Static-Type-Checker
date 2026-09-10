@@ -8,64 +8,117 @@
 
 This project implements Microsoft's Z3 SMT solver (https://www.microsoft.com/en-us/research/project/z3-3/).
 
-Ever ran into a simple runtime error hours into model training? If your error was related to linear algebra or oversights regarding Pytorch tensor dimensions, then this tool is for you!
+I don't speak programming languages theory yet, so I had the latest GPT model give me this explanation of the project: "this project explores whether guarded disjunctive abstract values can provide the precision of path-sensitive symbolic reasoning without requiring whole-program path enumeration."
 
-Torch Shape Checker is a static type checker written in Python which checks dimension validity on Pytorch tensors at compile-time instead of runtime. It does this by exploiting Python 3.14 type annotations, everything runs on vanilla Python 3.14. Because this runs on vanilla Python, implementing this tool in your programs is almost effortless, see below!
-
-## Why Z3
-
-Z3 is Microsoft's open source SMT solver. An SMT solver takes in a set constraints and outputs whether they are all feasible or not, which can surprisingly directly be applied to programming languages like Python. With Z3, this tool makes it possible for you to detect dimension mismatches on Pytorch tensors before encountering them hours into model training. 
-
-## Example of a regular Pytorch program
+Now, in my own words: this project is a static analyzer which uses Z3 to determine which paths and operations in Python programs will result in a runtime crash, except it tells you this without needing to run your program. This topic isn't new, and has been an active area of research, companies like Meta sponsored projects like PyTea (https://github.com/ropas/pytea), and my project is similar, except I built it with compiler theory in mind, so the end algorithm is different, and **maybe** can prove stronger facts about certain programs involving lots of conditional branching. The authors of PyTea mention they consider every reachable path in their analysis, my tool does not, as it treats constraint collection slightly differently thanks to the fact that I built everything centered around CFGs (Control Flow Graphs). CFGs are strong here, because as we come across constraints, we add them to each graph edge (path, branch) separately, and this allows us to remove edges (prune paths) as we discover UNSAT paths during CFG merges. This is all possible thanks to how I model variables in control flow blocks, take a look at the following example, things will be more clear: 
 
 ```python
-n = 13
-m = 3
-k = 3
+cond = some_user_input()  # suppose we don't know if "cond" is true, false, let alone bool
 
-A = torch.tensor([[1, 2, 3]])
-B = torch.tensor([[1, 2, 3]])
-
-C = torch.matmul(A, B)
+if cond:
+    x = 5
+else:
+    x = "var"
 ```
 
+Then, each of the two branches, if and else, accumulates facts about the type of x, and when merging the two paths, we get the following type:
 
-## The same program, with annotations
+```rust
+Type::FlowUnion([
+    GuardedType {
+        guard: truthy_cond,
+        ty:    Type::Int
+    },
+    GuardedType {
+        guard: not_truthy_cond,
+        ty:    Type::String
+    },
+])
+```
+
+which preserves the condition which makes the type hold, and the type of the variable x. Naturally, this stacks, so if you nest branches, we simply formulate that with the logical union, here's an example to illustrate just that:
 
 ```python
-n: int = 1
-m: int = 3
-k: int = 3
+def foo():
+    pass
 
-A: torch.Tensor[n, m] = torch.tensor([[1, 2, 3]])  # the tool verifies (n, m) matches actual shape
-B: torch.Tensor[m, k] = torch.tensor([[1], [2], [3]]])
+def bar():
+    pass
 
-C: torch.Tensor[n, k] = torch.matmul(A, B)  # tool verifies A and B can be multiplied and (n, m) matches shape(A dot B)
+cond = foo()
+other_cond = bar()
 
-out -> VALID
+if cond:
+    if other_cond:
+        do_something()
+    else:
+        do_something_else()
+else:
+    pass
 ```
 
-This tool uses the Z3 SMT solver to collect integer types, and tensor type hints, and enforces the applicable rules for tensor declarations and linear algebra operations at compile-time. This means you do not need to run your code to discover subtle errors, the tool detects your mistakes and reports them to you. Check the following example and output:
+suppose we enter "cond", so "cond" is truthy, we add "cond" to a set of constraints **local to the graph edge**. Then, if "other_cond" is truthy, we just do: constraints.add(&z3::and(&cond, other_cond)). Simple, but here's when this becomes strong with my CFG: 
 
-```python
-n: int = 1
-m: int = 3
-k: int = 1
+## Example 1: CFG join with guarded types
 
-A: torch.Tensor[n, m] = torch.tensor([[1, 2, 3, 4]])  # A's type annotation and its actual shape differ
-B: torch.Tensor[m, k] = torch.randn(3, 1)
+```mermaid
+flowchart TD
+    A[Entry] --> B["cond = some_user_input()"]
+    B --> C{"cond truthy?"}
 
-C: torch.Tensor[n, k] = torch.matmul(A, B)
+    C -->|truthy_cond| D["then branch<br/>x = 5"]
+    C -->|not_truthy_cond| E["else branch<br/>x = 'var'"]
 
-out -> DeclarationError: tensor A was declared with shape(rows=1, cols=4), but expected shape(rows=1, cols=3)
+    D --> F["CFG join"]
+    E --> F
+
+    F --> G["x = FlowUnion(<br/>truthy_cond ↦ Int,<br/>not_truthy_cond ↦ String<br/>)"]
 ```
 
-# Tool architecture
+## Example 2: Path-sensitive tensor reasoning with Z3
 
-1. Python source code is converted to an AST using Python's _ast_ module
-2. A custom visitor walks the AST and transforms integral dimensions and nodes containing tensors into an IR representing types and shapes
-3. A Z3 wrapper completes a pass on the IR and applies constraints based on types and linear algebra rules
-4. The program informs the user whether they made any dimension errors or not
+```mermaid
+flowchart TD
+    A[Entry] --> B["x = tensor([[3,4,5]])<br/>shape = [1,3]"]
+    B --> C["y = tensor([3,5,6])<br/>shape = [3]"]
+    C --> D["cond = foo()"]
+    D --> E{"cond truthy?"}
+
+    E -->|truthy_cond| F["then branch<br/>x = tensor([[3,4,5]])<br/>shape = [1,3]"]
+    E -->|not_truthy_cond| G["else branch<br/>y = tensor([3,5,6,5,6,7])<br/>shape = [6]"]
+
+    F --> H["CFG join"]
+    G --> H
+
+    H --> I["y = FlowUnion(<br/>truthy_cond ↦ Tensor[3],<br/>not_truthy_cond ↦ Tensor[6]<br/>)"]
+
+    I --> J["z = matmul(x, y)"]
+    J --> K{"Distribute over guarded alternatives"}
+
+    K --> L["truthy_cond ∧ (3 = 3)<br/>SAT"]
+    K --> M["not_truthy_cond ∧ (3 = 6)<br/>UNSAT"]
+
+    L --> N["valid result:<br/>Tensor[1]"]
+    M --> O["pruned / rejected alternative"]
+```
+
+## Example 3: Guarded union after merge
+
+```mermaid
+flowchart LR
+    A["Path 1<br/>guard = truthy_cond<br/>y : Tensor[3]"] --> C["merge"]
+    B["Path 2<br/>guard = not_truthy_cond<br/>y : Tensor[6]"] --> C
+    C --> D["y : FlowUnion(<br/>truthy_cond ↦ Tensor[3],<br/>not_truthy_cond ↦ Tensor[6]<br/>)"]
+    D --> E["Apply matmul constraints"]
+    E --> F["truthy_cond ∧ 3=3  => SAT"]
+    E --> G["not_truthy_cond ∧ 3=6 => UNSAT"]
+```
+
+Those are a couple of the examples which are working as of writing this README. Exciting I think, and there's still more to come, like merging affine sets while keeping more information about those sets. A topic for later, for now development will focus on expanding on this interesting CFG-path-pruning algorithm. 
+
+Also if you want to contribute feel free to do so, contributions are welcome, my codebase is a bit of a mess and can use some refactoring. Below is some details on the architecture of the tool. 
+
+## Architecture
 
 ```mermaid
 %%{init: {"flowchart": {"curve": "stepAfter", "nodeSpacing": 40, "rankSpacing": 55}}}%%
@@ -121,25 +174,4 @@ flowchart TB
 
 # How to use
 
-## Install dependencies
-
-You only need Python 3.14+ and Z3 to run the tool, Pytorch is required only to execute your code
-
-```bash
-python3.14 -m pip install z3-solver torch
-pip install z3-solver
-```
-## Run the tool
-
-```bash
-torchdimchecker **your_file** --verbose
-```
-
-# What is currently supported
-
-```python
-torch.matmul
-torch.tensor
-torch.randn
-```
-
+No binaries right now, will publish a release if development gets to a point where it makes sense to do so, right now it's still a demo. 

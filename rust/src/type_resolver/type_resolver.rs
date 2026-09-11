@@ -1,4 +1,5 @@
 use rayon::vec;
+use z3::Solver;
 use z3::ast::Ast;
 
 use crate::control_flow::bindingstate::BindingState;
@@ -49,6 +50,8 @@ pub struct TypeResolver<'ctx> {
 
     symbols: &'ctx GlobalSymbolTable,
     resolutions: &'ctx ResolutionTable,
+
+    solver: z3::Solver
 }
 
 impl<'ctx> TypeResolver<'ctx> {
@@ -61,7 +64,18 @@ impl<'ctx> TypeResolver<'ctx> {
             symbols,
             resolutions,
             diagnostics: Vec::new(),
+            solver: z3::Solver::new(),
         }
+    }
+
+    fn add_guarded_constraint(
+        &mut self,
+        guard: &z3::ast::Bool,
+        constraint: &z3::ast::Bool,
+    ) {
+        self.solver.assert(
+            guard.implies(constraint)
+        );
     }
 
     // pub fn get(&self, symbol_ref: &SymbolRef) -> Type {
@@ -569,28 +583,25 @@ impl<'ctx> TypeResolver<'ctx> {
             _ => return false,
         };
 
-        let solver = z3::Solver::new();
+        self.solver.push();
 
-        // Everything we already know
-        for constraint in &state.constraints {
-            solver.assert(constraint);
-        }
+        self.solver.assert(&state.guard);
+        self.solver.assert(&equality);
 
-        // Current FlowUnion path
-        solver.assert(&state.guard);
+        let result = self.solver.check();
 
-        // Requirement imposed by matmul
-        solver.assert(&equality);
+        self.solver.pop(1);
 
-        match solver.check() {
+        match result {
             z3::SatResult::Sat => {
                 println!(
                     "✓ feasible: {:?} == {:?} under guard {:?}",
                     a, b, state.guard.simplify()
                 );
 
-                // Keep the newly established fact.
-                state.constraints.push(equality);
+                self.solver.assert(
+                    state.guard.implies(&equality)
+                );
 
                 true
             }
@@ -630,6 +641,10 @@ impl<'ctx> TypeResolver<'ctx> {
                         &guarded.guard,
                     ]);
 
+                    if !self.is_feasible(&branch_guard) {
+                        continue;
+                    }
+
                     state.guard = branch_guard.clone();
 
                     let result =
@@ -661,6 +676,10 @@ impl<'ctx> TypeResolver<'ctx> {
                         &parent_guard,
                         &guarded.guard,
                     ]);
+
+                    if !self.is_feasible(&branch_guard) {
+                        continue;
+                    }
 
                     state.guard = branch_guard.clone();
 
@@ -1196,6 +1215,17 @@ impl<'ctx> TypeResolver<'ctx> {
         }))
     }
 
+    fn is_feasible(&self, guard: &z3::ast::Bool) -> bool {
+        self.solver.push();
+        self.solver.assert(guard);
+
+        let result = self.solver.check();
+
+        self.solver.pop(1);
+
+        !matches!(result, z3::SatResult::Unsat)
+    }
+
     fn torch_cat_types(
         &mut self,
         types: &[Type],
@@ -1223,6 +1253,10 @@ impl<'ctx> TypeResolver<'ctx> {
                     &parent_guard,
                     &guarded.guard,
                 ]);
+
+                if !self.is_feasible(&branch_guard) {
+                    continue;
+                }
 
                 state.guard = branch_guard.clone();
 
@@ -1538,6 +1572,10 @@ impl<'ctx> TypeResolver<'ctx> {
                     &parent_guard,
                     &guarded.guard,
                 ]);
+
+                if !self.is_feasible(&branch_guard) {
+                    continue;
+                }
 
                 state.guard = branch_guard.clone();
 

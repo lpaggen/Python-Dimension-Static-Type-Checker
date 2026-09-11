@@ -594,10 +594,10 @@ impl<'ctx> TypeResolver<'ctx> {
 
         match result {
             z3::SatResult::Sat => {
-                println!(
-                    "✓ feasible: {:?} == {:?} under guard {:?}",
-                    a, b, state.guard.simplify()
-                );
+                // println!(
+                //     "✓ feasible: {:?} == {:?} under guard {:?}",
+                //     a, b, state.guard.simplify()
+                // );
 
                 self.solver.assert(
                     state.guard.implies(&equality)
@@ -607,10 +607,10 @@ impl<'ctx> TypeResolver<'ctx> {
             }
 
             z3::SatResult::Unsat => {
-                println!(
-                    "✗ UNSAT — pruning path: {:?} == {:?} under guard {:?}",
-                    a, b, state.guard.simplify()
-                );
+                // println!(
+                //     "✗ UNSAT — pruning path: {:?} == {:?} under guard {:?}",
+                //     a, b, state.guard.simplify()
+                // );
 
                 false
             }

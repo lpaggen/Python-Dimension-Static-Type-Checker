@@ -139,7 +139,6 @@ impl<'ctx> BlockFlow<'ctx> {
 
     // for every program, go one by one to resolve CFG instructions Bound, Unbound, MaybeUnbound and their type
     // we want to end up with something like: Bound(int | float), etc., so we need bound status + type inference
-    // TODO fix huge bug, terminator None is getting unwrapped, causes issues
     pub fn analyze_cfg(&mut self, programcfg: &ProgramCfg, symbols: &Vec<SymbolIR>) {
 
         let entry = BlockID {id: 0};  // start at entry always

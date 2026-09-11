@@ -873,6 +873,40 @@ impl<'ctx> TypeResolver<'ctx> {
         }
     }
 
+    fn infer_torch_size(
+        &mut self,
+        args: &[ExprIR],
+        program_id: i64,
+        state: &mut FlowState,
+    ) -> Option<Vec<DimType>> {
+        let expressions: Vec<&ExprIR> = match args {
+            [ExprIR::TupleExpr(tuple)] => tuple.elts.iter().collect(),
+            [ExprIR::ListExpr(list)] => list.elts.iter().collect(),
+            [] => return None,
+            args => args.iter().collect(),
+        };
+
+        let mut shape = Vec::with_capacity(expressions.len());
+
+        for expr in expressions {
+            let dim = match expr {
+                ExprIR::Constant(ConstantIR::IntegerLit(integer)) => {
+                    DimType::Known(integer.value)
+                }
+
+                _ => match self.parse_expr(expr, program_id, state) {
+                    Type::Dim(dim) => dim,
+                    Type::Int => DimType::Unknown,
+                    _ => return None,
+                },
+            };
+
+            shape.push(dim);
+        }
+
+        Some(shape)
+    }
+
     fn infer_torch_matmul(&mut self, call: &CallIR, program_id: i64, state: &mut FlowState) -> Type {
         let Some(first_arg) = call.args.get(0) else {
             return Type::Unknown
@@ -893,50 +927,871 @@ impl<'ctx> TypeResolver<'ctx> {
         )
     }
 
-    fn infer_torch_zeros(&mut self, call: &CallIR, program_id: i64, state: &mut FlowState) -> Type {
-        // torch.zeros typically takes shape arguments and returns a tensor
-        // For now, return an unresolved tensor as a placeholder
-        Type::Tensor(TensorTypeState::Unresolved)
+    fn infer_torch_factory_tensor(
+        &mut self,
+        call: &CallIR,
+        program_id: i64,
+        state: &mut FlowState,
+    ) -> Type {
+        let Some(shape) = self.infer_torch_size(
+            &call.args,
+            program_id,
+            state,
+        ) else {
+            return Type::Unknown;
+        };
+
+        let dtype = call
+            .keywords
+            .iter()
+            .find(|kw| kw.arg.as_deref() == Some("dtype"))
+            .map(|kw| self.infer_tensor_dtype(kw, program_id))
+            .unwrap_or(DType::Float32);
+
+        Type::Tensor(TensorTypeState::Resolved(TensorType {
+            shape,
+            dtype,
+        }))
     }
 
-    fn infer_torch_ones(&mut self, call: &CallIR, program_id: i64, state: &mut FlowState) -> Type {
+    fn infer_torch_arange(
+        &mut self,
+        call: &CallIR,
+        program_id: i64,
+        state: &mut FlowState,
+    ) -> Type {
+        if call.args.is_empty() || call.args.len() > 3 {
+            return Type::Unknown;
+        }
 
+        // torch.arange(end)
+        // torch.arange(start, end)
+        // torch.arange(start, end, step)
+        let (start, end, step) = match call.args.as_slice() {
+            [end] => (None, end, None),
+            [start, end] => (Some(start), end, None),
+            [start, end, step] => (Some(start), end, Some(step)),
+            _ => unreachable!(),
+        };
+
+        // Explicit dtype wins.
+        let dtype = if let Some(keyword) = call
+            .keywords
+            .iter()
+            .find(|kw| kw.arg.as_deref() == Some("dtype"))
+        {
+            self.infer_tensor_dtype(keyword, program_id)
+        } else {
+            // Otherwise PyTorch uses the default floating dtype if any
+            // start/end/step argument is floating point; int64 otherwise.
+            let mut has_float = false;
+            let mut valid_numeric = true;
+
+            for expr in &call.args {
+                match self.parse_expr(expr, program_id, state) {
+                    Type::Float => has_float = true,
+                    Type::Int | Type::Dim(_) => {}
+                    _ => valid_numeric = false,
+                }
+            }
+
+            if !valid_numeric {
+                DType::Unknown
+            } else if has_float {
+                DType::Float32
+            } else {
+                DType::Int64
+            }
+        };
+
+        // We can resolve the exact length when the range arguments are
+        // statically-known integer literals.
+        let start_value = match start {
+            None => Some(0),
+
+            Some(ExprIR::Constant(
+                ConstantIR::IntegerLit(integer)
+            )) => Some(integer.value),
+
+            _ => None,
+        };
+
+        let end_value = match end {
+            ExprIR::Constant(
+                ConstantIR::IntegerLit(integer)
+            ) => Some(integer.value),
+
+            _ => None,
+        };
+
+        let step_value = match step {
+            None => Some(1),
+
+            Some(ExprIR::Constant(
+                ConstantIR::IntegerLit(integer)
+            )) => Some(integer.value),
+
+            _ => None,
+        };
+
+        let length = match (start_value, end_value, step_value) {
+            (Some(start), Some(end), Some(step)) => {
+                if step == 0 {
+                    return Type::Unknown;
+                }
+
+                let start = start as i128;
+                let end = end as i128;
+                let step = step as i128;
+
+                let len = if step > 0 {
+                    if start >= end {
+                        0
+                    } else {
+                        ((end - start - 1) / step) + 1
+                    }
+                } else {
+                    if start <= end {
+                        0
+                    } else {
+                        ((start - end - 1) / -step) + 1
+                    }
+                };
+
+                match i64::try_from(len) {
+                    Ok(len) => DimType::Known(len),
+                    Err(_) => DimType::Unknown,
+                }
+            }
+
+            _ => DimType::Unknown,
+        };
+
+        Type::Tensor(TensorTypeState::Resolved(TensorType {
+            shape: vec![length],
+            dtype,
+        }))
     }
 
-    fn infer_torch_empty(&mut self, call: &CallIR, program_id: i64, state: &mut FlowState) -> Type {
-        // torch.empty typically takes shape arguments and returns a tensor
-        // For now, return an unresolved tensor as a placeholder
-        Type::Tensor(TensorTypeState::Unresolved)
+    fn infer_torch_reshape(
+        &mut self,
+        call: &CallIR,
+        program_id: i64,
+        state: &mut FlowState,
+    ) -> Type {
+        // torch.reshape(input, shape)
+        if call.args.len() != 2 {
+            return Type::Unknown;
+        }
+
+        let input_type = self.parse_expr(
+            &call.args[0],
+            program_id,
+            state,
+        );
+
+        let Some(mut new_shape) = self.infer_torch_size(
+            &call.args[1..],
+            program_id,
+            state,
+        ) else {
+            return Type::Unknown;
+        };
+
+        let Type::Tensor(TensorTypeState::Resolved(input)) = input_type else {
+            return match input_type {
+                Type::Tensor(TensorTypeState::Unresolved) => {
+                    Type::Tensor(TensorTypeState::Unresolved)
+                }
+
+                _ => Type::Unknown,
+            };
+        };
+
+        let mut infer_index = None;
+
+        for (index, dim) in new_shape.iter().enumerate() {
+            if let DimType::Known(value) = dim {
+                if *value == -1 {
+                    if infer_index.is_some() {
+                        // Only one dimension may be inferred.
+                        return Type::Unknown;
+                    }
+
+                    infer_index = Some(index);
+                } else if *value < 0 {
+                    return Type::Unknown;
+                }
+            }
+        }
+
+        // Calculate the input element count when all dimensions are known.
+        let input_numel = input.shape.iter().try_fold(
+            1i64,
+            |product, dim| {
+                match dim {
+                    DimType::Known(value) => {
+                        product.checked_mul(*value)
+                    }
+
+                    _ => None,
+                }
+            },
+        );
+
+        // Calculate the requested element count, excluding -1.
+        let requested_numel = new_shape.iter().try_fold(
+            1i64,
+            |product, dim| {
+                match dim {
+                    DimType::Known(-1) => Some(product),
+
+                    DimType::Known(value) => {
+                        product.checked_mul(*value)
+                    }
+
+                    _ => None,
+                }
+            },
+        );
+
+        match infer_index {
+            Some(index) => {
+                if let (
+                    Some(input_numel),
+                    Some(requested_numel),
+                ) = (input_numel, requested_numel)
+                {
+                    if requested_numel == 0
+                        || input_numel % requested_numel != 0
+                    {
+                        return Type::Unknown;
+                    }
+
+                    new_shape[index] =
+                        DimType::Known(input_numel / requested_numel);
+                } else {
+                    // The reshape is valid structurally, but the inferred
+                    // dimension cannot currently be determined statically.
+                    new_shape[index] = DimType::Unknown;
+                }
+            }
+
+            None => {
+                if let (
+                    Some(input_numel),
+                    Some(requested_numel),
+                ) = (input_numel, requested_numel)
+                {
+                    if input_numel != requested_numel {
+                        return Type::Unknown;
+                    }
+                }
+            }
+        }
+
+        Type::Tensor(TensorTypeState::Resolved(TensorType {
+            shape: new_shape,
+            dtype: input.dtype,
+        }))
     }
 
-    fn infer_torch_arange(&mut self, call: &CallIR, program_id: i64, state: &mut FlowState) -> Type {
-        // torch.arange typically takes start, stop, step arguments and returns a tensor
-        // For now, return an unresolved tensor as a placeholder
-        Type::Tensor(TensorTypeState::Unresolved)
+    fn torch_cat_types(
+        &mut self,
+        types: &[Type],
+        dim: i64,
+        state: &mut FlowState,
+    ) -> Type {
+        if types.is_empty() {
+            return Type::Unknown;
+        }
+
+        // Expand FlowUnion inputs one at a time.
+        if let Some((index, union)) = types
+            .iter()
+            .enumerate()
+            .find_map(|(index, ty)| match ty {
+                Type::FlowUnion(union) => Some((index, union)),
+                _ => None,
+            })
+        {
+            let parent_guard = state.guard.clone();
+            let mut results = Vec::new();
+
+            for guarded in union {
+                let branch_guard = z3::ast::Bool::and(&[
+                    &parent_guard,
+                    &guarded.guard,
+                ]);
+
+                state.guard = branch_guard.clone();
+
+                let mut branch_types = types.to_vec();
+                branch_types[index] = guarded.ty.clone();
+
+                let result = self.torch_cat_types(
+                    &branch_types,
+                    dim,
+                    state,
+                );
+
+                match result {
+                    Type::FlowUnion(inner) => {
+                        results.extend(inner);
+                    }
+
+                    ty => {
+                        results.push(GuardedType {
+                            guard: branch_guard,
+                            ty,
+                        });
+                    }
+                }
+            }
+
+            state.guard = parent_guard;
+            return Type::FlowUnion(results);
+        }
+
+        let mut tensors = Vec::with_capacity(types.len());
+
+        for ty in types {
+            match ty {
+                Type::Tensor(TensorTypeState::Resolved(tensor)) => {
+                    tensors.push(tensor);
+                }
+
+                Type::Tensor(TensorTypeState::Unresolved) => {
+                    return Type::Tensor(TensorTypeState::Unresolved);
+                }
+
+                _ => {
+                    return Type::Unknown;
+                }
+            }
+        }
+
+        // torch.cat permits a 1-D empty tensor of shape (0,) regardless
+        // of the rank of the other tensors.
+        let is_empty_1d = |tensor: &TensorType| {
+            tensor.shape.len() == 1
+                && matches!(tensor.shape[0], DimType::Known(0))
+        };
+
+        let base = tensors
+            .iter()
+            .find(|tensor| !is_empty_1d(tensor));
+
+        // All tensors are the special (0,) empty tensor.
+        let Some(base) = base else {
+            let normalized_dim = if dim < 0 {
+                dim + 1
+            } else {
+                dim
+            };
+
+            if normalized_dim != 0 {
+                return Type::Unknown;
+            }
+
+            let dtypes: Vec<DType> =
+                tensors.iter().map(|tensor| tensor.dtype).collect();
+
+            let dtype = if dtypes
+                .iter()
+                .all(|dtype| *dtype == dtypes[0])
+            {
+                dtypes[0]
+            } else {
+                self.resolve_common_dtype(&dtypes)
+            };
+
+            return Type::Tensor(
+                TensorTypeState::Resolved(TensorType {
+                    shape: vec![DimType::Known(0)],
+                    dtype,
+                })
+            );
+        };
+
+        let rank = base.shape.len();
+
+        // Scalar tensors cannot be concatenated.
+        if rank == 0 {
+            return Type::Unknown;
+        }
+
+        let normalized_dim = if dim < 0 {
+            dim + rank as i64
+        } else {
+            dim
+        };
+
+        if normalized_dim < 0 || normalized_dim >= rank as i64 {
+            return Type::Unknown;
+        }
+
+        let dim = normalized_dim as usize;
+
+        let mut result_shape = base.shape.clone();
+        let mut cat_dim = DimType::Known(0);
+
+        for tensor in &tensors {
+            // Special empty (0,) tensors contribute no elements.
+            if is_empty_1d(tensor) {
+                continue;
+            }
+
+            if tensor.shape.len() != rank {
+                return Type::Unknown;
+            }
+
+            for axis in 0..rank {
+                if axis == dim {
+                    continue;
+                }
+
+                if !self.require_dims_equal(
+                    &base.shape[axis],
+                    &tensor.shape[axis],
+                    state,
+                ) {
+                    return Type::Unknown;
+                }
+            }
+
+            cat_dim = match (&cat_dim, &tensor.shape[dim]) {
+                (DimType::Known(a), DimType::Known(b)) => {
+                    DimType::Known(a + b)
+                }
+
+                (DimType::Known(a), DimType::Symbol(b)) => {
+                    DimType::Symbol(
+                        z3::ast::Int::add(&[
+                            &z3::ast::Int::from_i64(*a),
+                            b,
+                        ])
+                    )
+                }
+
+                (DimType::Symbol(a), DimType::Known(b)) => {
+                    DimType::Symbol(
+                        z3::ast::Int::add(&[
+                            a,
+                            &z3::ast::Int::from_i64(*b),
+                        ])
+                    )
+                }
+
+                (DimType::Symbol(a), DimType::Symbol(b)) => {
+                    DimType::Symbol(
+                        z3::ast::Int::add(&[
+                            a,
+                            b,
+                        ])
+                    )
+                }
+
+                _ => DimType::Unknown,
+            };
+        }
+
+        result_shape[dim] = cat_dim;
+
+        let dtypes: Vec<DType> =
+            tensors.iter().map(|tensor| tensor.dtype).collect();
+
+        let dtype = if dtypes
+            .iter()
+            .all(|dtype| *dtype == dtypes[0])
+        {
+            dtypes[0]
+        } else {
+            self.resolve_common_dtype(&dtypes)
+        };
+
+        Type::Tensor(
+            TensorTypeState::Resolved(TensorType {
+                shape: result_shape,
+                dtype,
+            })
+        )
     }
 
-    fn infer_torch_reshape(&mut self, call: &CallIR, program_id: i64, state: &mut FlowState) -> Type {
-        // torch.reshape takes a tensor and shape arguments, returns a tensor
-        // For now, return an unresolved tensor as a placeholder
-        Type::Tensor(TensorTypeState::Unresolved)
+    fn infer_torch_cat(
+        &mut self,
+        call: &CallIR,
+        program_id: i64,
+        state: &mut FlowState,
+    ) -> Type {
+        let Some(tensors_arg) = call.args.first() else {
+            return Type::Unknown;
+        };
+
+        if call.args.len() > 2 {
+            return Type::Unknown;
+        }
+
+        let tensor_types = match tensors_arg {
+            ExprIR::ListExpr(list) => {
+                list.elts
+                    .iter()
+                    .map(|expr| self.parse_expr(
+                        expr,
+                        program_id,
+                        state,
+                    ))
+                    .collect()
+            }
+
+            ExprIR::TupleExpr(tuple) => {
+                tuple.elts
+                    .iter()
+                    .map(|expr| self.parse_expr(
+                        expr,
+                        program_id,
+                        state,
+                    ))
+                    .collect()
+            }
+
+            expr => {
+                match self.parse_expr(expr, program_id, state) {
+                    Type::List(types) | Type::Tuple(types) => types,
+                    _ => return Type::Unknown,
+                }
+            }
+        };
+
+        let positional_dim = call.args.get(1);
+
+        let keyword_dim = call
+            .keywords
+            .iter()
+            .find(|kw| kw.arg.as_deref() == Some("dim"))
+            .map(|kw| &*kw.value);
+
+        // Specifying dim both positionally and by keyword is invalid.
+        if positional_dim.is_some() && keyword_dim.is_some() {
+            return Type::Unknown;
+        }
+
+        let dim_expr = positional_dim.or(keyword_dim);
+
+        let dim = match dim_expr {
+            None => 0,
+
+            Some(ExprIR::Constant(
+                ConstantIR::IntegerLit(integer)
+            )) => {
+                integer.value
+            }
+
+            Some(expr) => {
+                match self.parse_expr(expr, program_id, state) {
+                    Type::Dim(DimType::Known(dim)) => dim,
+
+                    // We know this is still a cat operation and therefore
+                    // returns a tensor, but cannot determine which axis.
+                    Type::Int | Type::Dim(_) => {
+                        return Type::Tensor(
+                            TensorTypeState::Unresolved
+                        );
+                    }
+
+                    _ => return Type::Unknown,
+                }
+            }
+        };
+
+        self.torch_cat_types(
+            &tensor_types,
+            dim,
+            state,
+        )
     }
 
-    fn infer_torch_cat(&mut self, call: &CallIR, program_id: i64, state: &mut FlowState) -> Type {
-        // torch.cat takes a sequence of tensors and dimension argument, returns a tensor
-        // For now, return an unresolved tensor as a placeholder
-        Type::Tensor(TensorTypeState::Unresolved)
+    fn torch_stack_types(
+        &mut self,
+        types: &[Type],
+        dim: i64,
+        state: &mut FlowState,
+    ) -> Type {
+        if types.is_empty() {
+            return Type::Unknown;
+        }
+
+        // Expand FlowUnion inputs one at a time.
+        if let Some((index, union)) = types
+            .iter()
+            .enumerate()
+            .find_map(|(index, ty)| match ty {
+                Type::FlowUnion(union) => Some((index, union)),
+                _ => None,
+            })
+        {
+            let parent_guard = state.guard.clone();
+            let mut results = Vec::new();
+
+            for guarded in union {
+                let branch_guard = z3::ast::Bool::and(&[
+                    &parent_guard,
+                    &guarded.guard,
+                ]);
+
+                state.guard = branch_guard.clone();
+
+                let mut branch_types = types.to_vec();
+                branch_types[index] = guarded.ty.clone();
+
+                let result = self.torch_stack_types(
+                    &branch_types,
+                    dim,
+                    state,
+                );
+
+                match result {
+                    Type::FlowUnion(inner) => {
+                        results.extend(inner);
+                    }
+
+                    ty => {
+                        results.push(GuardedType {
+                            guard: branch_guard,
+                            ty,
+                        });
+                    }
+                }
+            }
+
+            state.guard = parent_guard;
+            return Type::FlowUnion(results);
+        }
+
+        let mut tensors = Vec::with_capacity(types.len());
+
+        for ty in types {
+            match ty {
+                Type::Tensor(TensorTypeState::Resolved(tensor)) => {
+                    tensors.push(tensor);
+                }
+
+                Type::Tensor(TensorTypeState::Unresolved) => {
+                    return Type::Tensor(TensorTypeState::Unresolved);
+                }
+
+                _ => {
+                    return Type::Unknown;
+                }
+            }
+        }
+
+        let first = tensors[0];
+        let rank = first.shape.len();
+
+        // stack inserts a new dimension, so valid positive dims are
+        // 0..=rank. Negative dims range from -(rank + 1)..=-1.
+        let normalized_dim = if dim < 0 {
+            dim + rank as i64 + 1
+        } else {
+            dim
+        };
+
+        if normalized_dim < 0 || normalized_dim > rank as i64 {
+            return Type::Unknown;
+        }
+
+        let dim = normalized_dim as usize;
+
+        // Unlike cat, every input tensor must have exactly the same shape.
+        for tensor in tensors.iter().skip(1) {
+            if tensor.shape.len() != rank {
+                return Type::Unknown;
+            }
+
+            for axis in 0..rank {
+                if !self.require_dims_equal(
+                    &first.shape[axis],
+                    &tensor.shape[axis],
+                    state,
+                ) {
+                    return Type::Unknown;
+                }
+            }
+        }
+
+        let mut result_shape = first.shape.clone();
+
+        result_shape.insert(
+            dim,
+            DimType::Known(tensors.len() as i64),
+        );
+
+        let dtypes: Vec<DType> = tensors
+            .iter()
+            .map(|tensor| tensor.dtype)
+            .collect();
+
+        let dtype = if dtypes
+            .iter()
+            .all(|dtype| *dtype == dtypes[0])
+        {
+            dtypes[0]
+        } else {
+            self.resolve_common_dtype(&dtypes)
+        };
+
+        Type::Tensor(
+            TensorTypeState::Resolved(TensorType {
+                shape: result_shape,
+                dtype,
+            })
+        )
     }
 
-    fn infer_torch_stack(&mut self, call: &CallIR, program_id: i64, state: &mut FlowState) -> Type {
-        // torch.stack takes a sequence of tensors and dimension argument, returns a tensor
-        // For now, return an unresolved tensor as a placeholder
-        Type::Tensor(TensorTypeState::Unresolved)
+    fn infer_torch_stack(
+        &mut self,
+        call: &CallIR,
+        program_id: i64,
+        state: &mut FlowState,
+    ) -> Type {
+        let Some(tensors_arg) = call.args.first() else {
+            return Type::Unknown;
+        };
+
+        if call.args.len() > 2 {
+            return Type::Unknown;
+        }
+
+        let tensor_types = match tensors_arg {
+            ExprIR::ListExpr(list) => {
+                list.elts
+                    .iter()
+                    .map(|expr| {
+                        self.parse_expr(
+                            expr,
+                            program_id,
+                            state,
+                        )
+                    })
+                    .collect()
+            }
+
+            ExprIR::TupleExpr(tuple) => {
+                tuple.elts
+                    .iter()
+                    .map(|expr| {
+                        self.parse_expr(
+                            expr,
+                            program_id,
+                            state,
+                        )
+                    })
+                    .collect()
+            }
+
+            expr => {
+                match self.parse_expr(expr, program_id, state) {
+                    Type::List(types) | Type::Tuple(types) => types,
+                    _ => return Type::Unknown,
+                }
+            }
+        };
+
+        let positional_dim = call.args.get(1);
+
+        let keyword_dim = call
+            .keywords
+            .iter()
+            .find(|kw| kw.arg.as_deref() == Some("dim"))
+            .map(|kw| &*kw.value);
+
+        if positional_dim.is_some() && keyword_dim.is_some() {
+            return Type::Unknown;
+        }
+
+        let dim_expr = positional_dim.or(keyword_dim);
+
+        let dim = match dim_expr {
+            None => 0,
+
+            Some(ExprIR::Constant(
+                ConstantIR::IntegerLit(integer)
+            )) => {
+                integer.value
+            }
+
+            Some(expr) => {
+                match self.parse_expr(expr, program_id, state) {
+                    Type::Dim(DimType::Known(dim)) => dim,
+
+                    Type::Int | Type::Dim(_) => {
+                        return Type::Tensor(
+                            TensorTypeState::Unresolved
+                        );
+                    }
+
+                    _ => return Type::Unknown,
+                }
+            }
+        };
+
+        self.torch_stack_types(
+            &tensor_types,
+            dim,
+            state,
+        )
     }
 
-    fn infer_torch_relu(&mut self, call: &CallIR, program_id: i64, state: &mut FlowState) -> Type {
-        // torch.relu takes a tensor and returns a tensor
-        // For now, return an unresolved tensor as a placeholder
-        Type::Tensor(TensorTypeState::Unresolved)
+    fn infer_torch_relu(
+        &mut self,
+        call: &CallIR,
+        program_id: i64,
+        state: &mut FlowState,
+    ) -> Type {
+        let input = if let Some(input) = call.args.first() {
+            input
+        } else if let Some(keyword) = call
+            .keywords
+            .iter()
+            .find(|kw| kw.arg.as_deref() == Some("input"))
+        {
+            &keyword.value
+        } else {
+            return Type::Unknown;
+        };
+
+        let input_type = self.parse_expr(input, program_id, state);
+
+        match input_type {
+            Type::Tensor(tensor) => {
+                Type::Tensor(tensor)
+            }
+
+            Type::FlowUnion(union) => {
+                let results = union
+                    .into_iter()
+                    .map(|guarded| {
+                        let ty = match guarded.ty {
+                            Type::Tensor(tensor) => {
+                                Type::Tensor(tensor)
+                            }
+
+                            _ => Type::Unknown,
+                        };
+
+                        GuardedType {
+                            guard: guarded.guard,
+                            ty,
+                        }
+                    })
+                    .collect();
+
+                Type::FlowUnion(results)
+            }
+
+            _ => Type::Unknown,
+        }
     }
 
     pub fn parse_expr(
@@ -985,19 +1840,11 @@ impl<'ctx> TypeResolver<'ctx> {
                                 self.infer_torch_matmul(call, program_id, state)
                             }
 
-                            KnownFunction::Torch(TorchFunction::Zeros) => {
+                            KnownFunction::Torch(TorchFunction::Zeros)
+                            | KnownFunction::Torch(TorchFunction::Ones)
+                            | KnownFunction::Torch(TorchFunction::Empty) => {
                                 // infer torch.zeros(...)
-                                self.infer_torch_zeros(call, program_id, state)
-                            }
-
-                            KnownFunction::Torch(TorchFunction::Ones) => {
-                                // infer torch.ones(...)
-                                self.infer_torch_ones(call, program_id, state)
-                            }
-
-                            KnownFunction::Torch(TorchFunction::Empty) => {
-                                // infer torch.empty(...)
-                                self.infer_torch_empty(call, program_id, state)
+                                self.infer_torch_factory_tensor(call, program_id, state)
                             }
 
                             KnownFunction::Torch(TorchFunction::Arange) => {

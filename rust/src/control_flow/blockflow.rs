@@ -1,7 +1,7 @@
 use std::{collections::{HashMap, HashSet, VecDeque}, ops::Deref};
 
 use crate::{control_flow::{
-    basic_block::BasicBlock, bindingstate::BindingState, block_id::BlockID, bound_type::TypedBinding, cfg::Cfg, flowstate::FlowState, graph::Graph, programcfg::ProgramCfg, terminator::Terminator
+    basic_block::BasicBlock, bindingstate::BindingState, block_id::BlockID, bound_type::TypedBinding, cfg::Cfg, cfg_table::CfgTable, flowstate::FlowState, graph::Graph, terminator::Terminator
 }, ir::{expr::{CompareIR, ConstantIR, ExprIR}, nodes::SymbolIR, operator::Operator, stmt::{StmtIR, annassign_ir}}, linker::{program_table::ProgramTable, resolution_table::{self, ResolutionTable}, scope_table::GlobalSymbolTable, symbol_ref::SymbolRef}, type_resolver::type_resolver::TypeResolver, types::types::Type};
 
 pub struct BlockFlow<'ctx> {
@@ -139,11 +139,11 @@ impl<'ctx> BlockFlow<'ctx> {
 
     // for every program, go one by one to resolve CFG instructions Bound, Unbound, MaybeUnbound and their type
     // we want to end up with something like: Bound(int | float), etc., so we need bound status + type inference
-    pub fn analyze_cfg(&mut self, programcfg: &ProgramCfg, symbols: &Vec<SymbolIR>) {
+    pub fn analyze_cfg(&mut self, programcfg: &Cfg, symbols: &Vec<SymbolIR>) {
 
         let entry = BlockID {id: 0};  // start at entry always
 
-        let graph = &programcfg.module;
+        let module = &programcfg.module;
 
         // declare all symbols as Unbound and Unknown first, update their status as we go
         // true guard means the block is reachable
@@ -151,7 +151,7 @@ impl<'ctx> BlockFlow<'ctx> {
 
         for symbol in symbols {
             let symbol_ref = SymbolRef {
-                program_id: programcfg.id,
+                program_id: programcfg.program_id,
                 symbol_id: symbol.id,
             };
 
@@ -170,23 +170,26 @@ impl<'ctx> BlockFlow<'ctx> {
         while let Some(id) = queue.pop_front() {
             queued.remove(&id);
 
-            let block = graph.blocks.get(&id).unwrap();
+            let block = module
+                                            .graph.blocks
+                                            .get(&id)
+                                            .unwrap();
 
             // this just gets IN[B3], which we know from merge(OUT[predecessors])
             let mut state = self.incoming[&id].clone();
 
             for &stmt in &block.statements {
-                self.analyze_stmt(stmt, &mut state, programcfg.id);
+                self.analyze_stmt(stmt, &mut state, programcfg.program_id);
             }
 
-            let successors = graph.get_outgoing_ids(&id);
+            let successors = module.graph.get_outgoing_ids(&id);
 
             // update true and false targets with the guard, true gets "guard" false gets "NOT guard"
             // this helps later for z3 and for error reporting, we can tell the user why something may fail
             match block.terminator.as_ref() {
                 Some(Terminator::Branch(branch)) => {
 
-                    let z3_guard = self.to_z3_bool(&branch.condition, programcfg.id);
+                    let z3_guard = self.to_z3_bool(&branch.condition, programcfg.program_id);
 
                     let mut true_state = state.clone();
 
@@ -216,14 +219,14 @@ impl<'ctx> BlockFlow<'ctx> {
                     );
 
                     self.update_successor(
-                        graph, 
+                        &module.graph, 
                         branch.true_target, 
                         &mut queue,
                         &mut queued
                     );
 
                     self.update_successor(
-                        graph, 
+                        &module.graph, 
                         branch.false_target, 
                         &mut queue,
                         &mut queued
@@ -238,7 +241,7 @@ impl<'ctx> BlockFlow<'ctx> {
                         );
 
                         self.update_successor(
-                            graph, 
+                            &module.graph, 
                             successor, 
                             &mut queue,
                             &mut queued
@@ -309,7 +312,7 @@ impl<'ctx> BlockFlow<'ctx> {
         }
     }
 
-    pub fn build(&mut self, cfg: &Cfg, programs: &ProgramTable) {
+    pub fn build(&mut self, cfg: &CfgTable, programs: &ProgramTable) {
         for (id, programcfg) in &cfg.programs {
             self.analyze_cfg(
                 programcfg,

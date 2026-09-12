@@ -1,30 +1,43 @@
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
-use crate::{
-    control_flow::{
-        block_id::{
-            BlockID, 
-        }, graph::Graph, programcfg::ProgramCfg,
-    }, ir::stmt::StmtIR, linker::program_table::ProgramTable
-};
+use crate::{control_flow::{block_id::{BlockID, ClassID, FunctionID}, class_cfg::ClassCfg, function_cfg::FunctionCfg, graph::Graph, module_cfg::ModuleCfg}, ir::stmt::StmtIR};
 
-pub struct Cfg<'a> { // check if we can't make it usize, or does this require a huge refactor ?
-    pub programs: HashMap<i64, ProgramCfg<'a>>,
+
+
+pub struct Cfg<'a> {
+    pub module: ModuleCfg<'a>,
+    pub functions: HashMap<FunctionID, FunctionCfg<'a>>,
+    pub classes: HashMap<ClassID, ClassCfg<'a>>,
+
+    pub current_function_id: usize,
+    pub current_class_id: usize,
+    pub program_id: i64,  // copy of ProgramTable's own ID, needed for SymbolRef creation
 }
 
-// !! CFG just wants to BUILD the graph, doesn't care WHICH path execution takes, only models all paths
 impl<'a> Cfg<'a> {
-    pub fn new() -> Self {
+    pub fn new(id: i64) -> Self {
         Self {
-            programs: HashMap::new(),
+            module: ModuleCfg { graph: Graph::new() },
+            functions: HashMap::new(),
+            classes: HashMap::new(),
+            current_class_id: 0,
+            current_function_id: 0,
+            program_id: id,
         }
     }
 
-    pub fn build(&mut self, programs: &'a ProgramTable) {
-        for (pid, program) in &programs.by_id {
-            let mut program_cfg = ProgramCfg::new(*pid); // give to build SymbolRef during merges
-            program_cfg.build_program(&program.body);
-            self.programs.insert(*pid, program_cfg);
-        }
+    pub fn build_program(&mut self, body: &'a [StmtIR]) {
+        let mut module_graph = Graph::new();
+
+        module_graph.build(
+            self,
+            vec![BlockID { id: 0 }],
+            body,
+            None,
+        );
+
+        self.module = ModuleCfg {
+            graph: module_graph,
+        };
     }
 }

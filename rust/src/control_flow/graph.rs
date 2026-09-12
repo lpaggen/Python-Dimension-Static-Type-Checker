@@ -2,10 +2,10 @@ use std::collections::HashMap;
 
 use crate::{
     control_flow::{
-        basic_block::BasicBlock, block_id::{BlockID, ClassID, FunctionID}, branch::Branch, cfg::Cfg, fornext::Next, loopctx::LoopContext, matcharm::{
+        basic_block::BasicBlock, block_id::{BlockID, ClassID, FunctionID}, branch::Branch, class_cfg::ClassCfg, fornext::Next, function_cfg::FunctionCfg, loopctx::LoopContext, matcharm::{
             Match, 
             MatchArm
-        }, programcfg::ProgramCfg, raise::Raise, terminator::Terminator
+        }, cfg::Cfg, raise::Raise, terminator::Terminator
     }, ir::stmt::{FunctionDefIR, StmtIR}
 };
 
@@ -41,7 +41,7 @@ impl<'a> Graph<'a> {
 
     pub fn build(
         &mut self,
-        cfg: &mut ProgramCfg<'a>,  // so we can push to modules and functions and classes 
+        cfg: &mut Cfg<'a>,  // so we can push to modules and functions and classes 
         mut current: Vec<BlockID>,
         body: &'a [StmtIR],
         loop_ctx: Option<LoopContext>,
@@ -296,16 +296,16 @@ impl<'a> Graph<'a> {
                     };
                     cfg.current_class_id += 1;
 
-                    let mut class_graph = Graph::new();
+                    let mut class_cfg = ClassCfg::new();
 
-                    class_graph.build(
+                    class_cfg.graph.build(
                         cfg,
                         vec![BlockID { id: 0 }],
                         &classdef_stmt.body,
                         None,
                     );
 
-                    cfg.classes.insert(class_id, class_graph);
+                    cfg.classes.insert(class_id, class_cfg);
                 }
 
                 // !! this is its own CFG, with its own ID
@@ -319,9 +319,12 @@ impl<'a> Graph<'a> {
                     };
                     cfg.current_function_id += 1;
 
-                    let mut function_graph = Graph::new();
+                    let mut function_cfg = FunctionCfg::new(
+                        functiondef_stmt.args.clone(),
+                        functiondef_stmt.returns.clone(),
+                    );
 
-                    let exits = function_graph.build(
+                    let exits = function_cfg.graph.build(
                         cfg,
                         vec![BlockID { id: 0 }],
                         &functiondef_stmt.body,
@@ -329,13 +332,14 @@ impl<'a> Graph<'a> {
                     );
 
                     for exit in exits {
-                        function_graph.set_terminator(
+                        function_cfg.graph.set_terminator(
                             exit,
                             Terminator::Return(None),
                         );
                     }
 
-                    cfg.functions.insert(function_id, function_graph);
+                    cfg.functions.insert(function_id, function_cfg);
+
                 }
 
                 // StmtIR::ExprStmt(exprstmt_ir) => {

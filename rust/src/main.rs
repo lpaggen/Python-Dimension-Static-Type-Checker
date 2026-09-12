@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use crate::control_flow::blockflow::BlockFlow;
-use crate::control_flow::programcfg::ProgramCfg;
+use crate::control_flow::cfg_table::CfgTable;
 use crate::diagnostic::diagnostic::Diagnostic;
 use crate::ir::program_ir::ProgramIR;
 use crate::linker::scope_table::GlobalSymbolTable;
@@ -64,7 +64,7 @@ fn main() -> Result<(), Vec<Diagnostic>> {
     // println!("symbol types:    {:?}", start.elapsed());
 
      let start = Instant::now();
-     let mut cfg = Cfg::new();
+     let mut cfg = CfgTable::new();
      cfg.build(&table);
      println!("cfg:             {:?}", start.elapsed());
      
@@ -72,8 +72,8 @@ fn main() -> Result<(), Vec<Diagnostic>> {
      println!("=== CFG Information ===");
      for (program_id, program_cfg) in &cfg.programs {
          println!("Program ID: {}", program_id);
-         println!("Blocks: {:?}", program_cfg.module.blocks.len());
-         for (block_id, block) in &program_cfg.module.blocks {
+         println!("Blocks: {:?}", program_cfg.module.graph.blocks.len());
+         for (block_id, block) in &program_cfg.module.graph.blocks {
              println!("  Block {}: {} statements", block_id.id, block.statements.len());
          }
      }

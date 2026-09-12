@@ -313,7 +313,11 @@ impl<'ctx> BlockFlow<'ctx> {
         for (id, programcfg) in &cfg.programs {
             self.analyze_cfg(
                 programcfg,
-                &programs.by_id.get(id).unwrap().symbols
+                &programs
+                    .by_id
+                    .get(id)
+                    .unwrap()
+                    .symbols
             );
         }
     }

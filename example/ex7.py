@@ -13,8 +13,11 @@
 import torch
 
 
-def foo():
-    pass
+x = 5
+
+def foo(a: int, b) -> int:
+    c = 3
+    return a
 
 cond = foo()
 

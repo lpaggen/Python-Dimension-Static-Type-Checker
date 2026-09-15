@@ -296,7 +296,7 @@ impl<'a> Graph<'a> {
                     };
                     cfg.current_class_id += 1;
 
-                    let mut class_cfg = ClassCfg::new();
+                    let mut class_cfg = ClassCfg::new(classdef_stmt.body_scope_id);
 
                     class_cfg.graph.build(
                         cfg,
@@ -322,6 +322,7 @@ impl<'a> Graph<'a> {
                     let mut function_cfg = FunctionCfg::new(
                         functiondef_stmt.args.clone(),
                         functiondef_stmt.returns.clone(),
+                        functiondef_stmt.body_scope_id
                     );
 
                     let exits = function_cfg.graph.build(

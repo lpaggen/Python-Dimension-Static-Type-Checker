@@ -1,7 +1,6 @@
 use std::fs;
 use std::io;
 use std::path::PathBuf;
-use std::time::Instant;
 
 use crate::ir::expr_ir::ConstantIR;
 use crate::ir::nodes::match_ir::MatchCaseIR;
@@ -62,11 +61,8 @@ impl PBDecoder {
     }
 
     pub fn decode_file(path: &PathBuf) -> Result<ProgramIR, Box<dyn std::error::Error + Send + Sync>> {
-        let t = Instant::now();
         let bytes = fs::read(path)?;
-        println!("  read: {:?}", t.elapsed());
 
-        let t = Instant::now();
         let pb_program = pb::ProgramIr::decode(bytes.as_slice()).map_err(|error| {
             io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -76,9 +72,6 @@ impl PBDecoder {
                 ),
             )
         })?;
-        println!("  protobuf: {:?}", t.elapsed());
-
-        let t = Instant::now();
 
         let scopes = pb_program.scopes.iter().map(Self::convert_scope).collect();
 
@@ -108,8 +101,6 @@ impl PBDecoder {
                     ),
                 )
             })?;
-
-        println!("  conversion: {:?}", t.elapsed());
         
         Ok(ProgramIR {
             module_name: pb_program.module_name,
@@ -157,47 +148,6 @@ impl PBDecoder {
             span: Self::convert_optional_span(&import.span),
         }
     }
-
-    // fn convert_annotation(
-    //     annotation: &pb::AnnotationIr,
-    // ) -> Result<AnnotationIR, Box<dyn std::error::Error>> {
-    //     let head = match &annotation.head {
-    //         Some(head) => Self::convert_annotation_head(head)?,
-    //         None => return Err("missing annotation head".into()),
-    //     };
-
-    //     let mut args = Vec::new();
-
-    //     for arg in &annotation.args {
-    //         args.push(Self::convert_expr(arg)?);
-    //     }
-
-    //     Ok(AnnotationIR { head, args })
-    // }
-
-    // fn convert_annotation_head(
-    //     head: &pb::AnnotationHeadIr,
-    // ) -> Result<AnnotationHeadIR, Box<dyn std::error::Error>> {
-    //     let mut attrs: Vec<String> = Vec::new();
-
-    //     for attr in &head.attrs {
-    //         attrs.push(attr.clone());
-    //     }
-
-    //     let scope_id = match head.scope_id {
-    //         Some(scope_id) => scope_id,
-    //         None => return Err("annotation head has no scope_id".into()),
-    //     };
-
-    //     let span = Self::convert_optional_span(&head.span);
-
-    //     Ok(AnnotationHeadIR {
-    //         root: head.root.clone(),
-    //         attrs,
-    //         scope_id,
-    //         span,
-    //     })
-    // }
 
     fn convert_param(param: &pb::ArgIr) -> Result<ArgIR, Box<dyn std::error::Error>> {
         Ok(ArgIR {

@@ -17,7 +17,10 @@ pub struct Cfg<'a> {
 impl<'a> Cfg<'a> {
     pub fn new(id: i64) -> Self {
         Self {
-            module: ModuleCfg { graph: Graph::new() },
+            module: ModuleCfg { 
+                graph: Graph::new(),
+                scope_id: 0 // ?
+            },
             functions: HashMap::new(),
             classes: HashMap::new(),
             current_class_id: 0,
@@ -38,6 +41,7 @@ impl<'a> Cfg<'a> {
 
         self.module = ModuleCfg {
             graph: module_graph,
+            scope_id: 0,  // ? 
         };
     }
 }

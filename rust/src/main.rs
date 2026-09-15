@@ -8,10 +8,7 @@ use crate::linker::scope_table::GlobalSymbolTable;
 use crate::linker::import_graph::ImportGraph;
 use crate::linker::program_table::ProgramTable;
 use crate::linker::resolution_table::ResolutionTable;
-// use crate::type_resolver::symbol_type_table::SymbolTypeTable;
-// use crate::type_resolver::type_resolver::TypeResolver;
 use crate::pb_decoder::pb_decoder::PBDecoder;
-use crate::control_flow::cfg::Cfg;
 use crate::type_resolver::type_resolver::TypeResolver;
 
 mod diagnostic;
@@ -67,17 +64,6 @@ fn main() -> Result<(), Vec<Diagnostic>> {
      let mut cfg = CfgTable::new();
      cfg.build(&table);
      println!("cfg:             {:?}", start.elapsed());
-     
-     // Print CFG information
-     println!("=== CFG Information ===");
-     for (program_id, program_cfg) in &cfg.programs {
-         println!("Program ID: {}", program_id);
-         println!("Blocks: {:?}", program_cfg.module.graph.blocks.len());
-         for (block_id, block) in &program_cfg.module.graph.blocks {
-             println!("  Block {}: {} statements", block_id.id, block.statements.len());
-         }
-     }
-     println!("=======================");
 
     let start = Instant::now();
     let mut flow = BlockFlow::new(

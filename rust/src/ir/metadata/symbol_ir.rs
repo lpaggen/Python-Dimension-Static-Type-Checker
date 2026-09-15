@@ -9,7 +9,7 @@ pub struct SymbolIR {
     pub span: Option<SourceSpan>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum SymbolKind {
     Unknown,
     Variable,

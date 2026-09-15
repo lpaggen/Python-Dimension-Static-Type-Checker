@@ -1,8 +1,8 @@
 use std::{collections::{HashMap, HashSet, VecDeque}, ops::Deref};
 
 use crate::{control_flow::{
-    basic_block::BasicBlock, bindingstate::BindingState, block_id::BlockID, bound_type::TypedBinding, cfg::Cfg, cfg_table::CfgTable, flowstate::FlowState, graph::Graph, terminator::Terminator
-}, ir::{expr::{CompareIR, ConstantIR, ExprIR}, nodes::SymbolIR, operator::Operator, stmt::{StmtIR, annassign_ir}}, linker::{program_table::ProgramTable, resolution_table::{self, ResolutionTable}, scope_table::GlobalSymbolTable, symbol_ref::SymbolRef}, type_resolver::type_resolver::TypeResolver, types::types::Type};
+    basic_block::BasicBlock, bindingstate::BindingState, block_id::BlockID, bound_type::TypedBinding, cfg::Cfg, cfg_table::CfgTable, class_cfg::ClassCfg, flowstate::FlowState, function_cfg::FunctionCfg, graph::Graph, module_cfg::ModuleCfg, terminator::Terminator
+}, ir::{expr::{ConstantIR, ExprIR}, nodes::{SymbolIR, SymbolKind}, operator::Operator, stmt::StmtIR}, linker::{program_table::ProgramTable, resolution_table::{self, ResolutionTable}, scope_table::GlobalSymbolTable, symbol_ref::SymbolRef}, type_resolver::type_resolver::TypeResolver, types::types::Type};
 
 pub struct BlockFlow<'ctx> {
     pub incoming: HashMap<BlockID, FlowState>,
@@ -137,26 +137,118 @@ impl<'ctx> BlockFlow<'ctx> {
         }
     }
 
-    // for every program, go one by one to resolve CFG instructions Bound, Unbound, MaybeUnbound and their type
-    // we want to end up with something like: Bound(int | float), etc., so we need bound status + type inference
-    pub fn analyze_cfg(&mut self, programcfg: &Cfg, symbols: &Vec<SymbolIR>) {
-
-        let entry = BlockID {id: 0};  // start at entry always
-
-        let module = &programcfg.module;
-
-        // declare all symbols as Unbound and Unknown first, update their status as we go
-        // true guard means the block is reachable
-        let mut entry_state = FlowState::new(z3::ast::Bool::from_bool(true));
+    fn analyze_module(
+        &mut self,
+        program_id: i64,
+        module: &ModuleCfg,
+        symbols: &[SymbolIR],
+    ) {
+        let mut state = FlowState::new(z3::ast::Bool::from_bool(true));
 
         for symbol in symbols {
             let symbol_ref = SymbolRef {
-                program_id: programcfg.program_id,
+                program_id,
                 symbol_id: symbol.id,
             };
 
-            entry_state.register_unbound(&symbol_ref);
+            state.register_unbound(&symbol_ref);
         }
+
+        self.analyze_body(
+            program_id,
+            &module.graph,
+            state,
+        );
+    }
+
+    fn analyze_function(
+        &mut self,
+        program_id: i64,
+        function: &FunctionCfg,
+        symbols: &[SymbolIR],
+    ) {
+        let mut state = FlowState::new(z3::ast::Bool::from_bool(true));
+
+        for symbol in symbols {
+            if symbol.scope_id != function.scope_id {
+                continue;
+            }
+
+            let symbol_ref = SymbolRef {
+                program_id,
+                symbol_id: symbol.id,
+            };
+
+            state.register_unbound(&symbol_ref);
+        }
+
+        for param in &function.params {
+            // find the corresponding SymbolIR
+            let symbol = symbols
+                .iter()
+                .find(|symbol| {
+                    symbol.kind == SymbolKind::Param
+                        && symbol.name == param.arg
+                })
+                .expect("function parameter missing SymbolIR");
+
+            let symbol_ref = SymbolRef {
+                program_id,
+                symbol_id: symbol.id,
+            };
+
+            let param_type = match &param.annotation {
+                Some(expr) => {
+                    self.type_resolver
+                        .parse_annotation(expr, program_id)
+                }
+
+                None => Type::Unknown,
+            };
+
+            state.bind(
+                &symbol_ref,
+                param_type,
+            );
+        }
+
+        self.analyze_body(
+            program_id,
+            &function.graph,
+            state,
+        );
+    }
+
+    fn analyze_class(
+        &mut self,
+        program_id: i64,
+        class: &ClassCfg,
+        symbols: &[SymbolIR],
+    ) {
+        let mut state =
+            FlowState::new(z3::ast::Bool::from_bool(true));
+
+        for symbol in symbols {
+            let symbol_ref = SymbolRef {
+                program_id,
+                symbol_id: symbol.id,
+            };
+
+            state.register_unbound(&symbol_ref);
+        }
+
+        self.analyze_body(
+            program_id,
+            &class.graph,
+            state,
+        );
+    }
+
+    // for every program, go one by one to resolve CFG instructions Bound, Unbound, MaybeUnbound and their type
+    // we want to end up with something like: Bound(int | float), etc., so we need bound status + type inference
+    pub fn analyze_body(&mut self, program_id: i64, graph: &Graph, entry_state: FlowState) {
+
+        let entry = BlockID {id: 0};  // start at entry always
 
         self.incoming.insert(entry, entry_state);
 
@@ -170,8 +262,8 @@ impl<'ctx> BlockFlow<'ctx> {
         while let Some(id) = queue.pop_front() {
             queued.remove(&id);
 
-            let block = module
-                                            .graph.blocks
+            let block = graph
+                                            .blocks
                                             .get(&id)
                                             .unwrap();
 
@@ -179,17 +271,17 @@ impl<'ctx> BlockFlow<'ctx> {
             let mut state = self.incoming[&id].clone();
 
             for &stmt in &block.statements {
-                self.analyze_stmt(stmt, &mut state, programcfg.program_id);
+                self.analyze_stmt(stmt, &mut state, program_id);
             }
 
-            let successors = module.graph.get_outgoing_ids(&id);
+            let successors = graph.get_outgoing_ids(&id);
 
             // update true and false targets with the guard, true gets "guard" false gets "NOT guard"
             // this helps later for z3 and for error reporting, we can tell the user why something may fail
             match block.terminator.as_ref() {
                 Some(Terminator::Branch(branch)) => {
 
-                    let z3_guard = self.to_z3_bool(&branch.condition, programcfg.program_id);
+                    let z3_guard = self.to_z3_bool(&branch.condition, program_id);
 
                     let mut true_state = state.clone();
 
@@ -219,14 +311,14 @@ impl<'ctx> BlockFlow<'ctx> {
                     );
 
                     self.update_successor(
-                        &module.graph, 
+                        &graph, 
                         branch.true_target, 
                         &mut queue,
                         &mut queued
                     );
 
                     self.update_successor(
-                        &module.graph, 
+                        &graph, 
                         branch.false_target, 
                         &mut queue,
                         &mut queued
@@ -241,7 +333,7 @@ impl<'ctx> BlockFlow<'ctx> {
                         );
 
                         self.update_successor(
-                            &module.graph, 
+                            &graph, 
                             successor, 
                             &mut queue,
                             &mut queued
@@ -313,15 +405,35 @@ impl<'ctx> BlockFlow<'ctx> {
     }
 
     pub fn build(&mut self, cfg: &CfgTable, programs: &ProgramTable) {
-        for (id, programcfg) in &cfg.programs {
-            self.analyze_cfg(
-                programcfg,
-                &programs
-                    .by_id
-                    .get(id)
-                    .unwrap()
-                    .symbols
+        for (id, program_cfg) in &cfg.programs {
+            let program = programs
+                .by_id
+                .get(id)
+                .expect("CFG exists without corresponding ProgramIR");
+
+            self.analyze_module(
+                *id,
+                &program_cfg.module,
+                &program.symbols,
             );
+
+            for (_function_id, function_cfg) in &program_cfg.functions {
+                self.analyze_function(
+                    *id,
+                    function_cfg,
+                    &program.symbols,
+                );
+            }
+
+            for (class_id, class_cfg) in &program_cfg.classes {
+                println!("\n--- CLASS {:?} ---", class_id);
+
+                self.analyze_class(
+                    *id,
+                    class_cfg,
+                    &program.symbols,
+                );
+            }
         }
     }
 }

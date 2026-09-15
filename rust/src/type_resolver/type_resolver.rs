@@ -2326,7 +2326,7 @@ impl<'ctx> TypeResolver<'ctx> {
             },
 
             _ => {
-                panic!()
+                panic!("sound the alarm, the type resolver crashed")
             }
         }
     }

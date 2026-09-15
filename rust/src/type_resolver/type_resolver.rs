@@ -2238,7 +2238,6 @@ impl<'ctx> TypeResolver<'ctx> {
                 "str" => Type::String,
                 "bool" => Type::Bool,
                 "bytes" => Type::Bytes,
-                "None" => Type::None,
 
                 _ => {
                     // resolve user-defined/imported type name
@@ -2246,6 +2245,8 @@ impl<'ctx> TypeResolver<'ctx> {
                     self.resolve_annotation_name(program_id, name)
                 }
             },
+
+            ExprIR::Constant(_) => Type::None,
 
             ExprIR::BinOpExpr(binop) if matches!(binop.op, Operator::BitOr) => {
                 let left = self.parse_annotation(&binop.left, program_id);

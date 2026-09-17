@@ -1853,8 +1853,28 @@ impl<'ctx> TypeResolver<'ctx> {
             ExprIR::Call(call) => {
                 match &*call.func {
                     ExprIR::Name(name) => {
-                        // foo()
-                        Type::Unknown
+                        // foo(...)
+                        let callee_ty =
+                            self.parse_expr(&call.func, program_id, state);
+
+                        // TODO mark difference between user defined and built-ins
+                        match callee_ty {
+                            Type::Function(function_id) => {
+                                println!(
+                                    "calling function {} -> {:?}",
+                                    name.id,
+                                    function_id
+                                );
+
+                                // TODO:
+                                // find and resolve FunctionCFG
+                                // BUT we don't want this here, big refactor is needed
+
+                                Type::Unknown
+                            }
+
+                            _ => Type::Unknown,
+                        }
                     }
 
                     ExprIR::Attribute(attr) => {
@@ -1933,6 +1953,22 @@ impl<'ctx> TypeResolver<'ctx> {
                     ExprIR::IfExp(ifexp) => {
                         // (a if cond else b)()
                         Type::Unknown
+                    }
+
+                    ExprIR::Name(name) => {
+                        let symbol_ref = self.symbols
+                            .lookup_by_name(
+                                program_id,
+                                name.use_scope_id,
+                                &name.id,
+                            )
+                            .unwrap();
+
+                        state
+                            .by_ref
+                            .get(&symbol_ref)
+                            .map(|binding| binding.ty.clone())
+                            .unwrap_or(Type::Unknown)
                     }
 
                     _ => {

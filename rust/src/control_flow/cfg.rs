@@ -2,8 +2,6 @@ use std::collections::HashMap;
 
 use crate::{control_flow::{block_id::{BlockID, ClassID, FunctionID}, class_cfg::ClassCfg, function_cfg::FunctionCfg, graph::Graph, module_cfg::ModuleCfg}, ir::stmt::StmtIR};
 
-
-
 pub struct Cfg<'a> {
     pub module: ModuleCfg<'a>,
     pub functions: HashMap<FunctionID, FunctionCfg<'a>>,

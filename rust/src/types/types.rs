@@ -1,4 +1,4 @@
-use crate::linker::symbol_ref::SymbolRef;
+use crate::{control_flow::block_id::FunctionID, linker::symbol_ref::SymbolRef};
 
 // to do rename all to *Type for clarity
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
@@ -13,7 +13,8 @@ pub enum Type {
     None,
     Tuple(Vec<Type>),
     List(Vec<Type>),
-    Callable(CallableType), // functions
+    Callable(CallableType), // functions, NOT USER DEFINED
+    Function(FunctionID),  // user defined, state already knows everything, just query
     Class(ClassType),
     Dim(DimType),
     Union(Vec<Type>),  // mainly for logical unions, -> x: int | None -> Union(int, None)

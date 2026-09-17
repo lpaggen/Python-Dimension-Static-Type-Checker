@@ -15,8 +15,9 @@ import torch
 
 x = 5
 
-def foo(a: int, b) -> int:
-    c = 3
+def foo(a: torch.Tensor, b: torch.Tensor, cond: bool):
+    if cond:
+        return torch.matmul(a, b)
     return a
 
 cond = foo()

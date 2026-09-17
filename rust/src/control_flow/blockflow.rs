@@ -1,12 +1,17 @@
 use std::{collections::{HashMap, HashSet, VecDeque}, ops::Deref};
 
+use z3::ast::Ast;
+
 use crate::{control_flow::{
-    basic_block::BasicBlock, bindingstate::BindingState, block_id::BlockID, bound_type::TypedBinding, cfg::Cfg, cfg_table::CfgTable, class_cfg::ClassCfg, flowstate::FlowState, function_cfg::FunctionCfg, graph::Graph, module_cfg::ModuleCfg, terminator::Terminator
-}, ir::{expr::{ConstantIR, ExprIR}, nodes::{SymbolIR, SymbolKind}, operator::Operator, stmt::StmtIR}, linker::{program_table::ProgramTable, resolution_table::{self, ResolutionTable}, scope_table::GlobalSymbolTable, symbol_ref::SymbolRef}, type_resolver::type_resolver::TypeResolver, types::types::Type};
+    basic_block::BasicBlock, bindingstate::BindingState, block_id::{BlockID, FunctionID}, bound_type::TypedBinding, cfg::Cfg, cfg_table::CfgTable, class_cfg::ClassCfg, flowstate::FlowState, function_cfg::FunctionCfg, function_contract::{FunctionContract, GuardedReturn}, graph::Graph, module_cfg::ModuleCfg, terminator::Terminator
+}, ir::{arg::ArgKind, expr::{ConstantIR, ExprIR}, nodes::{SymbolIR, SymbolKind}, operator::Operator, stmt::StmtIR}, linker::{program_table::ProgramTable, resolution_table::{self, ResolutionTable}, scope_table::GlobalSymbolTable, symbol_ref::SymbolRef}, type_resolver::type_resolver::TypeResolver, types::types::{GuardedType, Type}};
 
 pub struct BlockFlow<'ctx> {
     pub incoming: HashMap<BlockID, FlowState>,
     pub edge_states: HashMap<(BlockID, BlockID), FlowState>,  // necessary to preserve conditional guards on branches
+    pub block_out: HashMap<BlockID, FlowState>,
+
+    pub function_contracts: HashMap<FunctionID, FunctionContract>,
 
     symbols: &'ctx GlobalSymbolTable,
 
@@ -18,6 +23,8 @@ impl<'ctx> BlockFlow<'ctx> {
         Self {
             incoming: HashMap::new(),
             edge_states: HashMap::new(),
+            function_contracts: HashMap::new(),
+            block_out: HashMap::new(),
             type_resolver,
             symbols: symbol_table,
         }
@@ -161,9 +168,57 @@ impl<'ctx> BlockFlow<'ctx> {
         );
     }
 
+    // fn populate_function_contract(&self, program_id: i64, function: &FunctionCfg, contract: &FunctionContract) -> FunctionContract {
+    //     // first parse the ArgIR into the Type
+    //     // let mut arg_types: Vec<Type> = Vec::new();
+    //     // for arg in &function.params {
+    //     //     match arg.kind {
+
+    //     //         // simplest case, def foo(a, b), or def foo(a:int, b: int)
+    //     //         ArgKind::PositionalOnly => {
+    //     //             let param_type = Type::Unknown;
+
+    //     //             let annotation = match &arg.annotation {
+    //     //                 Some(expr) => {
+    //     //                     self.type_resolver
+    //     //                         .parse_annotation(expr, program_id)
+    //     //                 }
+
+    //     //                 None => Type::Unknown,
+    //     //             };
+
+    //     //             arg_types.push(annotation);
+
+    //     //         },
+
+    //     //         ArgKind::PositionalOrKeyword => todo!(),
+
+    //     //         ArgKind::VarPositional => todo!(),
+
+    //     //         ArgKind::KeywordOnly => todo!(),
+
+    //     //         ArgKind::VarKeyword => todo!(),
+    //     //     }
+
+
+    //     }
+
+    //     // !!! TODO be careful, the type should not default to unknown, we need to check the return statements for more info
+    //     // then all the k-CFA stuff  .. 
+    //     // let return_type = match &function.returns {
+    //     //     Some(expr) => self.type_resolver.parse_expr(expr, program_id, state),
+    //     //     None => Type::Unknown,
+    //     // };
+
+
+
+    //     FunctionContract { params: (), return_type, constraints: None }
+    // }
+
     fn analyze_function(
         &mut self,
         program_id: i64,
+        function_id: FunctionID,
         function: &FunctionCfg,
         symbols: &[SymbolIR],
     ) {
@@ -182,19 +237,12 @@ impl<'ctx> BlockFlow<'ctx> {
             state.register_unbound(&symbol_ref);
         }
 
-        for param in &function.params {
-            // find the corresponding SymbolIR
-            let symbol = symbols
-                .iter()
-                .find(|symbol| {
-                    symbol.kind == SymbolKind::Param
-                        && symbol.name == param.arg
-                })
-                .expect("function parameter missing SymbolIR");
+        let mut contract = FunctionContract::new();
 
+        for param in &function.params {
             let symbol_ref = SymbolRef {
                 program_id,
-                symbol_id: symbol.id,
+                symbol_id: param.symbol_id,
             };
 
             let param_type = match &param.annotation {
@@ -206,19 +254,84 @@ impl<'ctx> BlockFlow<'ctx> {
                 None => Type::Unknown,
             };
 
+            // ugly? but it works, contract is just a cheap copy made to pass to callers either way]
+            // TODO double check logic here
+            contract.params.push(param_type.clone());
+
             state.bind(
                 &symbol_ref,
                 param_type,
             );
         }
 
+        // !! be mindful of the fact that there is whatever the user DECLARED, and what actually gets returned
+        // this is the former.
+        contract.declared_return_type = match &function.returns {
+            Some(expr) => self.type_resolver.parse_annotation(expr, program_id),
+            None => Type::Unknown,
+        };
+
         self.analyze_body(
             program_id,
             &function.graph,
             state,
         );
+
+        // check actual return statements, might move to a new function (if we want asyncdef etc support, lambdas maybe) TODO
+        let mut returns = Vec::new();
+
+        for (block_id, block) in &function.graph.blocks {
+            let Some(Terminator::Return(ret)) = &block.terminator else {
+                continue;
+            };
+
+            let Some(return_state) = self.block_out.get(block_id) else {
+                continue; // unreachable
+            };
+
+            let mut return_state = return_state.clone();
+
+            let return_type = match ret {
+                Some(expr) => {
+                    self.type_resolver
+                        .parse_expr(expr, program_id, &mut return_state)
+                }
+
+                None => Type::None,
+            };
+
+            returns.push(GuardedReturn {
+                guard: return_state.guard.simplify(),
+                ty: return_type,
+                constraints: return_state
+                    .constraints
+                    .iter()
+                    .map(|c| c.simplify())
+                    .collect(),
+            });
+        }
+
+        contract.returns = returns;
+
+        // TODO. + add logic for dynamic CFG reconstruction, somehow. ie enter function with weak contract -> update constraints on the fly
+        // self.populate_function_contract(
+        //     program_id,
+        //     function,
+        //     &mut contract,
+        // );
+
+        // TODO see if this makes sense
+        // contract.constraints = state.constraints.clone();
+
+        println!("{:?}", contract);
+
+        self.function_contracts.insert(
+            function_id,
+            contract,
+        );
     }
 
+    // TODO further improve, this is a skeleton
     fn analyze_class(
         &mut self,
         program_id: i64,
@@ -274,11 +387,15 @@ impl<'ctx> BlockFlow<'ctx> {
                 self.analyze_stmt(stmt, &mut state, program_id);
             }
 
+            self.block_out.insert(id, state.clone());
+
             let successors = graph.get_outgoing_ids(&id);
 
             // update true and false targets with the guard, true gets "guard" false gets "NOT guard"
             // this helps later for z3 and for error reporting, we can tell the user why something may fail
             match block.terminator.as_ref() {
+                Some(Terminator::Return(Some(_))) => {}
+
                 Some(Terminator::Branch(branch)) => {
 
                     let z3_guard = self.to_z3_bool(&branch.condition, program_id);
@@ -351,6 +468,23 @@ impl<'ctx> BlockFlow<'ctx> {
         program_id: i64,
     ) {
         match stmt {
+            StmtIR::Function(function) => {
+                // let return_type = match &function.returns {
+                //     Some(ret) => self.type_resolver.parse_annotation(ret, program_id),
+                //     None => Type::Unknown,
+                // };
+
+                let symbol_ref = self.symbols.lookup_by_name(program_id, function.scope_id, &function.name).unwrap();
+
+                let function_id = FunctionID {id: function.id};
+
+                state.bind(
+                    &symbol_ref,
+                    Type::Function(function_id));
+
+                // and all the rest we need to do
+            }
+
             StmtIR::Assign(assign) => {
                 let value_type =
                     self.type_resolver
@@ -417,17 +551,16 @@ impl<'ctx> BlockFlow<'ctx> {
                 &program.symbols,
             );
 
-            for (_function_id, function_cfg) in &program_cfg.functions {
+            for (function_id, function_cfg) in &program_cfg.functions {
                 self.analyze_function(
                     *id,
+                    *function_id,
                     function_cfg,
                     &program.symbols,
                 );
             }
 
-            for (class_id, class_cfg) in &program_cfg.classes {
-                println!("\n--- CLASS {:?} ---", class_id);
-
+            for (_class_id, class_cfg) in &program_cfg.classes {
                 self.analyze_class(
                     *id,
                     class_cfg,

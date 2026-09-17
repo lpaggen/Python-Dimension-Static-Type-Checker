@@ -292,9 +292,9 @@ impl<'a> Graph<'a> {
                     }
 
                     let class_id = ClassID {
-                        id: cfg.current_class_id,
+                        id: classdef_stmt.id,
                     };
-                    cfg.current_class_id += 1;
+                    // cfg.current_class_id += 1;
 
                     let mut class_cfg = ClassCfg::new(classdef_stmt.body_scope_id);
 
@@ -315,9 +315,9 @@ impl<'a> Graph<'a> {
                     }
 
                     let function_id = FunctionID {
-                        id: cfg.current_function_id,
+                        id: functiondef_stmt.id,
                     };
-                    cfg.current_function_id += 1;
+                    // cfg.current_function_id += 1;
 
                     let mut function_cfg = FunctionCfg::new(
                         functiondef_stmt.args.clone(),

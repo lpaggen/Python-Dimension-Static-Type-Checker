@@ -18,3 +18,6 @@ pub mod module_cfg;
 pub mod cfg_table;
 pub mod function_contract;
 pub mod functioncontract_table;
+pub mod call_binding;
+pub mod function_analysis_request;
+pub mod cfg_analysis_engine;

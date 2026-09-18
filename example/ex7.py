@@ -10,6 +10,9 @@
 
 
 
+
+
+
 import torch
 
 
@@ -20,7 +23,7 @@ def foo(a: int, b, cond: bool):
         return a + b
     return a
 
-cond = foo()
+cond = foo(7, 4, True)
 
 if cond: 
     x = torch.tensor([[2, 3, 4]])

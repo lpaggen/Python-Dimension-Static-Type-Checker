@@ -1,34 +1,28 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use rayon::vec;
-use z3::Solver;
 use z3::ast::Ast;
+
+pub type ResolveResult = Result<Type, FunctionAnalysisRequest>;
 
 use crate::control_flow::bindingstate::BindingState;
 use crate::control_flow::bound_type::TypedBinding;
+use crate::control_flow::call_binding::CallBinding;
 use crate::control_flow::flowstate::FlowState;
+use crate::control_flow::function_analysis_request::FunctionAnalysisRequest;
 use crate::control_flow::function_contract::FunctionContract;
-use crate::control_flow::functioncontract_table;
 use crate::control_flow::functioncontract_table::FunctionContractTable;
 use crate::diagnostic::diagnostic::Diagnostic;
 use crate::diagnostic::diagnostic::DiagnosticKind;
 use crate::diagnostic::diagnostic::Severity;
 use crate::ir::expr::AttributeIR;
-use crate::ir::expr::BinOpIR;
 use crate::ir::expr::CallIR;
 use crate::ir::expr::KeywordIR;
-use crate::ir::expr::ListIR;
 use crate::ir::expr::NameIR;
-use crate::ir::expr::TupleIR;
 use crate::ir::operator::Operator;
-use crate::ir::span_ir::SourceSpan;
-use crate::ir::stmt::AnnAssignIR;
 use crate::ir::stmt::StmtIR;
 use crate::type_resolver::library::KnownFunction;
 use crate::type_resolver::library::KnownLibrary;
-use crate::type_resolver::library::KnownLibrary::PyTorch;
-use crate::type_resolver::library::Library;
 use crate::type_resolver::library::NumPyFunction;
 use crate::type_resolver::library::ResolvedAttributePath;
 use crate::type_resolver::library::TorchFunction;
@@ -45,9 +39,6 @@ use crate::types::types::TensorType;
 use crate::types::types::TensorTypeState;
 use crate::types::types::TensorTypeState::Unresolved;
 use crate::types::types::Type;
-use crate::{
-    linker::{symbol_ref::SymbolRef},
-};
 
 // probably won't need 'by_ref' since this struct might just be owned by the CFG pass in a later build
 // !! Type resolver is only used in the CFG phase, we likely won't be calling build() standalone, rather just resolve stmt by stmt
@@ -61,6 +52,9 @@ pub struct TypeResolver<'ctx> {
     // both this layer and the layer above need to insert and query from it, this is fine
     function_contracts: Rc<RefCell<FunctionContractTable>>,
 
+    // defer requests for function analysis for later
+    function_analysis_queue: Rc<RefCell<Vec<FunctionAnalysisRequest>>>,
+
     solver: z3::Solver
 }
 
@@ -69,6 +63,7 @@ impl<'ctx> TypeResolver<'ctx> {
         symbols: &'ctx GlobalSymbolTable,
         resolutions: &'ctx ResolutionTable,
         function_contracts:Rc<RefCell<FunctionContractTable>>,
+        function_analysis_queue: Rc<RefCell<Vec<FunctionAnalysisRequest>>>,
     ) -> Self {
         Self {
             // by_ref: HashMap::new(),
@@ -77,6 +72,7 @@ impl<'ctx> TypeResolver<'ctx> {
             diagnostics: Vec::new(),
             solver: z3::Solver::new(),
             function_contracts,
+            function_analysis_queue,
         }
     }
 
@@ -89,26 +85,6 @@ impl<'ctx> TypeResolver<'ctx> {
             guard.implies(constraint)
         );
     }
-
-    // pub fn get(&self, symbol_ref: &SymbolRef) -> Type {
-    //     self.by_ref
-    //         .get(symbol_ref)
-    //         .cloned()
-    //         .unwrap_or(Type::Unknown)
-    // }
-
-    // pub fn infer_call_type(&self, call: &CallIR) -> Option<Type> {
-    //     match &call.func {
-    //         ExprIR::Name(name) => {
-    //             // should resolve to the right target, then check if it has a return type
-    //             todo!()
-    //         }
-
-    //         _ => {
-    //             panic!("Call to function invalid")
-    //         }
-    //     }
-    // }
 
     // similar to resolve_external_annotation, not the same return type
     fn resolve_known_function(
@@ -715,6 +691,13 @@ impl<'ctx> TypeResolver<'ctx> {
                 Type::FlowUnion(results)
             }
 
+            (   // ex, torch.Tensor was supplied as param annotation in a function's body
+                Type::Tensor(Unresolved),
+                Type::Tensor(Unresolved),
+            ) => {
+                todo!()
+            },
+
             (
                 Type::Tensor(TensorTypeState::Resolved(TensorType {
                     shape: shape_a,
@@ -926,8 +909,8 @@ impl<'ctx> TypeResolver<'ctx> {
                 }
 
                 _ => match self.parse_expr(expr, program_id, state) {
-                    Type::Dim(dim) => dim,
-                    Type::Int => DimType::Unknown,
+                    Ok(Type::Dim(dim)) => dim,
+                    Ok(Type::Int) => DimType::Unknown,
                     _ => return None,
                 },
             };
@@ -938,24 +921,24 @@ impl<'ctx> TypeResolver<'ctx> {
         Some(shape)
     }
 
-    fn infer_torch_matmul(&mut self, call: &CallIR, program_id: i64, state: &mut FlowState) -> Type {
+    fn infer_torch_matmul(&mut self, call: &CallIR, program_id: i64, state: &mut FlowState) -> ResolveResult {
         let Some(first_arg) = call.args.get(0) else {
-            return Type::Unknown
+            return Ok(Type::Unknown)
         };
 
-        let type_first = self.parse_expr(first_arg, program_id, state);
+        let type_first = self.parse_expr(first_arg, program_id, state)?;
 
         let Some(second_arg) = call.args.get(1) else {
-            return Type::Unknown;
+            return Ok(Type::Unknown);
         };
 
-        let type_second = self.parse_expr(second_arg, program_id, state);
+        let type_second = self.parse_expr(second_arg, program_id, state)?;
 
-        self.torch_shapes_compatible(
+        Ok(self.torch_shapes_compatible(
             &type_first, 
             &type_second, 
             state, 
-        )
+        ))
     }
 
     fn infer_torch_factory_tensor(
@@ -963,13 +946,13 @@ impl<'ctx> TypeResolver<'ctx> {
         call: &CallIR,
         program_id: i64,
         state: &mut FlowState,
-    ) -> Type {
+    ) -> ResolveResult  {
         let Some(shape) = self.infer_torch_size(
             &call.args,
             program_id,
             state,
         ) else {
-            return Type::Unknown;
+            return Ok(Type::Unknown);
         };
 
         let dtype = call
@@ -979,10 +962,10 @@ impl<'ctx> TypeResolver<'ctx> {
             .map(|kw| self.infer_tensor_dtype(kw, program_id))
             .unwrap_or(DType::Float32);
 
-        Type::Tensor(TensorTypeState::Resolved(TensorType {
+        Ok(Type::Tensor(TensorTypeState::Resolved(TensorType {
             shape,
             dtype,
-        }))
+        })))
     }
 
     fn infer_torch_arange(
@@ -990,9 +973,9 @@ impl<'ctx> TypeResolver<'ctx> {
         call: &CallIR,
         program_id: i64,
         state: &mut FlowState,
-    ) -> Type {
+    ) -> ResolveResult  {
         if call.args.is_empty() || call.args.len() > 3 {
-            return Type::Unknown;
+            return Ok(Type::Unknown);
         }
 
         // torch.arange(end)
@@ -1019,7 +1002,7 @@ impl<'ctx> TypeResolver<'ctx> {
             let mut valid_numeric = true;
 
             for expr in &call.args {
-                match self.parse_expr(expr, program_id, state) {
+                match self.parse_expr(expr, program_id, state)? {
                     Type::Float => has_float = true,
                     Type::Int | Type::Dim(_) => {}
                     _ => valid_numeric = false,
@@ -1068,7 +1051,7 @@ impl<'ctx> TypeResolver<'ctx> {
         let length = match (start_value, end_value, step_value) {
             (Some(start), Some(end), Some(step)) => {
                 if step == 0 {
-                    return Type::Unknown;
+                    return Ok(Type::Unknown);
                 }
 
                 let start = start as i128;
@@ -1098,10 +1081,10 @@ impl<'ctx> TypeResolver<'ctx> {
             _ => DimType::Unknown,
         };
 
-        Type::Tensor(TensorTypeState::Resolved(TensorType {
+        Ok(Type::Tensor(TensorTypeState::Resolved(TensorType {
             shape: vec![length],
             dtype,
-        }))
+        })))
     }
 
     fn infer_torch_reshape(
@@ -1109,10 +1092,10 @@ impl<'ctx> TypeResolver<'ctx> {
         call: &CallIR,
         program_id: i64,
         state: &mut FlowState,
-    ) -> Type {
+    ) -> ResolveResult  {
         // torch.reshape(input, shape)
         if call.args.len() != 2 {
-            return Type::Unknown;
+            return Ok(Type::Unknown);
         }
 
         let input_type = self.parse_expr(
@@ -1126,16 +1109,16 @@ impl<'ctx> TypeResolver<'ctx> {
             program_id,
             state,
         ) else {
-            return Type::Unknown;
+            return Ok(Type::Unknown);
         };
 
-        let Type::Tensor(TensorTypeState::Resolved(input)) = input_type else {
+        let Ok(Type::Tensor(TensorTypeState::Resolved(input))) = input_type else {
             return match input_type {
-                Type::Tensor(TensorTypeState::Unresolved) => {
-                    Type::Tensor(TensorTypeState::Unresolved)
+                Ok(Type::Tensor(TensorTypeState::Unresolved)) => {
+                    Ok(Type::Tensor(TensorTypeState::Unresolved))
                 }
 
-                _ => Type::Unknown,
+                _ => Ok(Type::Unknown),
             };
         };
 
@@ -1146,12 +1129,12 @@ impl<'ctx> TypeResolver<'ctx> {
                 if *value == -1 {
                     if infer_index.is_some() {
                         // Only one dimension may be inferred.
-                        return Type::Unknown;
+                        return Ok(Type::Unknown);
                     }
 
                     infer_index = Some(index);
                 } else if *value < 0 {
-                    return Type::Unknown;
+                    return Ok(Type::Unknown);
                 }
             }
         }
@@ -1196,7 +1179,7 @@ impl<'ctx> TypeResolver<'ctx> {
                     if requested_numel == 0
                         || input_numel % requested_numel != 0
                     {
-                        return Type::Unknown;
+                        return Ok(Type::Unknown);
                     }
 
                     new_shape[index] =
@@ -1215,16 +1198,16 @@ impl<'ctx> TypeResolver<'ctx> {
                 ) = (input_numel, requested_numel)
                 {
                     if input_numel != requested_numel {
-                        return Type::Unknown;
+                        return Ok(Type::Unknown);
                     }
                 }
             }
         }
 
-        Type::Tensor(TensorTypeState::Resolved(TensorType {
+        Ok(Type::Tensor(TensorTypeState::Resolved(TensorType {
             shape: new_shape,
             dtype: input.dtype,
-        }))
+        })))
     }
 
     fn is_feasible(&self, guard: &z3::ast::Bool) -> bool {
@@ -1243,9 +1226,9 @@ impl<'ctx> TypeResolver<'ctx> {
         types: &[Type],
         dim: i64,
         state: &mut FlowState,
-    ) -> Type {
+    ) -> ResolveResult  {
         if types.is_empty() {
-            return Type::Unknown;
+            return Ok(Type::Unknown);
         }
 
         // Expand FlowUnion inputs one at a time.
@@ -1279,7 +1262,7 @@ impl<'ctx> TypeResolver<'ctx> {
                     &branch_types,
                     dim,
                     state,
-                );
+                )?;
 
                 match result {
                     Type::FlowUnion(inner) => {
@@ -1296,7 +1279,7 @@ impl<'ctx> TypeResolver<'ctx> {
             }
 
             state.guard = parent_guard;
-            return Type::FlowUnion(results);
+            return Ok(Type::FlowUnion(results));
         }
 
         let mut tensors = Vec::with_capacity(types.len());
@@ -1308,11 +1291,11 @@ impl<'ctx> TypeResolver<'ctx> {
                 }
 
                 Type::Tensor(TensorTypeState::Unresolved) => {
-                    return Type::Tensor(TensorTypeState::Unresolved);
+                    return Ok(Type::Tensor(TensorTypeState::Unresolved));
                 }
 
                 _ => {
-                    return Type::Unknown;
+                    return Ok(Type::Unknown);
                 }
             }
         }
@@ -1337,7 +1320,7 @@ impl<'ctx> TypeResolver<'ctx> {
             };
 
             if normalized_dim != 0 {
-                return Type::Unknown;
+                return Ok(Type::Unknown);
             }
 
             let dtypes: Vec<DType> =
@@ -1352,19 +1335,19 @@ impl<'ctx> TypeResolver<'ctx> {
                 self.resolve_common_dtype(&dtypes)
             };
 
-            return Type::Tensor(
+            return Ok(Type::Tensor(
                 TensorTypeState::Resolved(TensorType {
                     shape: vec![DimType::Known(0)],
                     dtype,
                 })
-            );
+            ));
         };
 
         let rank = base.shape.len();
 
         // Scalar tensors cannot be concatenated.
         if rank == 0 {
-            return Type::Unknown;
+            return Ok(Type::Unknown);
         }
 
         let normalized_dim = if dim < 0 {
@@ -1374,7 +1357,7 @@ impl<'ctx> TypeResolver<'ctx> {
         };
 
         if normalized_dim < 0 || normalized_dim >= rank as i64 {
-            return Type::Unknown;
+            return Ok(Type::Unknown);
         }
 
         let dim = normalized_dim as usize;
@@ -1389,7 +1372,7 @@ impl<'ctx> TypeResolver<'ctx> {
             }
 
             if tensor.shape.len() != rank {
-                return Type::Unknown;
+                return Ok(Type::Unknown);
             }
 
             for axis in 0..rank {
@@ -1402,7 +1385,7 @@ impl<'ctx> TypeResolver<'ctx> {
                     &tensor.shape[axis],
                     state,
                 ) {
-                    return Type::Unknown;
+                    return Ok(Type::Unknown);
                 }
             }
 
@@ -1456,12 +1439,12 @@ impl<'ctx> TypeResolver<'ctx> {
             self.resolve_common_dtype(&dtypes)
         };
 
-        Type::Tensor(
+        Ok(Type::Tensor(
             TensorTypeState::Resolved(TensorType {
                 shape: result_shape,
                 dtype,
             })
-        )
+        ))
     }
 
     fn infer_torch_cat(
@@ -1469,42 +1452,46 @@ impl<'ctx> TypeResolver<'ctx> {
         call: &CallIR,
         program_id: i64,
         state: &mut FlowState,
-    ) -> Type {
+    ) -> ResolveResult  {
         let Some(tensors_arg) = call.args.first() else {
-            return Type::Unknown;
+            return Ok(Type::Unknown);
         };
 
         if call.args.len() > 2 {
-            return Type::Unknown;
+            return Ok(Type::Unknown);
         }
 
         let tensor_types = match tensors_arg {
             ExprIR::ListExpr(list) => {
                 list.elts
                     .iter()
-                    .map(|expr| self.parse_expr(
-                        expr,
-                        program_id,
-                        state,
-                    ))
-                    .collect()
+                    .map(|expr| {
+                        self.parse_expr(
+                            expr,
+                            program_id,
+                            state,
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()?
             }
 
             ExprIR::TupleExpr(tuple) => {
                 tuple.elts
                     .iter()
-                    .map(|expr| self.parse_expr(
-                        expr,
-                        program_id,
-                        state,
-                    ))
-                    .collect()
+                    .map(|expr| {
+                        self.parse_expr(
+                            expr,
+                            program_id,
+                            state,
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()?
             }
 
             expr => {
-                match self.parse_expr(expr, program_id, state) {
+                match self.parse_expr(expr, program_id, state)? {
                     Type::List(types) | Type::Tuple(types) => types,
-                    _ => return Type::Unknown,
+                    _ => return Ok(Type::Unknown),
                 }
             }
         };
@@ -1519,7 +1506,7 @@ impl<'ctx> TypeResolver<'ctx> {
 
         // Specifying dim both positionally and by keyword is invalid.
         if positional_dim.is_some() && keyword_dim.is_some() {
-            return Type::Unknown;
+            return Ok(Type::Unknown);
         }
 
         let dim_expr = positional_dim.or(keyword_dim);
@@ -1534,18 +1521,18 @@ impl<'ctx> TypeResolver<'ctx> {
             }
 
             Some(expr) => {
-                match self.parse_expr(expr, program_id, state) {
+                match self.parse_expr(expr, program_id, state)? {
                     Type::Dim(DimType::Known(dim)) => dim,
 
                     // We know this is still a cat operation and therefore
                     // returns a tensor, but cannot determine which axis.
                     Type::Int | Type::Dim(_) => {
-                        return Type::Tensor(
+                        return Ok(Type::Tensor(
                             TensorTypeState::Unresolved
-                        );
+                        ));
                     }
 
-                    _ => return Type::Unknown,
+                    _ => return Ok(Type::Unknown),
                 }
             }
         };
@@ -1562,9 +1549,9 @@ impl<'ctx> TypeResolver<'ctx> {
         types: &[Type],
         dim: i64,
         state: &mut FlowState,
-    ) -> Type {
+    ) -> ResolveResult  {
         if types.is_empty() {
-            return Type::Unknown;
+            return Ok(Type::Unknown);
         }
 
         // Expand FlowUnion inputs one at a time.
@@ -1598,7 +1585,7 @@ impl<'ctx> TypeResolver<'ctx> {
                     &branch_types,
                     dim,
                     state,
-                );
+                )?;
 
                 match result {
                     Type::FlowUnion(inner) => {
@@ -1615,7 +1602,7 @@ impl<'ctx> TypeResolver<'ctx> {
             }
 
             state.guard = parent_guard;
-            return Type::FlowUnion(results);
+            return Ok(Type::FlowUnion(results));
         }
 
         let mut tensors = Vec::with_capacity(types.len());
@@ -1627,11 +1614,11 @@ impl<'ctx> TypeResolver<'ctx> {
                 }
 
                 Type::Tensor(TensorTypeState::Unresolved) => {
-                    return Type::Tensor(TensorTypeState::Unresolved);
+                    return Ok(Type::Tensor(TensorTypeState::Unresolved));
                 }
 
                 _ => {
-                    return Type::Unknown;
+                    return Ok(Type::Unknown);
                 }
             }
         }
@@ -1648,7 +1635,7 @@ impl<'ctx> TypeResolver<'ctx> {
         };
 
         if normalized_dim < 0 || normalized_dim > rank as i64 {
-            return Type::Unknown;
+            return Ok(Type::Unknown);
         }
 
         let dim = normalized_dim as usize;
@@ -1656,7 +1643,7 @@ impl<'ctx> TypeResolver<'ctx> {
         // Unlike cat, every input tensor must have exactly the same shape.
         for tensor in tensors.iter().skip(1) {
             if tensor.shape.len() != rank {
-                return Type::Unknown;
+                return Ok(Type::Unknown);
             }
 
             for axis in 0..rank {
@@ -1665,7 +1652,7 @@ impl<'ctx> TypeResolver<'ctx> {
                     &tensor.shape[axis],
                     state,
                 ) {
-                    return Type::Unknown;
+                    return Ok(Type::Unknown);
                 }
             }
         }
@@ -1691,12 +1678,12 @@ impl<'ctx> TypeResolver<'ctx> {
             self.resolve_common_dtype(&dtypes)
         };
 
-        Type::Tensor(
+        Ok(Type::Tensor(
             TensorTypeState::Resolved(TensorType {
                 shape: result_shape,
                 dtype,
             })
-        )
+        ))
     }
 
     fn infer_torch_stack(
@@ -1704,46 +1691,56 @@ impl<'ctx> TypeResolver<'ctx> {
         call: &CallIR,
         program_id: i64,
         state: &mut FlowState,
-    ) -> Type {
+    ) -> ResolveResult  {
         let Some(tensors_arg) = call.args.first() else {
-            return Type::Unknown;
+            return Ok(Type::Unknown);
         };
 
         if call.args.len() > 2 {
-            return Type::Unknown;
+            return Ok(Type::Unknown);
         }
 
         let tensor_types = match tensors_arg {
             ExprIR::ListExpr(list) => {
-                list.elts
-                    .iter()
-                    .map(|expr| {
+                let mut types = Vec::new();
+
+                for expr in &list.elts {
+                    types.push(
                         self.parse_expr(
                             expr,
                             program_id,
                             state,
-                        )
-                    })
-                    .collect()
+                        )?
+                    );
+                }
+
+                types
             }
 
             ExprIR::TupleExpr(tuple) => {
-                tuple.elts
-                    .iter()
-                    .map(|expr| {
+                let mut types = Vec::new();
+
+                for expr in &tuple.elts {
+                    types.push(
                         self.parse_expr(
                             expr,
                             program_id,
                             state,
-                        )
-                    })
-                    .collect()
+                        )?
+                    );
+                }
+
+                types
             }
 
             expr => {
-                match self.parse_expr(expr, program_id, state) {
+                match self.parse_expr(
+                    expr,
+                    program_id,
+                    state,
+                )? {
                     Type::List(types) | Type::Tuple(types) => types,
-                    _ => return Type::Unknown,
+                    _ => return Ok(Type::Unknown),
                 }
             }
         };
@@ -1757,7 +1754,7 @@ impl<'ctx> TypeResolver<'ctx> {
             .map(|kw| &*kw.value);
 
         if positional_dim.is_some() && keyword_dim.is_some() {
-            return Type::Unknown;
+            return Ok(Type::Unknown);
         }
 
         let dim_expr = positional_dim.or(keyword_dim);
@@ -1771,19 +1768,23 @@ impl<'ctx> TypeResolver<'ctx> {
                 integer.value
             }
 
-            Some(expr) => {
-                match self.parse_expr(expr, program_id, state) {
-                    Type::Dim(DimType::Known(dim)) => dim,
+        Some(expr) => {
+            match self.parse_expr(
+                expr,
+                program_id,
+                state,
+            )? {
+                Type::Dim(DimType::Known(dim)) => dim,
 
-                    Type::Int | Type::Dim(_) => {
-                        return Type::Tensor(
-                            TensorTypeState::Unresolved
-                        );
-                    }
-
-                    _ => return Type::Unknown,
+                Type::Int | Type::Dim(_) => {
+                    return Ok(Type::Tensor(
+                        TensorTypeState::Unresolved
+                    ));
                 }
+
+                _ => return Ok(Type::Unknown),
             }
+        }
         };
 
         self.torch_stack_types(
@@ -1798,7 +1799,7 @@ impl<'ctx> TypeResolver<'ctx> {
         call: &CallIR,
         program_id: i64,
         state: &mut FlowState,
-    ) -> Type {
+    ) -> ResolveResult  {
         let input = if let Some(input) = call.args.first() {
             input
         } else if let Some(keyword) = call
@@ -1808,14 +1809,14 @@ impl<'ctx> TypeResolver<'ctx> {
         {
             &keyword.value
         } else {
-            return Type::Unknown;
+            return Ok(Type::Unknown);
         };
 
-        let input_type = self.parse_expr(input, program_id, state);
+        let input_type = self.parse_expr(input, program_id, state)?;
 
         match input_type {
             Type::Tensor(tensor) => {
-                Type::Tensor(tensor)
+                Ok(Type::Tensor(tensor))
             }
 
             Type::FlowUnion(union) => {
@@ -1837,10 +1838,10 @@ impl<'ctx> TypeResolver<'ctx> {
                     })
                     .collect();
 
-                Type::FlowUnion(results)
+                Ok(Type::FlowUnion(results))
             }
 
-            _ => Type::Unknown,
+            _ => Ok(Type::Unknown),
         }
     }
 
@@ -1854,13 +1855,37 @@ impl<'ctx> TypeResolver<'ctx> {
             .iter()
             .filter(|param| param.default.is_none())
             .count();
-
-        println!("{:?}", required);
-        println!("{:?}", supplied);
         
-
         supplied >= required
             && supplied <= contract.params.len()
+    }
+
+    // TODO expand
+    fn compatible_param_type(
+        &self,
+        expected: &Type,
+        supplied: &Type,
+    ) -> bool {
+        match (expected, supplied) {
+            // no declared information
+            (Type::Unknown, _) => true,
+
+            // generic tensor annotation accepts any tensor state
+            (
+                Type::Tensor(TensorTypeState::Unresolved),
+                Type::Tensor(_),
+            ) => true,
+
+            // primitives
+            (Type::Int, Type::Int) => true,
+            (Type::Float, Type::Float) => true,
+            (Type::Bool, Type::Bool) => true,
+            (Type::String, Type::String) => true,
+            (Type::Bytes, Type::Bytes) => true,
+            (Type::None, Type::None) => true,
+
+            _ => false,
+        }
     }
 
     pub fn parse_expr(
@@ -1868,16 +1893,16 @@ impl<'ctx> TypeResolver<'ctx> {
         expr: &ExprIR,
         program_id: i64,
         state: &mut FlowState,
-    ) -> Type {
+    ) -> ResolveResult {
         match expr {
-            ExprIR::Constant(ConstantIR::IntegerLit(_)) => Type::Int,
-            ExprIR::Constant(ConstantIR::FloatLit(_)) => Type::Float,
-            ExprIR::Constant(ConstantIR::BooleanLit(_)) => Type::Bool,
-            ExprIR::Constant(ConstantIR::StringLit(_)) => Type::String,
-            ExprIR::Constant(ConstantIR::NoneLit(_)) => Type::None,
-            ExprIR::Constant(ConstantIR::EllipsisLit(_)) => Type::Ellipsis,
-            ExprIR::Constant(ConstantIR::BytesLit(_)) => Type::Bytes,
-            ExprIR::Constant(ConstantIR::ComplexLit(_)) => Type::Complex,
+            ExprIR::Constant(ConstantIR::IntegerLit(_)) => Ok(Type::Int),
+            ExprIR::Constant(ConstantIR::FloatLit(_)) => Ok(Type::Float),
+            ExprIR::Constant(ConstantIR::BooleanLit(_)) => Ok(Type::Bool),
+            ExprIR::Constant(ConstantIR::StringLit(_)) => Ok(Type::String),
+            ExprIR::Constant(ConstantIR::NoneLit(_)) => Ok(Type::None),
+            ExprIR::Constant(ConstantIR::EllipsisLit(_)) => Ok(Type::Ellipsis),
+            ExprIR::Constant(ConstantIR::BytesLit(_)) => Ok(Type::Bytes),
+            ExprIR::Constant(ConstantIR::ComplexLit(_)) => Ok(Type::Complex),
 
             // can be many things, notably torch.tensor(...)
             // so this is where we start parsing tensors, amongst other things
@@ -1890,7 +1915,7 @@ impl<'ctx> TypeResolver<'ctx> {
                         // TODO mark difference between user defined and built-ins
                         // for now it's just user defined, so ignore the match
                         match callee_ty {
-                            Type::Function(function_id) => {
+                            Ok(Type::Function(function_id)) => {
                                 println!(
                                     "calling function {} -> {:?}",
                                     name.id,
@@ -1899,40 +1924,73 @@ impl<'ctx> TypeResolver<'ctx> {
 
                                 let supplied_args = call.args.len();
 
-                                let contracts = self.function_contracts.borrow();
+                                let params = {
+                                    let contracts = self.function_contracts.borrow();
 
-                                let contract = contracts
-                                    .by_id
-                                    .get(&function_id)
-                                    .unwrap();
+                                    let contract = contracts
+                                        .by_id
+                                        .get(&function_id)
+                                        .unwrap();
 
-                                println!("{:?}", contract);
-                                
-                                let is_valid_call = self.valid_arg_count(contract, supplied_args);
+                                    if !self.valid_arg_count(contract, supplied_args) {
+                                        return Ok(Type::Unknown);
+                                    }
 
-                                println!("{:?}", is_valid_call);
+                                    contract.params.clone()
+                                };
 
-                                Type::Unknown
+                                let mut bindings = Vec::new();
+
+                                for (arg, param) in call.args.iter().zip(params.iter()) {
+                                    let supplied_ty = self.parse_expr(arg, program_id, state)?;
+
+                                    if !self.compatible_param_type(
+                                        &param.ty,
+                                        &supplied_ty,
+                                    ) {
+                                        // TODO eventually emit diagnostic
+                                        return Ok(Type::Unknown);
+                                    }
+
+                                    bindings.push(CallBinding {
+                                        symbol_id: param.symbol_id,
+                                        ty: supplied_ty,
+                                    });
+                                }
+
+                                self.function_analysis_queue
+                                    .borrow_mut()
+                                    .push(
+                                        FunctionAnalysisRequest { 
+                                            program_id, 
+                                            function_id, 
+                                            bindings 
+                                        }
+                                    );
+
+                                // TODO bind the arguments + send request for deferred analysis
+
+                                Ok(Type::Unknown)
                             }
 
-                            _ => Type::Unknown,
+                            _ => Ok(Type::Unknown),
                         }
                     }
 
                     ExprIR::Attribute(attr) => {
                         // ex torch.attribute... <- recursive type
                         let Some(path) = self.resolve_attribute(attr, program_id) else {
-                            return Type::Unknown
+                            return Ok(Type::Unknown)
                         };
 
                         let Some(known_function) = self.resolve_known_function(path.root, &path.attrs) else {
-                            return Type::Unknown;
+                            return Ok(Type::Unknown);
                         };
 
                         match known_function {
                             KnownFunction::Torch(TorchFunction::Tensor) => {
                                 // infer torch.tensor(...)
-                                self.infer_torch_tensor(call, program_id)
+                                Ok(self.infer_torch_tensor(call, program_id))
                             }
 
                             KnownFunction::Torch(TorchFunction::Matmul) => {
@@ -1973,28 +2031,28 @@ impl<'ctx> TypeResolver<'ctx> {
                             }
 
                             // add the rest when happy with the basic examples
-                            _ => Type::Unknown,
+                            _ => Ok(Type::Unknown),
                         }
                     }
 
                     ExprIR::SubscriptExpr(subscript) => {
                         // handlers[i]()
-                        Type::Unknown
+                        Ok(Type::Unknown)
                     }
 
                     ExprIR::Call(inner_call) => {
                         // factory()()
-                        Type::Unknown
+                        Ok(Type::Unknown)
                     }
 
                     ExprIR::LambdaExpr(lambda) => {
                         // (lambda x: x)(1)
-                        Type::Unknown
+                        Ok(Type::Unknown)
                     }
 
                     ExprIR::IfExp(ifexp) => {
                         // (a if cond else b)()
-                        Type::Unknown
+                        Ok(Type::Unknown)
                     }
 
                     ExprIR::Name(name) => {
@@ -2006,16 +2064,16 @@ impl<'ctx> TypeResolver<'ctx> {
                             )
                             .unwrap();
 
-                        state
+                        Ok(state
                             .by_ref
                             .get(&symbol_ref)
                             .map(|binding| binding.ty.clone())
-                            .unwrap_or(Type::Unknown)
+                            .unwrap_or(Type::Unknown))
                     }
 
                     _ => {
                         // valid expression, but not handled yet
-                        Type::Unknown
+                        Ok(Type::Unknown)
                     }
                 }
             }
@@ -2029,25 +2087,27 @@ impl<'ctx> TypeResolver<'ctx> {
                     )
                     .unwrap();
 
-                state
+                Ok(state
                     .by_ref
                     .get(&symbol_ref)
                     .map(|binding| binding.ty.clone())
-                    .unwrap_or(Type::Unknown)
+                    .unwrap_or(Type::Unknown))
             }
 
             ExprIR::TupleExpr(tuple) => {
                 let element_types = tuple
                     .elts
                     .iter()
-                    .map(|element| self.parse_expr(
-                        element, 
-                        program_id, 
-                        state
-                    ))
-                    .collect();
+                    .map(|element| {
+                        self.parse_expr(
+                            element,
+                            program_id,
+                            state,
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
 
-                Type::Tuple(element_types)
+                Ok(Type::Tuple(element_types))
             }
 
             ExprIR::BinOpExpr(binop) => {
@@ -2055,18 +2115,18 @@ impl<'ctx> TypeResolver<'ctx> {
 
                     // OR-union -> either A or B, is this the best way to represent it?
                     Operator::BitOr => {  // x: int | None, "|" is the operator
-                        Type::Union(
+                        Ok(Type::Union(
                             vec![
-                                self.parse_expr(&binop.left, program_id, state), 
-                                self.parse_expr(&binop.right, program_id, state)
+                                self.parse_expr(&binop.left, program_id, state)?, 
+                                self.parse_expr(&binop.right, program_id, state)?
                             ],
-                        )
+                        ))
                     },
 
                     Operator::Add => {
-                        let left = self.parse_expr(&binop.left, program_id, state);
-                        let right = self.parse_expr(&binop.right, program_id, state);
-                        self.resolve_add(left, right)
+                        let left = self.parse_expr(&binop.left, program_id, state)?;
+                        let right = self.parse_expr(&binop.right, program_id, state)?;
+                        Ok(self.resolve_add(left, right))
                     },
 
                     Operator::Sub => todo!(),
@@ -2136,50 +2196,50 @@ impl<'ctx> TypeResolver<'ctx> {
                             Some(TypedBinding {
                                 binding: BindingState::Bound,
                                 ty,
-                            }) => ty.clone(),
+                            }) => Ok(ty.clone()),
 
                             Some(TypedBinding {
                                 binding: BindingState::MaybeUnbound,
                                 ty,
                             }) => {
                                 // add warning here
-                                ty.clone()
+                                Ok(ty.clone())
                             }
 
-                            _ => Type::Unknown,
+                            _ => Ok(Type::Unknown),
                         }
                     }
 
-                    None => Type::Unknown,
+                    None => Ok(Type::Unknown),
                 }
             }
 
             ExprIR::SliceExpr(slice) => {
-                Type::Unknown
+                Ok(Type::Unknown)
             }
 
             ExprIR::SubscriptExpr(subscript) => {
-                Type::Unknown
+                Ok(Type::Unknown)
             }
 
             ExprIR::Attribute(attribute) => {
                 println!("{attribute:?}");
-                Type::Unknown
+                Ok(Type::Unknown)
             }
 
             ExprIR::BoolOpExpr(boolean) => {
-                Type::Unknown
+                Ok(Type::Unknown)
             }
 
             ExprIR::UnaryOpExpr(unary) => {
-                Type::Unknown
+                Ok(Type::Unknown)
             }
 
             ExprIR::CompareExpr(cmp) => {
-                Type::Unknown
+                Ok(Type::Unknown)
             }
 
-            _ => Type::Unknown,
+            _ => Ok(Type::Unknown),
         }
     }
 
@@ -2402,7 +2462,7 @@ impl<'ctx> TypeResolver<'ctx> {
         program_id: i64,
         stmt: &StmtIR,
         state: &mut FlowState,
-    ) -> Type {
+    ) -> ResolveResult {
         match stmt {
             StmtIR::Assign(assign_stmt) => {
                 let ty = self.parse_expr(
@@ -2425,12 +2485,12 @@ impl<'ctx> TypeResolver<'ctx> {
                             value,
                             program_id, 
                             state
-                        );
+                        )?;
 
                         // force annotation == actual ? -> too strict, tensor(unknown) can be ok for a tensor with declared dims
                         // TODO fix in later build
                         if value_type == annotation_type {
-                            annotation_type
+                            Ok(annotation_type)
                         } else {
                             // TODO + emit a diagnostic warning
                             self.diagnostics.push(
@@ -2440,11 +2500,11 @@ impl<'ctx> TypeResolver<'ctx> {
                                     kind: DiagnosticKind::MismatchedAnnotationType, 
                                     message: format!("annotation {:?} does not match value type {:?}", annotation_type, value_type),
                                 });
-                            Type::Unknown
+                            Ok(Type::Unknown)
                         }
                     },
 
-                    None => annotation_type
+                    None => Ok(annotation_type)
                 }
             },
 

@@ -3,7 +3,7 @@ use std::{cell::RefCell, collections::{HashMap, HashSet, VecDeque}, ops::Deref, 
 use z3::ast::Ast;
 
 use crate::{control_flow::{
-    basic_block::BasicBlock, bindingstate::BindingState, block_id::{BlockID, FunctionID}, bound_type::TypedBinding, cfg::Cfg, cfg_table::CfgTable, class_cfg::ClassCfg, flowstate::FlowState, function_cfg::FunctionCfg, function_contract::{ContractParam, FunctionContract, GuardedReturn}, functioncontract_table::FunctionContractTable, graph::Graph, module_cfg::ModuleCfg, terminator::Terminator
+    basic_block::BasicBlock, bindingstate::BindingState, block_id::{BlockID, FunctionID}, bound_type::TypedBinding, cfg::Cfg, cfg_table::CfgTable, class_cfg::ClassCfg, flowstate::FlowState, function_analysis_request::FunctionAnalysisRequest, function_cfg::FunctionCfg, function_contract::{ContractParam, FunctionContract, GuardedReturn}, functioncontract_table::FunctionContractTable, graph::Graph, module_cfg::ModuleCfg, terminator::Terminator
 }, ir::{arg::ArgKind, expr::{ConstantIR, ExprIR}, nodes::{SymbolIR, SymbolKind}, operator::Operator, stmt::StmtIR}, linker::{program_table::ProgramTable, resolution_table::{self, ResolutionTable}, scope_table::GlobalSymbolTable, symbol_ref::SymbolRef}, type_resolver::type_resolver::TypeResolver, types::types::{GuardedType, Type}};
 
 pub struct BlockFlow<'ctx> {
@@ -13,17 +13,25 @@ pub struct BlockFlow<'ctx> {
 
     function_contracts: Rc<RefCell<FunctionContractTable>>,
 
+    function_analysis_queue: Rc<RefCell<Vec<FunctionAnalysisRequest>>>,
+
     symbols: &'ctx GlobalSymbolTable,
 
     type_resolver: TypeResolver<'ctx>,
 }
 
 impl<'ctx> BlockFlow<'ctx> {
-    pub fn new(type_resolver: TypeResolver<'ctx>, symbol_table: &'ctx GlobalSymbolTable, function_contracts: Rc<RefCell<FunctionContractTable>>) -> Self {
+    pub fn new(
+        type_resolver: TypeResolver<'ctx>, 
+        symbol_table: &'ctx GlobalSymbolTable, 
+        function_contracts: Rc<RefCell<FunctionContractTable>>,
+        function_analysis_queue: Rc<RefCell<Vec<FunctionAnalysisRequest>>>,
+    ) -> Self {
         Self {
             incoming: HashMap::new(),
             edge_states: HashMap::new(),
             function_contracts: function_contracts,
+            function_analysis_queue,
             block_out: HashMap::new(),
             type_resolver,
             symbols: symbol_table,
@@ -260,6 +268,7 @@ impl<'ctx> BlockFlow<'ctx> {
             };
 
             let param_contract = ContractParam {
+                symbol_id: param.symbol_id,
                 ty: param_type.clone(),
                 default: param_default,
                 kind: param.kind.clone(),
@@ -323,18 +332,6 @@ impl<'ctx> BlockFlow<'ctx> {
         }
 
         contract.returns = returns;
-
-        // TODO. + add logic for dynamic CFG reconstruction, somehow. ie enter function with weak contract -> update constraints on the fly
-        // self.populate_function_contract(
-        //     program_id,
-        //     function,
-        //     &mut contract,
-        // );
-
-        // TODO see if this makes sense
-        // contract.constraints = state.constraints.clone();
-
-        // println!("{:?}", contract);
 
         self.function_contracts
             .borrow_mut()

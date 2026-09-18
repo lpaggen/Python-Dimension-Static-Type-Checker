@@ -17,3 +17,4 @@ pub mod cfg;
 pub mod module_cfg;
 pub mod cfg_table;
 pub mod function_contract;
+pub mod functioncontract_table;

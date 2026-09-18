@@ -1,3 +1,6 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use rayon::vec;
 use z3::Solver;
 use z3::ast::Ast;
@@ -5,6 +8,8 @@ use z3::ast::Ast;
 use crate::control_flow::bindingstate::BindingState;
 use crate::control_flow::bound_type::TypedBinding;
 use crate::control_flow::flowstate::FlowState;
+use crate::control_flow::functioncontract_table;
+use crate::control_flow::functioncontract_table::FunctionContractTable;
 use crate::diagnostic::diagnostic::Diagnostic;
 use crate::diagnostic::diagnostic::DiagnosticKind;
 use crate::diagnostic::diagnostic::Severity;
@@ -37,6 +42,7 @@ use crate::types::types::DimType;
 use crate::types::types::GuardedType;
 use crate::types::types::TensorType;
 use crate::types::types::TensorTypeState;
+use crate::types::types::TensorTypeState::Unresolved;
 use crate::types::types::Type;
 use crate::{
     linker::{symbol_ref::SymbolRef},
@@ -51,6 +57,9 @@ pub struct TypeResolver<'ctx> {
     symbols: &'ctx GlobalSymbolTable,
     resolutions: &'ctx ResolutionTable,
 
+    // both this layer and the layer above need to insert and query from it, this is fine
+    function_contracts: Rc<RefCell<FunctionContractTable>>,
+
     solver: z3::Solver
 }
 
@@ -58,6 +67,7 @@ impl<'ctx> TypeResolver<'ctx> {
     pub fn new(
         symbols: &'ctx GlobalSymbolTable,
         resolutions: &'ctx ResolutionTable,
+        function_contracts:Rc<RefCell<FunctionContractTable>>,
     ) -> Self {
         Self {
             // by_ref: HashMap::new(),
@@ -65,6 +75,7 @@ impl<'ctx> TypeResolver<'ctx> {
             resolutions,
             diagnostics: Vec::new(),
             solver: z3::Solver::new(),
+            function_contracts,
         }
     }
 
@@ -1854,8 +1865,7 @@ impl<'ctx> TypeResolver<'ctx> {
                 match &*call.func {
                     ExprIR::Name(name) => {
                         // foo(...)
-                        let callee_ty =
-                            self.parse_expr(&call.func, program_id, state);
+                        let callee_ty = self.parse_expr(&call.func, program_id, state);
 
                         // TODO mark difference between user defined and built-ins
                         match callee_ty {
@@ -1866,9 +1876,7 @@ impl<'ctx> TypeResolver<'ctx> {
                                     function_id
                                 );
 
-                                // TODO:
-                                // find and resolve FunctionCFG
-                                // BUT we don't want this here, big refactor is needed
+                                println!("{:?}", self.function_contracts.borrow_mut().by_id.get(&function_id));
 
                                 Type::Unknown
                             }
@@ -1976,6 +1984,22 @@ impl<'ctx> TypeResolver<'ctx> {
                         Type::Unknown
                     }
                 }
+            }
+
+            ExprIR::Name(name) => {
+                let symbol_ref = self.symbols
+                    .lookup_by_name(
+                        program_id,
+                        name.use_scope_id,
+                        &name.id,
+                    )
+                    .unwrap();
+
+                state
+                    .by_ref
+                    .get(&symbol_ref)
+                    .map(|binding| binding.ty.clone())
+                    .unwrap_or(Type::Unknown)
             }
 
             ExprIR::TupleExpr(tuple) => {
@@ -2140,6 +2164,9 @@ impl<'ctx> TypeResolver<'ctx> {
             return self.promote_numeric(left, right);
         }
 
+        // println!("{:?}", left);
+        // println!("{:?}", right);
+
         match (left, right) {
             (Type::String, Type::String) => {
                 Type::String
@@ -2153,6 +2180,11 @@ impl<'ctx> TypeResolver<'ctx> {
             (Type::Tuple(a), Type::Tuple(b)) => {
                 // concatenate tuple type information
                 Type::Unknown
+            }
+
+            (Type::Tensor(Unresolved), Type::Tensor(Unresolved)) => {
+                // self.resolve_tensor_add(a, b)
+                Type::Tensor(Unresolved)
             }
 
             (Type::Tensor(a), Type::Tensor(b)) => {
@@ -2297,8 +2329,28 @@ impl<'ctx> TypeResolver<'ctx> {
             }
 
             ExprIR::Attribute(attribute) => {
-                // torch.Tensor, typing.Optional, etc.
-                Type::Unknown
+                let Some(path) = self.resolve_attribute(attribute, program_id) else {
+                    return Type::Unknown;
+                };
+
+                let module = if path.attrs.len() > 1 {
+                    format!(
+                        "{:?}.{}",
+                        path.root,
+                        path.attrs[..path.attrs.len() - 1].join(".")
+                    )
+                } else {
+                    path.root.as_str().to_string()
+                };
+
+                let Some(name) = path.attrs.last() else {
+                    return Type::Unknown;
+                };
+
+                self.resolve_external_annotation(
+                    &module,
+                    name,
+                )
             }
 
             // _ => self.resolve_annotation_path(root, attrs, program_id)

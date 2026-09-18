@@ -1,9 +1,9 @@
-use std::{collections::{HashMap, HashSet, VecDeque}, ops::Deref};
+use std::{cell::RefCell, collections::{HashMap, HashSet, VecDeque}, ops::Deref, rc::Rc};
 
 use z3::ast::Ast;
 
 use crate::{control_flow::{
-    basic_block::BasicBlock, bindingstate::BindingState, block_id::{BlockID, FunctionID}, bound_type::TypedBinding, cfg::Cfg, cfg_table::CfgTable, class_cfg::ClassCfg, flowstate::FlowState, function_cfg::FunctionCfg, function_contract::{FunctionContract, GuardedReturn}, graph::Graph, module_cfg::ModuleCfg, terminator::Terminator
+    basic_block::BasicBlock, bindingstate::BindingState, block_id::{BlockID, FunctionID}, bound_type::TypedBinding, cfg::Cfg, cfg_table::CfgTable, class_cfg::ClassCfg, flowstate::FlowState, function_cfg::FunctionCfg, function_contract::{FunctionContract, GuardedReturn}, functioncontract_table::FunctionContractTable, graph::Graph, module_cfg::ModuleCfg, terminator::Terminator
 }, ir::{arg::ArgKind, expr::{ConstantIR, ExprIR}, nodes::{SymbolIR, SymbolKind}, operator::Operator, stmt::StmtIR}, linker::{program_table::ProgramTable, resolution_table::{self, ResolutionTable}, scope_table::GlobalSymbolTable, symbol_ref::SymbolRef}, type_resolver::type_resolver::TypeResolver, types::types::{GuardedType, Type}};
 
 pub struct BlockFlow<'ctx> {
@@ -11,7 +11,7 @@ pub struct BlockFlow<'ctx> {
     pub edge_states: HashMap<(BlockID, BlockID), FlowState>,  // necessary to preserve conditional guards on branches
     pub block_out: HashMap<BlockID, FlowState>,
 
-    pub function_contracts: HashMap<FunctionID, FunctionContract>,
+    function_contracts: Rc<RefCell<FunctionContractTable>>,
 
     symbols: &'ctx GlobalSymbolTable,
 
@@ -19,11 +19,11 @@ pub struct BlockFlow<'ctx> {
 }
 
 impl<'ctx> BlockFlow<'ctx> {
-    pub fn new(type_resolver: TypeResolver<'ctx>, symbol_table: &'ctx GlobalSymbolTable) -> Self {
+    pub fn new(type_resolver: TypeResolver<'ctx>, symbol_table: &'ctx GlobalSymbolTable, function_contracts: Rc<RefCell<FunctionContractTable>>) -> Self {
         Self {
             incoming: HashMap::new(),
             edge_states: HashMap::new(),
-            function_contracts: HashMap::new(),
+            function_contracts: function_contracts,
             block_out: HashMap::new(),
             type_resolver,
             symbols: symbol_table,
@@ -323,12 +323,12 @@ impl<'ctx> BlockFlow<'ctx> {
         // TODO see if this makes sense
         // contract.constraints = state.constraints.clone();
 
-        println!("{:?}", contract);
+        // println!("{:?}", contract);
 
-        self.function_contracts.insert(
-            function_id,
-            contract,
-        );
+        self.function_contracts
+            .borrow_mut()
+            .by_id
+            .insert(function_id, contract);
     }
 
     // TODO further improve, this is a skeleton
@@ -545,12 +545,6 @@ impl<'ctx> BlockFlow<'ctx> {
                 .get(id)
                 .expect("CFG exists without corresponding ProgramIR");
 
-            self.analyze_module(
-                *id,
-                &program_cfg.module,
-                &program.symbols,
-            );
-
             for (function_id, function_cfg) in &program_cfg.functions {
                 self.analyze_function(
                     *id,
@@ -559,6 +553,12 @@ impl<'ctx> BlockFlow<'ctx> {
                     &program.symbols,
                 );
             }
+
+            self.analyze_module(
+                *id,
+                &program_cfg.module,
+                &program.symbols,
+            );
 
             for (_class_id, class_cfg) in &program_cfg.classes {
                 self.analyze_class(

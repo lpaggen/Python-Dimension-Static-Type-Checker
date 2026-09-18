@@ -1,7 +1,10 @@
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::time::Instant;
 
 use crate::control_flow::blockflow::BlockFlow;
 use crate::control_flow::cfg_table::CfgTable;
+use crate::control_flow::functioncontract_table::FunctionContractTable;
 use crate::diagnostic::diagnostic::Diagnostic;
 use crate::ir::program_ir::ProgramIR;
 use crate::linker::scope_table::GlobalSymbolTable;
@@ -60,17 +63,23 @@ fn main() -> Result<(), Vec<Diagnostic>> {
     // types.build(&table, &symbols, &resolved)?;
     // println!("symbol types:    {:?}", start.elapsed());
 
-     let start = Instant::now();
-     let mut cfg = CfgTable::new();
-     cfg.build(&table);
-     println!("cfg:             {:?}", start.elapsed());
+    let start = Instant::now();
+    let mut cfg = CfgTable::new();
+    cfg.build(&table);
+    println!("cfg:             {:?}", start.elapsed());
 
     let start = Instant::now();
+
+    let function_contracts = Rc::new(RefCell::new(FunctionContractTable::new()));
+
     let mut flow = BlockFlow::new(
         TypeResolver::new(
-            &symbols, 
-            &resolved),
+            &symbols,
+            &resolved,
+            Rc::clone(&function_contracts),
+        ),
         &symbols,
+        function_contracts,
     );
     flow.build(&cfg, &table);
     println!("flow analysis:   {:?}", start.elapsed());

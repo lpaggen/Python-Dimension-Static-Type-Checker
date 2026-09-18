@@ -1,4 +1,4 @@
-use crate::types::types::{GuardedType, Type};
+use crate::{ir::{arg::ArgKind, expr::ExprIR}, types::types::{GuardedType, Type}};
 
 #[derive(Debug, Clone)]
 pub struct GuardedReturn {
@@ -8,8 +8,15 @@ pub struct GuardedReturn {
 }
 
 #[derive(Debug, Clone)]
+pub struct ContractParam {
+    pub ty: Type,
+    pub default: Option<ExprIR>,
+    pub kind: ArgKind,
+}
+
+#[derive(Debug, Clone)]
 pub struct FunctionContract {
-    pub params: Vec<Type>,
+    pub params: Vec<ContractParam>,
     pub declared_return_type: Type,
     pub returns: Vec<GuardedReturn>,
 }

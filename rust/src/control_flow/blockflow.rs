@@ -3,7 +3,7 @@ use std::{cell::RefCell, collections::{HashMap, HashSet, VecDeque}, ops::Deref, 
 use z3::ast::Ast;
 
 use crate::{control_flow::{
-    basic_block::BasicBlock, bindingstate::BindingState, block_id::{BlockID, FunctionID}, bound_type::TypedBinding, cfg::Cfg, cfg_table::CfgTable, class_cfg::ClassCfg, flowstate::FlowState, function_cfg::FunctionCfg, function_contract::{FunctionContract, GuardedReturn}, functioncontract_table::FunctionContractTable, graph::Graph, module_cfg::ModuleCfg, terminator::Terminator
+    basic_block::BasicBlock, bindingstate::BindingState, block_id::{BlockID, FunctionID}, bound_type::TypedBinding, cfg::Cfg, cfg_table::CfgTable, class_cfg::ClassCfg, flowstate::FlowState, function_cfg::FunctionCfg, function_contract::{ContractParam, FunctionContract, GuardedReturn}, functioncontract_table::FunctionContractTable, graph::Graph, module_cfg::ModuleCfg, terminator::Terminator
 }, ir::{arg::ArgKind, expr::{ConstantIR, ExprIR}, nodes::{SymbolIR, SymbolKind}, operator::Operator, stmt::StmtIR}, linker::{program_table::ProgramTable, resolution_table::{self, ResolutionTable}, scope_table::GlobalSymbolTable, symbol_ref::SymbolRef}, type_resolver::type_resolver::TypeResolver, types::types::{GuardedType, Type}};
 
 pub struct BlockFlow<'ctx> {
@@ -254,9 +254,20 @@ impl<'ctx> BlockFlow<'ctx> {
                 None => Type::Unknown,
             };
 
+            let param_default = match &param.default {
+                Some(default) => Some(*default.clone()),
+                None => None
+            };
+
+            let param_contract = ContractParam {
+                ty: param_type.clone(),
+                default: param_default,
+                kind: param.kind.clone(),
+            };
+
             // ugly? but it works, contract is just a cheap copy made to pass to callers either way]
             // TODO double check logic here
-            contract.params.push(param_type.clone());
+            contract.params.push(param_contract);
 
             state.bind(
                 &symbol_ref,

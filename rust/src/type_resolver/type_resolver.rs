@@ -8,6 +8,7 @@ use z3::ast::Ast;
 use crate::control_flow::bindingstate::BindingState;
 use crate::control_flow::bound_type::TypedBinding;
 use crate::control_flow::flowstate::FlowState;
+use crate::control_flow::function_contract::FunctionContract;
 use crate::control_flow::functioncontract_table;
 use crate::control_flow::functioncontract_table::FunctionContractTable;
 use crate::diagnostic::diagnostic::Diagnostic;
@@ -1843,6 +1844,25 @@ impl<'ctx> TypeResolver<'ctx> {
         }
     }
 
+    fn valid_arg_count(
+        &self,
+        contract: &FunctionContract,
+        supplied: usize,
+    ) -> bool {
+        let required = contract
+            .params
+            .iter()
+            .filter(|param| param.default.is_none())
+            .count();
+
+        println!("{:?}", required);
+        println!("{:?}", supplied);
+        
+
+        supplied >= required
+            && supplied <= contract.params.len()
+    }
+
     pub fn parse_expr(
         &mut self,
         expr: &ExprIR,
@@ -1868,6 +1888,7 @@ impl<'ctx> TypeResolver<'ctx> {
                         let callee_ty = self.parse_expr(&call.func, program_id, state);
 
                         // TODO mark difference between user defined and built-ins
+                        // for now it's just user defined, so ignore the match
                         match callee_ty {
                             Type::Function(function_id) => {
                                 println!(
@@ -1876,7 +1897,20 @@ impl<'ctx> TypeResolver<'ctx> {
                                     function_id
                                 );
 
-                                println!("{:?}", self.function_contracts.borrow_mut().by_id.get(&function_id));
+                                let supplied_args = call.args.len();
+
+                                let contracts = self.function_contracts.borrow();
+
+                                let contract = contracts
+                                    .by_id
+                                    .get(&function_id)
+                                    .unwrap();
+
+                                println!("{:?}", contract);
+                                
+                                let is_valid_call = self.valid_arg_count(contract, supplied_args);
+
+                                println!("{:?}", is_valid_call);
 
                                 Type::Unknown
                             }

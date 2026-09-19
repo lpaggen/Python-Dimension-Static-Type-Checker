@@ -1,5 +1,6 @@
 from abc import abstractmethod
 from dataclasses import dataclass
+from types import EllipsisType
 
 from common.span import SourceSpan
 from generated import _pb2
@@ -69,7 +70,7 @@ class ComplexIR(ConstantIR):
 
 @dataclass
 class EllipsisIR(ConstantIR):
-    value: ellipsis
+    value: EllipsisType
     span: SourceSpan
 
     def to_proto(self):

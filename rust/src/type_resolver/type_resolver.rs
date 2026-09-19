@@ -56,6 +56,7 @@ pub struct TypeResolver<'ctx> {
     function_contracts: Rc<RefCell<FunctionContractTable>>,
 
     solver: z3::Solver,
+    diagnostic_span_override: Option<SourceSpan>,
 }
 
 impl<'ctx> TypeResolver<'ctx> {
@@ -71,7 +72,15 @@ impl<'ctx> TypeResolver<'ctx> {
             diagnostics: Vec::new(),
             solver: z3::Solver::new(),
             function_contracts,
+            diagnostic_span_override: None,
         }
+    }
+
+    pub fn replace_diagnostic_span_override(
+        &mut self,
+        span: Option<SourceSpan>,
+    ) -> Option<SourceSpan> {
+        std::mem::replace(&mut self.diagnostic_span_override, span)
     }
 
     fn add_guarded_constraint(&mut self, guard: &z3::ast::Bool, constraint: &z3::ast::Bool) {
@@ -488,12 +497,30 @@ impl<'ctx> TypeResolver<'ctx> {
             }
 
             z3::SatResult::Unsat => {
+                let diagnostic_span = self
+                    .diagnostic_span_override
+                    .as_ref()
+                    .unwrap_or(span);
+
+                let display_dim = |dim: &DimType| match dim {
+                    DimType::Known(value) => value.to_string(),
+                    DimType::Symbol(symbol) => symbol.to_string(),
+                    DimType::Unknown => "unknown".to_owned(),
+                };
+
+                let guard = state.guard.simplify();
+                let condition = if guard.as_bool() == Some(true) {
+                    String::new()
+                } else {
+                    format!(" (when {guard})")
+                };
+
                 println!(
-                    "shape mismatch at {:?}: {:?} must equal {:?} under {:?}",
-                    span,
-                    a,
-                    b,
-                    state.guard.simplify()
+                    "{}: shape mismatch: dimension {} must equal {}{}",
+                    diagnostic_span,
+                    display_dim(a),
+                    display_dim(b),
+                    condition,
                 );
 
                 ConstraintResult::Infeasible
@@ -1742,6 +1769,10 @@ impl<'ctx> TypeResolver<'ctx> {
                                             program_id,
                                             function_id,
                                             bindings,
+                                            call_site: self
+                                                .diagnostic_span_override
+                                                .clone()
+                                                .unwrap_or(span),
                                         })
                                     }
                                 }

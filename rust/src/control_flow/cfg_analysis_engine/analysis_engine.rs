@@ -82,6 +82,7 @@ impl<'ctx> AnalysisEngine<'ctx> {
         function: &FunctionCfg,
         symbols: &[SymbolIR],
         bindings: &[CallBinding],
+        call_site: &SourceSpan,
     ) -> Result<FunctionContract, BlockedFunctionAnalysis> {
         let contour_id = ContourID::Function(function_id);
 
@@ -149,18 +150,21 @@ impl<'ctx> AnalysisEngine<'ctx> {
                 None => Type::Unknown,
             };
 
-        self.flow.analyze_body(
-            program_id,
-            contour_id,
-            &function.graph,
-            state,
-        )?;
+        let previous_diagnostic_span = self
+            .flow
+            .type_resolver
+            .replace_diagnostic_span_override(Some(call_site.clone()));
 
-        contract.returns = self.collect_function_returns(
-            program_id,
-            contour_id,
-            function,
-        )?;
+        let analysis_result = self
+            .flow
+            .analyze_body(program_id, contour_id, &function.graph, state)
+            .and_then(|_| self.collect_function_returns(program_id, contour_id, function));
+
+        self.flow
+            .type_resolver
+            .replace_diagnostic_span_override(previous_diagnostic_span);
+
+        contract.returns = analysis_result?;
 
         Ok(contract)
     }
@@ -192,6 +196,7 @@ impl<'ctx> AnalysisEngine<'ctx> {
             function,
             &program.symbols,
             &request.bindings,
+            &request.call_site,
         )?;
 
         let key = FunctionSpecializationKey {

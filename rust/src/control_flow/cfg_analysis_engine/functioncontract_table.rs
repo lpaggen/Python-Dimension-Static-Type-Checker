@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use crate::control_flow::{block_id::FunctionID, cfg_analysis_engine::function_contract_key::FunctionSpecializationKey, function_contract::FunctionContract};
+use crate::control_flow::{
+    block_id::FunctionID, cfg_analysis_engine::function_contract_key::FunctionSpecializationKey,
+    function_contract::FunctionContract,
+};
 
 // table shared by TypeResolver and BlockFlow
 // BlockFlow updates it by insertion
@@ -13,7 +16,7 @@ pub struct FunctionContractTable {
 
 impl FunctionContractTable {
     pub fn new() -> Self {
-        Self { 
+        Self {
             by_id: HashMap::new(),
             specialized: HashMap::new(),
         }

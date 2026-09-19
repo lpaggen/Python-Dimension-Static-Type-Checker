@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum BindingState {
     Bound,
@@ -14,11 +13,9 @@ impl BindingState {
             (Bound, Bound) => Bound,
             (Unbound, Unbound) => Unbound,
 
-            (MaybeUnbound, _)
-            | (_, MaybeUnbound) => MaybeUnbound,
+            (MaybeUnbound, _) | (_, MaybeUnbound) => MaybeUnbound,
 
-            (Bound, Unbound)
-            | (Unbound, Bound) => MaybeUnbound,
+            (Bound, Unbound) | (Unbound, Bound) => MaybeUnbound,
         }
     }
 }

@@ -1,9 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{
-    control_flow::cfg::Cfg,
-    linker::program_table::ProgramTable,
-};
+use crate::{control_flow::cfg::Cfg, linker::program_table::ProgramTable};
 
 pub struct CfgTable<'a> {
     pub programs: HashMap<i64, Cfg<'a>>,

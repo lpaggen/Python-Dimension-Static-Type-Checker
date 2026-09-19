@@ -7,20 +7,20 @@ use crate::control_flow::cfg_analysis_engine::functioncontract_table::FunctionCo
 use crate::control_flow::cfg_table::CfgTable;
 use crate::diagnostic::diagnostic::Diagnostic;
 use crate::ir::program_ir::ProgramIR;
-use crate::linker::scope_table::GlobalSymbolTable;
 use crate::linker::import_graph::ImportGraph;
 use crate::linker::program_table::ProgramTable;
 use crate::linker::resolution_table::ResolutionTable;
+use crate::linker::scope_table::GlobalSymbolTable;
 use crate::pb_decoder::pb_decoder::PBDecoder;
 use crate::type_resolver::type_resolver::TypeResolver;
 
+mod control_flow;
 mod diagnostic;
 mod ir;
 mod linker;
 mod pb_decoder;
 mod type_resolver;
 mod types;
-mod control_flow;
 
 pub mod pb {
     include!(concat!(env!("OUT_DIR"), "/pdc.ir.rs"));
@@ -73,17 +73,12 @@ fn main() -> Result<(), Vec<Diagnostic>> {
     let function_contracts = Rc::new(RefCell::new(FunctionContractTable::new()));
 
     let mut flow = BlockFlow::new(
-        TypeResolver::new(
-            &symbols,
-            &resolved,
-            Rc::clone(&function_contracts),
-        ),
+        TypeResolver::new(&symbols, &resolved, Rc::clone(&function_contracts)),
         &symbols,
         function_contracts,
     );
     flow.build(&cfg, &table);
     println!("flow analysis:   {:?}", start.elapsed());
-
 
     println!("total pipeline:  {:?}", total_start.elapsed());
 

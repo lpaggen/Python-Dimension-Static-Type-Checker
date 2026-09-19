@@ -12,6 +12,7 @@ pub mod conversion_ir;
 pub mod dict_ir;
 pub mod ellipsis_ir;
 pub mod float_ir;
+pub mod identifier_ir;
 pub mod ifexp_ir;
 pub mod integer_ir;
 pub mod interpolation_ir;
@@ -31,7 +32,6 @@ pub mod tuple_ir;
 pub mod unaryop_ir;
 pub mod yield_ir;
 pub mod yieldfrom_ir;
-pub mod identifier_ir;
 
 pub use attribute_ir::AttributeIR;
 pub use await_ir::AwaitIR;
@@ -47,6 +47,7 @@ pub use conversion_ir::Conversion;
 pub use dict_ir::DictIR;
 pub use ellipsis_ir::EllipsisIR;
 pub use float_ir::FloatIR;
+pub use identifier_ir::IdentifierIR;
 pub use ifexp_ir::IfExpIR;
 pub use integer_ir::IntegerIR;
 pub use interpolation_ir::InterpolationIR;
@@ -66,7 +67,6 @@ pub use tuple_ir::TupleIR;
 pub use unaryop_ir::UnaryOpIR;
 pub use yield_ir::YieldIR;
 pub use yieldfrom_ir::YieldFromIR;
-pub use identifier_ir::IdentifierIR;
 
 #[derive(Debug, Clone)]
 pub enum ExprIR {

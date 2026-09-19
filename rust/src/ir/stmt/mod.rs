@@ -1,4 +1,6 @@
+pub mod annassign_ir;
 pub mod assert_ir;
+pub mod assign_ir;
 pub mod asyncfor_ir;
 pub mod asyncfunctiondef_ir;
 pub mod asyncwith_ir;
@@ -26,10 +28,10 @@ pub mod typealias_ir;
 pub mod while_ir;
 pub mod with_ir;
 pub mod withitem_ir;
-pub mod assign_ir;
-pub mod annassign_ir;
 
+pub use annassign_ir::AnnAssignIR;
 pub use assert_ir::AssertIR;
+pub use assign_ir::AssignIR;
 pub use asyncfor_ir::AsyncForIR;
 pub use asyncfunctiondef_ir::AsyncFunctionDefIR;
 pub use asyncwith_ir::AsyncWithIR;
@@ -55,9 +57,6 @@ pub use typealias_ir::TypeAliasIR;
 pub use while_ir::WhileIR;
 pub use with_ir::WithIR;
 pub use withitem_ir::WithItemIR;
-pub use assign_ir::AssignIR;
-pub use annassign_ir::AnnAssignIR;
-
 
 #[derive(Debug, Clone)]
 pub enum StmtIR {

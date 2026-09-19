@@ -14,11 +14,11 @@ pub enum Type {
     Tuple(Vec<Type>),
     List(Vec<Type>),
     Callable(CallableType), // functions, NOT USER DEFINED
-    Function(FunctionID),  // user defined, state already knows everything, just query
+    Function(FunctionID),   // user defined, state already knows everything, just query
     Class(ClassType),
     Dim(DimType),
-    Union(Vec<Type>),  // mainly for logical unions, -> x: int | None -> Union(int, None)
-    FlowUnion(Vec<GuardedType>),  // represent if-else-then branches, where variable types depend on conditions
+    Union(Vec<Type>), // mainly for logical unions, -> x: int | None -> Union(int, None)
+    FlowUnion(Vec<GuardedType>), // represent if-else-then branches, where variable types depend on conditions
     //Module(ModuleType),
     Ellipsis,
     Unknown, // may be a valid type, we just don't consider it in this tool
@@ -26,13 +26,7 @@ pub enum Type {
 
 impl Type {
     pub fn is_numeric(&self) -> bool {
-        matches!(
-            self,
-            Type::Bool
-            | Type::Int
-            | Type::Float
-            | Type::Complex
-        )
+        matches!(self, Type::Bool | Type::Int | Type::Float | Type::Complex)
     }
 
     pub fn merge(self, other: Type) -> Type {
@@ -44,7 +38,7 @@ impl Type {
             (Type::Union(mut left), Type::Union(right)) => {
                 left.extend(right);
                 Type::Union(left)
-            },
+            }
 
             (Type::Union(mut items), other) => {
                 items.push(other);
@@ -56,16 +50,14 @@ impl Type {
                 Type::Union(items)
             }
 
-            (left, right) => {
-                Type::Union(vec![left, right])
-            }
+            (left, right) => Type::Union(vec![left, right]),
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub struct GuardedType {
-    pub guard: z3::ast::Bool,  // TODO check if this makes any sense at all
+    pub guard: z3::ast::Bool, // TODO check if this makes any sense at all
     pub ty: Type,
 }
 
@@ -89,7 +81,7 @@ pub enum TensorTypeState {
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub struct TensorType {
     pub shape: Vec<DimType>,
-    pub dtype: DType,  // TODO ensure we don't need Option here
+    pub dtype: DType, // TODO ensure we don't need Option here
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -120,7 +112,7 @@ pub enum DType {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum DimType {
-    Known(i64), // could use Int yes, but more clear this way
+    Known(i64),           // could use Int yes, but more clear this way
     Symbol(z3::ast::Int), // might become SymbolRef instead, easier to resolve
     Unknown,
 }

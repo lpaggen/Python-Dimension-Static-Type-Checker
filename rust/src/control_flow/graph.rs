@@ -2,11 +2,19 @@ use std::collections::HashMap;
 
 use crate::{
     control_flow::{
-        basic_block::BasicBlock, block_id::{BlockID, ClassID, FunctionID}, branch::Branch, class_cfg::ClassCfg, fornext::Next, function_cfg::FunctionCfg, loopctx::LoopContext, matcharm::{
-            Match, 
-            MatchArm
-        }, cfg::Cfg, raise::Raise, terminator::Terminator
-    }, ir::stmt::StmtIR
+        basic_block::BasicBlock,
+        block_id::{BlockID, ClassID, FunctionID},
+        branch::Branch,
+        cfg::Cfg,
+        class_cfg::ClassCfg,
+        fornext::Next,
+        function_cfg::FunctionCfg,
+        loopctx::LoopContext,
+        matcharm::{Match, MatchArm},
+        raise::Raise,
+        terminator::Terminator,
+    },
+    ir::stmt::StmtIR,
 };
 
 #[derive(Debug, Clone)]
@@ -28,20 +36,19 @@ impl<'a> Graph<'a> {
     }
 
     pub fn get_outgoing_ids(&self, id: &BlockID) -> Vec<BlockID> {
-        self
-            .blocks
+        self.blocks
             .get(&id)
             .unwrap()
             .terminator
             .as_ref()
             .unwrap_or(&Terminator::Exit)
             .outgoing()
-            // .as_slice()
+        // .as_slice()
     }
 
     pub fn build(
         &mut self,
-        cfg: &mut Cfg<'a>,  // so we can push to modules and functions and classes 
+        cfg: &mut Cfg<'a>, // so we can push to modules and functions and classes
         mut current: Vec<BlockID>,
         body: &'a [StmtIR],
         loop_ctx: Option<LoopContext>,
@@ -75,10 +82,7 @@ impl<'a> Graph<'a> {
 
                     let else_exits = self.build(cfg, vec![else_body], &if_stmt.orelse, loop_ctx);
 
-                    let exits: Vec<_> = then_exits
-                        .into_iter()
-                        .chain(else_exits)
-                        .collect();
+                    let exits: Vec<_> = then_exits.into_iter().chain(else_exits).collect();
 
                     if exits.is_empty() {
                         current.clear();
@@ -248,12 +252,7 @@ impl<'a> Graph<'a> {
                             target,
                         });
 
-                        let case_exits = self.build(
-                            cfg,
-                            vec![target],
-                            &case.body,
-                            loop_ctx,
-                        );
+                        let case_exits = self.build(cfg, vec![target], &case.body, loop_ctx);
 
                         match_exits.extend(case_exits);
                     }
@@ -298,12 +297,9 @@ impl<'a> Graph<'a> {
 
                     let mut class_cfg = ClassCfg::new(classdef_stmt.body_scope_id);
 
-                    class_cfg.graph.build(
-                        cfg,
-                        vec![BlockID { id: 0 }],
-                        &classdef_stmt.body,
-                        None,
-                    );
+                    class_cfg
+                        .graph
+                        .build(cfg, vec![BlockID { id: 0 }], &classdef_stmt.body, None);
 
                     cfg.classes.insert(class_id, class_cfg);
                 }
@@ -322,7 +318,7 @@ impl<'a> Graph<'a> {
                     let mut function_cfg = FunctionCfg::new(
                         functiondef_stmt.args.clone(),
                         functiondef_stmt.returns.clone(),
-                        functiondef_stmt.body_scope_id
+                        functiondef_stmt.body_scope_id,
                     );
 
                     let exits = function_cfg.graph.build(
@@ -333,14 +329,12 @@ impl<'a> Graph<'a> {
                     );
 
                     for exit in exits {
-                        function_cfg.graph.set_terminator(
-                            exit,
-                            Terminator::Return(None),
-                        );
+                        function_cfg
+                            .graph
+                            .set_terminator(exit, Terminator::Return(None));
                     }
 
                     cfg.functions.insert(function_id, function_cfg);
-
                 }
 
                 // StmtIR::ExprStmt(exprstmt_ir) => {
@@ -348,7 +342,8 @@ impl<'a> Graph<'a> {
                 // }
 
                 // TODO make a real join
-                other => { // anything else, assignments, definitions, etc, go here
+                other => {
+                    // anything else, assignments, definitions, etc, go here
                     // append `other` to current BB
                     for id in &current {
                         self.add_statement(*id, other);

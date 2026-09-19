@@ -6,11 +6,11 @@ pub struct TypedBinding {
     pub ty: Type,
 }
 
-impl TypedBinding {
-    pub fn merge_binding(&self, other: TypedBinding) -> Self {
-        Self {
-            binding: self.binding.clone().merge_binding(other.binding),
-            ty: self.ty.clone().merge(other.ty.clone()),
-        }
-    }
-}
+// impl TypedBinding {
+//     pub fn merge_binding(&self, other: TypedBinding) -> Self {
+//         Self {
+//             binding: self.binding.clone().merge_binding(other.binding),
+//             ty: self.ty.clone().merge(other.ty.clone()),
+//         }
+//     }
+// }

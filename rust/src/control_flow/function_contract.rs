@@ -1,4 +1,7 @@
-use crate::{ir::{arg::ArgKind, expr::ExprIR}, types::types::Type};
+use crate::{
+    ir::{arg::ArgKind, expr::ExprIR},
+    types::types::Type,
+};
 
 #[derive(Debug, Clone)]
 pub struct GuardedReturn {
@@ -26,7 +29,7 @@ impl FunctionContract {
     pub fn new() -> Self {
         Self {
             params: Vec::new(),
-            declared_return_type: Type:: Unknown,
+            declared_return_type: Type::Unknown,
             returns: Vec::new(),
         }
     }

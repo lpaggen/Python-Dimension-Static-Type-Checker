@@ -1,6 +1,6 @@
 use crate::{
-    ir::stmt::StmtIR,
     control_flow::{block_id::BlockID, terminator::Terminator},
+    ir::stmt::StmtIR,
 };
 
 #[derive(Debug, Clone)]

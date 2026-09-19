@@ -1,8 +1,4 @@
-use crate::ir::{
-    expr_ir::ExprIR,
-    span_ir::SourceSpan,
-    stmt::functiondef_ir::ArgIR,
-};
+use crate::ir::{expr_ir::ExprIR, span_ir::SourceSpan, stmt::functiondef_ir::ArgIR};
 
 #[derive(Debug, Clone)]
 pub struct LambdaIR {

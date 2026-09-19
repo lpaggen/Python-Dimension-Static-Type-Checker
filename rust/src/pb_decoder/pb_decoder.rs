@@ -42,17 +42,13 @@ impl PBDecoder {
 
         // type checker is wrong, it's a PathBuf
         for path in paths {
-            handles.push(std::thread::spawn(move || {
-                Self::decode_file(&path)
-            }));
+            handles.push(std::thread::spawn(move || Self::decode_file(&path)));
         }
 
         let mut programs = Vec::new();
 
         for handle in handles {
-            let program = handle
-                .join()
-                .map_err(|_| "decoder thread panicked")??;
+            let program = handle.join().map_err(|_| "decoder thread panicked")??;
 
             programs.push(program);
         }
@@ -60,7 +56,9 @@ impl PBDecoder {
         Ok(programs)
     }
 
-    pub fn decode_file(path: &PathBuf) -> Result<ProgramIR, Box<dyn std::error::Error + Send + Sync>> {
+    pub fn decode_file(
+        path: &PathBuf,
+    ) -> Result<ProgramIR, Box<dyn std::error::Error + Send + Sync>> {
         let bytes = fs::read(path)?;
 
         let pb_program = pb::ProgramIr::decode(bytes.as_slice()).map_err(|error| {
@@ -101,7 +99,7 @@ impl PBDecoder {
                     ),
                 )
             })?;
-        
+
         Ok(ProgramIR {
             module_name: pb_program.module_name,
             file_path: pb_program.file_path,
@@ -589,7 +587,6 @@ impl PBDecoder {
                 }))
             }
 
-
             Some(pb::stmt_ir::Kind::DeleteStmt(delete_ir)) => {
                 let targets = delete_ir
                     .targets
@@ -914,7 +911,6 @@ impl PBDecoder {
 
             //     span: Self::convert_optional_span(&binding.span),
             // })),
-
             Some(pb::stmt_ir::Kind::AugAssign(aug)) => {
                 let target = match &aug.target {
                     Some(target) => Box::new(Self::convert_expr(target)?),

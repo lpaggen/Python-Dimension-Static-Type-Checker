@@ -10,7 +10,6 @@ pub struct ResolvedAttributePath {
     pub attrs: Vec<String>,
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum KnownLibrary {
     PyTorch,

@@ -1,9 +1,6 @@
 use crate::{
-    control_flow::block_id::BlockID, 
-    ir::{
-        expr::ExprIR, 
-        nodes::PatternIR
-    }
+    control_flow::block_id::BlockID,
+    ir::{expr::ExprIR, nodes::PatternIR},
 };
 
 #[derive(Debug, Clone)]

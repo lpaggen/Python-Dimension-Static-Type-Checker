@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use crate::linker::{program_table::ProgramTable, symbol_ref::SymbolRef};
 
 pub struct ProgramSymbolTable {
-    pub by_scope_id: HashMap<i64, ScopeSymbolTable>
+    pub by_scope_id: HashMap<i64, ScopeSymbolTable>,
 }
 
 pub struct ScopeSymbolTable {
@@ -51,21 +51,16 @@ impl GlobalSymbolTable {
     }
 
     pub fn global_lookup(&self, program_id: i64, name: &str) -> Option<SymbolRef> {
-        self.lookup_by_name(
-            program_id, 
-            0, 
-            name
-        )
+        self.lookup_by_name(program_id, 0, name)
     }
 
     // !! i made this use threads, it only slows it down for small programs, from 10 microseconds to 1ms with my tests
     // depends, if programs are huge, maybe it makes sense, will see
     // keeping sequential for now
     pub fn build(&mut self, programs: &ProgramTable) {
-
         for (&program_id, program) in &programs.by_id {
             let mut program_symbols = ProgramSymbolTable {
-                by_scope_id: HashMap::new()
+                by_scope_id: HashMap::new(),
             };
 
             for scope in &program.scopes {

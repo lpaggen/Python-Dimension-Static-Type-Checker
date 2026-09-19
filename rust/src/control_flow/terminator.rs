@@ -1,5 +1,8 @@
 use crate::{
-    control_flow::{block_id::BlockID, branch::Branch, fornext::Next, matcharm::Match, raise::Raise}, ir::expr::ExprIR,
+    control_flow::{
+        block_id::BlockID, branch::Branch, fornext::Next, matcharm::Match, raise::Raise,
+    },
+    ir::expr::ExprIR,
 };
 
 #[derive(Debug, Clone)]
@@ -16,7 +19,7 @@ pub enum Terminator<'a> {
 
     Raise(Raise<'a>),
 
-    Exit  // block final exit (no successors), so we don't return None
+    Exit, // block final exit (no successors), so we don't return None
 }
 
 impl<'a> Terminator<'a> {
@@ -44,9 +47,7 @@ impl<'a> Terminator<'a> {
                 vec![*goto]
             }
 
-            Terminator::Raise(_) 
-            | Terminator::Return(_)
-            | Terminator::Exit => {
+            Terminator::Raise(_) | Terminator::Return(_) | Terminator::Exit => {
                 vec![]
             }
         }

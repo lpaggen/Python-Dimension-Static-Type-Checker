@@ -7,5 +7,5 @@ pub struct AnnAssignIR {
     pub annotation: ExprIR,
     pub value: Option<ExprIR>,
     pub simple: i64,
-    pub span: Option<SourceSpan>
+    pub span: Option<SourceSpan>,
 }

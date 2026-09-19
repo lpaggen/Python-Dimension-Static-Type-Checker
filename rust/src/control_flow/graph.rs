@@ -6,7 +6,7 @@ use crate::{
             Match, 
             MatchArm
         }, cfg::Cfg, raise::Raise, terminator::Terminator
-    }, ir::stmt::{FunctionDefIR, StmtIR}
+    }, ir::stmt::StmtIR
 };
 
 #[derive(Debug, Clone)]

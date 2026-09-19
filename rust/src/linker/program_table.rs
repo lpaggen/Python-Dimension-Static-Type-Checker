@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{ir::{nodes::ScopeIR, program_ir::ProgramIR}, linker::{scope_ref::ScopeRef, symbol_ref::SymbolRef}};
+use crate::ir::program_ir::ProgramIR;
 
 // use rayon::prelude::*;
 

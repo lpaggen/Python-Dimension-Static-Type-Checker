@@ -1,4 +1,4 @@
-use crate::{ir::{arg::ArgKind, expr::ExprIR}, types::types::{GuardedType, Type}};
+use crate::{ir::{arg::ArgKind, expr::ExprIR}, types::types::Type};
 
 #[derive(Debug, Clone)]
 pub struct GuardedReturn {

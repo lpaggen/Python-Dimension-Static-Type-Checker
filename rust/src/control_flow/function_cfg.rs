@@ -1,4 +1,4 @@
-use crate::{control_flow::graph::Graph, ir::{arg::ArgIR, expr::ExprIR, nodes::TypeParamIR}};
+use crate::{control_flow::graph::Graph, ir::{arg::ArgIR, expr::ExprIR}};
 
 pub struct FunctionCfg<'a> {
     pub graph: Graph<'a>,

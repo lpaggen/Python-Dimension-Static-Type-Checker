@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use z3::ast::Ast;
 
 use crate::{
     control_flow::{bindingstate::BindingState, bound_type::TypedBinding}, linker::symbol_ref::SymbolRef, types::types::{GuardedType, Type}

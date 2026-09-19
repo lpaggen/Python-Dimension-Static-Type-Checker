@@ -1,10 +1,10 @@
-use std::{cell::RefCell, collections::{HashMap, HashSet, VecDeque}, ops::Deref, rc::Rc};
+use std::{cell::RefCell, collections::{HashMap, HashSet, VecDeque}, rc::Rc};
 
 use z3::ast::Ast;
 
 use crate::{control_flow::{
-    basic_block::BasicBlock, bindingstate::BindingState, block_id::{BlockID, FunctionID}, bound_type::TypedBinding, cfg::Cfg, cfg_table::CfgTable, class_cfg::ClassCfg, flowstate::FlowState, function_analysis_request::FunctionAnalysisRequest, function_cfg::FunctionCfg, function_contract::{ContractParam, FunctionContract, GuardedReturn}, functioncontract_table::FunctionContractTable, graph::Graph, module_cfg::ModuleCfg, terminator::Terminator
-}, ir::{arg::ArgKind, expr::{ConstantIR, ExprIR}, nodes::{SymbolIR, SymbolKind}, operator::Operator, stmt::StmtIR}, linker::{program_table::ProgramTable, resolution_table::{self, ResolutionTable}, scope_table::GlobalSymbolTable, symbol_ref::SymbolRef}, type_resolver::type_resolver::TypeResolver, types::types::{GuardedType, Type}};
+    block_id::{BlockID, FunctionID}, cfg_analysis_engine::functioncontract_table::FunctionContractTable, cfg_table::CfgTable, class_cfg::ClassCfg, flowstate::FlowState, function_analysis_request::FunctionAnalysisRequest, function_cfg::FunctionCfg, function_contract::{ContractParam, FunctionContract, GuardedReturn}, graph::Graph, module_cfg::ModuleCfg, terminator::Terminator
+}, ir::{expr::{ConstantIR, ExprIR}, nodes::SymbolIR, operator::Operator, stmt::StmtIR}, linker::{program_table::ProgramTable, scope_table::GlobalSymbolTable, symbol_ref::SymbolRef}, type_resolver::type_resolver::TypeResolver, types::{types::Type}};
 
 pub struct BlockFlow<'ctx> {
     pub incoming: HashMap<BlockID, FlowState>,
@@ -12,8 +12,6 @@ pub struct BlockFlow<'ctx> {
     pub block_out: HashMap<BlockID, FlowState>,
 
     function_contracts: Rc<RefCell<FunctionContractTable>>,
-
-    function_analysis_queue: Rc<RefCell<Vec<FunctionAnalysisRequest>>>,
 
     symbols: &'ctx GlobalSymbolTable,
 
@@ -25,13 +23,11 @@ impl<'ctx> BlockFlow<'ctx> {
         type_resolver: TypeResolver<'ctx>, 
         symbol_table: &'ctx GlobalSymbolTable, 
         function_contracts: Rc<RefCell<FunctionContractTable>>,
-        function_analysis_queue: Rc<RefCell<Vec<FunctionAnalysisRequest>>>,
     ) -> Self {
         Self {
             incoming: HashMap::new(),
             edge_states: HashMap::new(),
             function_contracts: function_contracts,
-            function_analysis_queue,
             block_out: HashMap::new(),
             type_resolver,
             symbols: symbol_table,
@@ -157,7 +153,7 @@ impl<'ctx> BlockFlow<'ctx> {
         program_id: i64,
         module: &ModuleCfg,
         symbols: &[SymbolIR],
-    ) {
+    ) -> Result<(), FunctionAnalysisRequest> {
         let mut state = FlowState::new(z3::ast::Bool::from_bool(true));
 
         for symbol in symbols {
@@ -173,7 +169,9 @@ impl<'ctx> BlockFlow<'ctx> {
             program_id,
             &module.graph,
             state,
-        );
+        )?;
+
+        Ok(())
     }
 
     // fn populate_function_contract(&self, program_id: i64, function: &FunctionCfg, contract: &FunctionContract) -> FunctionContract {
@@ -229,7 +227,7 @@ impl<'ctx> BlockFlow<'ctx> {
         function_id: FunctionID,
         function: &FunctionCfg,
         symbols: &[SymbolIR],
-    ) {
+    ) -> Result<(), FunctionAnalysisRequest> {
         let mut state = FlowState::new(z3::ast::Bool::from_bool(true));
 
         for symbol in symbols {
@@ -295,7 +293,7 @@ impl<'ctx> BlockFlow<'ctx> {
             program_id,
             &function.graph,
             state,
-        );
+        )?;
 
         // check actual return statements, might move to a new function (if we want asyncdef etc support, lambdas maybe) TODO
         let mut returns = Vec::new();
@@ -314,7 +312,7 @@ impl<'ctx> BlockFlow<'ctx> {
             let return_type = match ret {
                 Some(expr) => {
                     self.type_resolver
-                        .parse_expr(expr, program_id, &mut return_state)
+                        .parse_expr(expr, program_id, &mut return_state)?
                 }
 
                 None => Type::None,
@@ -337,6 +335,8 @@ impl<'ctx> BlockFlow<'ctx> {
             .borrow_mut()
             .by_id
             .insert(function_id, contract);
+
+        Ok(())
     }
 
     // TODO further improve, this is a skeleton
@@ -345,7 +345,7 @@ impl<'ctx> BlockFlow<'ctx> {
         program_id: i64,
         class: &ClassCfg,
         symbols: &[SymbolIR],
-    ) {
+    ) -> Result<(), FunctionAnalysisRequest> {
         let mut state =
             FlowState::new(z3::ast::Bool::from_bool(true));
 
@@ -362,12 +362,14 @@ impl<'ctx> BlockFlow<'ctx> {
             program_id,
             &class.graph,
             state,
-        );
+        )?;
+
+        Ok(())
     }
 
     // for every program, go one by one to resolve CFG instructions Bound, Unbound, MaybeUnbound and their type
     // we want to end up with something like: Bound(int | float), etc., so we need bound status + type inference
-    pub fn analyze_body(&mut self, program_id: i64, graph: &Graph, entry_state: FlowState) {
+    pub fn analyze_body(&mut self, program_id: i64, graph: &Graph, entry_state: FlowState) -> Result<(), FunctionAnalysisRequest> {
 
         let entry = BlockID {id: 0};  // start at entry always
 
@@ -392,7 +394,7 @@ impl<'ctx> BlockFlow<'ctx> {
             let mut state = self.incoming[&id].clone();
 
             for &stmt in &block.statements {
-                self.analyze_stmt(stmt, &mut state, program_id);
+                self.analyze_stmt(stmt, &mut state, program_id)?;
             }
 
             self.block_out.insert(id, state.clone());
@@ -467,6 +469,8 @@ impl<'ctx> BlockFlow<'ctx> {
                 }
             }
         }
+
+        Ok(())
     }
 
     pub fn analyze_stmt(
@@ -474,7 +478,7 @@ impl<'ctx> BlockFlow<'ctx> {
         stmt: &StmtIR,
         state: &mut FlowState,
         program_id: i64,
-    ) {
+    ) -> Result<(), FunctionAnalysisRequest> {
         match stmt {
             StmtIR::Function(function) => {
                 // let return_type = match &function.returns {
@@ -491,12 +495,14 @@ impl<'ctx> BlockFlow<'ctx> {
                     Type::Function(function_id));
 
                 // and all the rest we need to do
+
+                Ok(())
             }
 
             StmtIR::Assign(assign) => {
                 let value_type =
                     self.type_resolver
-                        .parse_expr(&assign.value, program_id, state);
+                        .parse_expr(&assign.value, program_id, state)?;
 
                 for target in &assign.targets {
                     if let ExprIR::Name(name) = target {
@@ -521,11 +527,13 @@ impl<'ctx> BlockFlow<'ctx> {
                         );
                     }
                 }
+
+                Ok(())
             }
 
             StmtIR::AnnAssign(annassign) => {
                 // println!("{annassign:?}");
-                let target_type = self.type_resolver.resolve_type(program_id, stmt, state);
+                let target_type = self.type_resolver.resolve_type(program_id, stmt, state)?;
                     if let ExprIR::Name(name) = &annassign.target {
                         let symbol_ref = self.symbols
                             .lookup_by_name(
@@ -540,13 +548,15 @@ impl<'ctx> BlockFlow<'ctx> {
                             target_type.clone(),
                         );
                     }
+
+                Ok(())
             }
 
-            _ => {}
+            _ => {Ok(())}
         }
     }
 
-    pub fn build(&mut self, cfg: &CfgTable, programs: &ProgramTable) {
+    pub fn build(&mut self, cfg: &CfgTable, programs: &ProgramTable) -> Result<(), FunctionAnalysisRequest> {
         for (id, program_cfg) in &cfg.programs {
             let program = programs
                 .by_id
@@ -559,22 +569,24 @@ impl<'ctx> BlockFlow<'ctx> {
                     *function_id,
                     function_cfg,
                     &program.symbols,
-                );
+                )?;
             }
 
             self.analyze_module(
                 *id,
                 &program_cfg.module,
                 &program.symbols,
-            );
+            )?;
 
             for (_class_id, class_cfg) in &program_cfg.classes {
                 self.analyze_class(
                     *id,
                     class_cfg,
                     &program.symbols,
-                );
+                )?;
             }
         }
+
+        Ok(())
     }
 }

@@ -3,9 +3,8 @@ use std::rc::Rc;
 use std::time::Instant;
 
 use crate::control_flow::blockflow::BlockFlow;
+use crate::control_flow::cfg_analysis_engine::functioncontract_table::FunctionContractTable;
 use crate::control_flow::cfg_table::CfgTable;
-use crate::control_flow::function_analysis_request::FunctionAnalysisRequest;
-use crate::control_flow::functioncontract_table::FunctionContractTable;
 use crate::diagnostic::diagnostic::Diagnostic;
 use crate::ir::program_ir::ProgramIR;
 use crate::linker::scope_table::GlobalSymbolTable;
@@ -72,19 +71,15 @@ fn main() -> Result<(), Vec<Diagnostic>> {
     let start = Instant::now();
 
     let function_contracts = Rc::new(RefCell::new(FunctionContractTable::new()));
-    let function_analysis_queue = Rc::new(RefCell::new(Vec::<FunctionAnalysisRequest>::new()));
-
 
     let mut flow = BlockFlow::new(
         TypeResolver::new(
             &symbols,
             &resolved,
             Rc::clone(&function_contracts),
-            Rc::clone(&function_analysis_queue),
         ),
         &symbols,
         function_contracts,
-        function_analysis_queue,
     );
     flow.build(&cfg, &table);
     println!("flow analysis:   {:?}", start.elapsed());

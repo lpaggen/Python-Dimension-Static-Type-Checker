@@ -45,7 +45,7 @@ pub use functiondef_ir::{FunctionDefIR, ReturnIR};
 pub use global_ir::GlobalIR;
 pub use if_ir::IfIR;
 pub use import_ir::{ImportIR, ImportKind};
-pub use match_ir::{MatchCaseIR, MatchIR};
+pub use match_ir::MatchIR;
 pub use nonlocal_ir::NonlocalIR;
 pub use pass_ir::PassIR;
 pub use raise_ir::RaiseIR;

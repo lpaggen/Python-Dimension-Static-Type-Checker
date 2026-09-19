@@ -8,10 +8,11 @@ pub type ResolveResult = Result<Type, FunctionAnalysisRequest>;
 use crate::control_flow::bindingstate::BindingState;
 use crate::control_flow::bound_type::TypedBinding;
 use crate::control_flow::call_binding::CallBinding;
+use crate::control_flow::cfg_analysis_engine::function_contract_key::FunctionSpecializationKey;
+use crate::control_flow::cfg_analysis_engine::functioncontract_table::FunctionContractTable;
 use crate::control_flow::flowstate::FlowState;
 use crate::control_flow::function_analysis_request::FunctionAnalysisRequest;
 use crate::control_flow::function_contract::FunctionContract;
-use crate::control_flow::functioncontract_table::FunctionContractTable;
 use crate::diagnostic::diagnostic::Diagnostic;
 use crate::diagnostic::diagnostic::DiagnosticKind;
 use crate::diagnostic::diagnostic::Severity;
@@ -52,9 +53,6 @@ pub struct TypeResolver<'ctx> {
     // both this layer and the layer above need to insert and query from it, this is fine
     function_contracts: Rc<RefCell<FunctionContractTable>>,
 
-    // defer requests for function analysis for later
-    function_analysis_queue: Rc<RefCell<Vec<FunctionAnalysisRequest>>>,
-
     solver: z3::Solver
 }
 
@@ -63,7 +61,6 @@ impl<'ctx> TypeResolver<'ctx> {
         symbols: &'ctx GlobalSymbolTable,
         resolutions: &'ctx ResolutionTable,
         function_contracts:Rc<RefCell<FunctionContractTable>>,
-        function_analysis_queue: Rc<RefCell<Vec<FunctionAnalysisRequest>>>,
     ) -> Self {
         Self {
             // by_ref: HashMap::new(),
@@ -72,7 +69,6 @@ impl<'ctx> TypeResolver<'ctx> {
             diagnostics: Vec::new(),
             solver: z3::Solver::new(),
             function_contracts,
-            function_analysis_queue,
         }
     }
 
@@ -367,7 +363,7 @@ impl<'ctx> TypeResolver<'ctx> {
 
 
     fn infer_tensor_data(&mut self, expr: &ExprIR, program_id: i64) -> Option<TensorType> {
-        let default_dtype = DType::Unknown;
+        let _default_dtype = DType::Unknown;
         match expr {
             ExprIR::Constant(ConstantIR::IntegerLit(_)) => {
                 Some(TensorType { 
@@ -1940,9 +1936,12 @@ impl<'ctx> TypeResolver<'ctx> {
                                 };
 
                                 let mut bindings = Vec::new();
+                                let mut param_types = Vec::new();
 
                                 for (arg, param) in call.args.iter().zip(params.iter()) {
                                     let supplied_ty = self.parse_expr(arg, program_id, state)?;
+
+                                    param_types.push(supplied_ty.clone());
 
                                     if !self.compatible_param_type(
                                         &param.ty,
@@ -1958,19 +1957,35 @@ impl<'ctx> TypeResolver<'ctx> {
                                     });
                                 }
 
-                                self.function_analysis_queue
-                                    .borrow_mut()
-                                    .push(
-                                        FunctionAnalysisRequest { 
+                                let key = FunctionSpecializationKey {
+                                    function_id,
+                                    params: param_types,
+                                };
+
+                                let specialized_contract = {
+                                    let contracts = self.function_contracts.borrow();
+
+                                    contracts
+                                        .specialized
+                                        .get(&key)
+                                        .cloned()
+                                };
+
+                                match specialized_contract {
+                                    Some(_contract) => {
+                                        // turn guarded returns into type
+                                        // Ok(self.contract_)
+                                        Ok(Type::Unknown)
+                                    },
+
+                                    None => {
+                                        Err(FunctionAnalysisRequest { 
                                             program_id, 
                                             function_id, 
                                             bindings 
-                                        }
-                                    );
-
-                                // TODO bind the arguments + send request for deferred analysis
-
-                                Ok(Type::Unknown)
+                                        })
+                                    }
+                                }
                             }
 
                             _ => Ok(Type::Unknown),
@@ -2035,22 +2050,22 @@ impl<'ctx> TypeResolver<'ctx> {
                         }
                     }
 
-                    ExprIR::SubscriptExpr(subscript) => {
+                    ExprIR::SubscriptExpr(_subscript) => {
                         // handlers[i]()
                         Ok(Type::Unknown)
                     }
 
-                    ExprIR::Call(inner_call) => {
+                    ExprIR::Call(_inner_call) => {
                         // factory()()
                         Ok(Type::Unknown)
                     }
 
-                    ExprIR::LambdaExpr(lambda) => {
+                    ExprIR::LambdaExpr(_lambda) => {
                         // (lambda x: x)(1)
                         Ok(Type::Unknown)
                     }
 
-                    ExprIR::IfExp(ifexp) => {
+                    ExprIR::IfExp(_ifexp) => {
                         // (a if cond else b)()
                         Ok(Type::Unknown)
                     }
@@ -2214,11 +2229,11 @@ impl<'ctx> TypeResolver<'ctx> {
                 }
             }
 
-            ExprIR::SliceExpr(slice) => {
+            ExprIR::SliceExpr(_slice) => {
                 Ok(Type::Unknown)
             }
 
-            ExprIR::SubscriptExpr(subscript) => {
+            ExprIR::SubscriptExpr(_subscript) => {
                 Ok(Type::Unknown)
             }
 
@@ -2227,15 +2242,15 @@ impl<'ctx> TypeResolver<'ctx> {
                 Ok(Type::Unknown)
             }
 
-            ExprIR::BoolOpExpr(boolean) => {
+            ExprIR::BoolOpExpr(_boolean) => {
                 Ok(Type::Unknown)
             }
 
-            ExprIR::UnaryOpExpr(unary) => {
+            ExprIR::UnaryOpExpr(_unary) => {
                 Ok(Type::Unknown)
             }
 
-            ExprIR::CompareExpr(cmp) => {
+            ExprIR::CompareExpr(_cmp) => {
                 Ok(Type::Unknown)
             }
 
@@ -2266,12 +2281,12 @@ impl<'ctx> TypeResolver<'ctx> {
                 Type::String
             },
 
-            (Type::List(a), Type::List(b)) => {
+            (Type::List(_a), Type::List(_b)) => {
                 // Type::List(self.merge_element_types(a, b))
                 Type::Unknown
             }
 
-            (Type::Tuple(a), Type::Tuple(b)) => {
+            (Type::Tuple(_a), Type::Tuple(_b)) => {
                 // concatenate tuple type information
                 Type::Unknown
             }
@@ -2281,27 +2296,27 @@ impl<'ctx> TypeResolver<'ctx> {
                 Type::Tensor(Unresolved)
             }
 
-            (Type::Tensor(a), Type::Tensor(b)) => {
+            (Type::Tensor(_a), Type::Tensor(_b)) => {
                 // self.resolve_tensor_add(a, b)
                 Type::Unknown
             }
 
-            (Type::Tensor(a), scalar) if scalar.is_numeric() => {
+            (Type::Tensor(_a), scalar) if scalar.is_numeric() => {
                 // self.resolve_tensor_scalar_add(a, scalar)
                 Type::Unknown
             }
 
-            (scalar, Type::Tensor(b)) if scalar.is_numeric() => {
+            (scalar, Type::Tensor(_b)) if scalar.is_numeric() => {
                 // self.resolve_scalar_tensor_add(scalar, b)
                 Type::Unknown
             }
 
-            (Type::Union(items), rhs) => {
+            (Type::Union(_items), _rhs) => {
                 // self.distribute_binop_over_union(Operator::Add, items, rhs)
                 Type::Unknown
             }
 
-            (lhs, Type::Union(items)) => {
+            (_lhs, Type::Union(_items)) => {
                 // self.distribute_binop_over_union(Operator::Add, vec![lhs], Type::Union(items))
                 Type::Unknown
             }
@@ -2375,7 +2390,7 @@ impl<'ctx> TypeResolver<'ctx> {
         };
 
         match target {
-            ResolvedTarget::Local(local_ref) => {
+            ResolvedTarget::Local(_local_ref) => {
                 // self.by_ref.get(local_ref).cloned().unwrap_or(Type::Unknown)
                 Type::Unknown
                 // TODO fix, we are missing a bit of information here
@@ -2417,7 +2432,7 @@ impl<'ctx> TypeResolver<'ctx> {
                 Type::Union(vec![left, right])
             },
 
-            ExprIR::SubscriptExpr(subscript) => {
+            ExprIR::SubscriptExpr(_subscript) => {
                 // list[int], tuple[str, int], Tensor[...], etc.
                 Type::Unknown
             }

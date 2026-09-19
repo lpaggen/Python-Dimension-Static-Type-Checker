@@ -3,6 +3,7 @@ use std::rc::Rc;
 use std::time::Instant;
 
 use crate::control_flow::blockflow::BlockFlow;
+use crate::control_flow::cfg_analysis_engine::analysis_engine::AnalysisEngine;
 use crate::control_flow::cfg_analysis_engine::functioncontract_table::FunctionContractTable;
 use crate::control_flow::cfg_table::CfgTable;
 use crate::diagnostic::diagnostic::Diagnostic;
@@ -72,12 +73,18 @@ fn main() -> Result<(), Vec<Diagnostic>> {
 
     let function_contracts = Rc::new(RefCell::new(FunctionContractTable::new()));
 
-    let mut flow = BlockFlow::new(
+    let flow = BlockFlow::new(
         TypeResolver::new(&symbols, &resolved, Rc::clone(&function_contracts)),
         &symbols,
-        function_contracts,
+        Rc::clone(&function_contracts),
     );
-    flow.build(&cfg, &table);
+
+    let mut analysis_engine = AnalysisEngine {
+        flow,
+        contracts: Rc::clone(&function_contracts),
+    };
+
+    analysis_engine.run(&cfg, &table);
     println!("flow analysis:   {:?}", start.elapsed());
 
     println!("total pipeline:  {:?}", total_start.elapsed());

@@ -21,7 +21,9 @@ use crate::ir::expr::CallIR;
 use crate::ir::expr::KeywordIR;
 use crate::ir::expr::NameIR;
 use crate::ir::operator::Operator;
+use crate::ir::span_ir::SourceSpan;
 use crate::ir::stmt::StmtIR;
+use crate::type_resolver::constraint_result::ConstraintResult;
 use crate::type_resolver::library::KnownFunction;
 use crate::type_resolver::library::KnownLibrary;
 use crate::type_resolver::library::NumPyFunction;
@@ -391,7 +393,7 @@ impl<'ctx> TypeResolver<'ctx> {
     }
 
     // get more information about the tensors, their dtype, their dimensions etc
-    fn infer_torch_tensor(&mut self, call: &CallIR, program_id: i64) -> Type {
+    fn infer_torch_tensor(&mut self, call: &CallIR, program_id: i64, span: &SourceSpan) -> Type {
         // pytorch tensor can look like: torch.tensor(3), torch.tensor([...]), need to parse possible variants
         let Some(data_arg) = call.args.first() else {
             self.diagnostics.push(Diagnostic {
@@ -454,7 +456,7 @@ impl<'ctx> TypeResolver<'ctx> {
     //     }
     // }
 
-    fn require_dims_equal(&self, a: &DimType, b: &DimType, state: &mut FlowState) -> bool {
+    fn require_dims_equal(&self, a: &DimType, b: &DimType, state: &mut FlowState, span: &SourceSpan) -> ConstraintResult {
         let equality = match (a, b) {
             (DimType::Known(a), DimType::Known(b)) => {
                 z3::ast::Int::from_i64(*a).eq(z3::ast::Int::from_i64(*b))
@@ -466,7 +468,7 @@ impl<'ctx> TypeResolver<'ctx> {
 
             (DimType::Symbol(a), DimType::Symbol(b)) => a.eq(b),
 
-            _ => return false,
+            _ => return ConstraintResult::Infeasible,
         };
 
         self.solver.push();
@@ -480,33 +482,25 @@ impl<'ctx> TypeResolver<'ctx> {
 
         match result {
             z3::SatResult::Sat => {
-                println!(
-                    "✓ feasible: {:?} == {:?} under guard {:?}",
-                    a,
-                    b,
-                    state.guard.simplify()
-                );
-
                 self.solver.assert(state.guard.implies(&equality));
 
-                true
+                ConstraintResult::Feasible
             }
 
             z3::SatResult::Unsat => {
                 println!(
-                    "✗ UNSAT — pruning path: {:?} == {:?} under guard {:?}",
+                    "shape mismatch at {:?}: {:?} must equal {:?} under {:?}",
+                    span,
                     a,
                     b,
                     state.guard.simplify()
                 );
 
-                false
+                ConstraintResult::Infeasible
             }
 
             z3::SatResult::Unknown => {
-                // Conservatively don't prune something Z3 couldn't prove impossible.
-                println!("? Z3 returned unknown");
-                true
+                ConstraintResult::Unknown
             }
         }
     }
@@ -516,6 +510,7 @@ impl<'ctx> TypeResolver<'ctx> {
         left: &Type,
         right: &Type,
         state: &mut FlowState,
+        span: &SourceSpan
     ) -> Type {
         match (left, right) {
             // Expand unions on the left.
@@ -532,7 +527,7 @@ impl<'ctx> TypeResolver<'ctx> {
 
                     state.guard = branch_guard.clone();
 
-                    let result = self.torch_shapes_compatible(&guarded.ty, right, state);
+                    let result = self.torch_shapes_compatible(&guarded.ty, right, state, span);
 
                     match result {
                         Type::FlowUnion(inner) => {
@@ -564,7 +559,7 @@ impl<'ctx> TypeResolver<'ctx> {
 
                     state.guard = branch_guard.clone();
 
-                    let result = self.torch_shapes_compatible(left, &guarded.ty, state);
+                    let result = self.torch_shapes_compatible(left, &guarded.ty, state, span);
 
                     match result {
                         Type::FlowUnion(inner) => {
@@ -588,7 +583,7 @@ impl<'ctx> TypeResolver<'ctx> {
                 Type::Tensor(Unresolved),
                 Type::Tensor(Unresolved),
             ) => {
-                todo!()
+                Type::Tensor(Unresolved)
             }
 
             (
@@ -612,8 +607,18 @@ impl<'ctx> TypeResolver<'ctx> {
                 match (shape_a.len(), shape_b.len()) {
                     // [K] @ [K] -> []
                     (1, 1) => {
-                        if !self.require_dims_equal(&shape_a[0], &shape_b[0], state) {
-                            return Type::Unknown;
+                        match self.require_dims_equal(
+                            &shape_a[0],
+                            &shape_b[0],
+                            state,
+                            span,
+                        ) {
+                            ConstraintResult::Feasible => {}
+
+                            ConstraintResult::Infeasible
+                            | ConstraintResult::Unknown => {
+                                return Type::Unknown;
+                            }
                         }
 
                         Type::Tensor(TensorTypeState::Resolved(TensorType {
@@ -626,8 +631,18 @@ impl<'ctx> TypeResolver<'ctx> {
                     (1, _) => {
                         let b_rank = shape_b.len();
 
-                        if !self.require_dims_equal(&shape_a[0], &shape_b[b_rank - 2], state) {
-                            return Type::Unknown;
+                        match self.require_dims_equal(
+                            &shape_a[0],
+                            &shape_b[b_rank - 2],
+                            state,
+                            span,
+                        ) {
+                            ConstraintResult::Feasible => {}
+
+                            ConstraintResult::Infeasible
+                            | ConstraintResult::Unknown => {
+                                return Type::Unknown;
+                            }
                         }
 
                         let mut result_shape = shape_b[..b_rank - 2].to_vec();
@@ -644,8 +659,18 @@ impl<'ctx> TypeResolver<'ctx> {
                     (_, 1) => {
                         let a_rank = shape_a.len();
 
-                        if !self.require_dims_equal(&shape_a[a_rank - 1], &shape_b[0], state) {
-                            return Type::Unknown;
+                        match self.require_dims_equal(
+                            &shape_a[a_rank - 1],
+                            &shape_b[0],
+                            state,
+                            span,
+                        ) {
+                            ConstraintResult::Feasible => {}
+
+                            ConstraintResult::Infeasible
+                            | ConstraintResult::Unknown => {
+                                return Type::Unknown;
+                            }
                         }
 
                         let result_shape = shape_a[..a_rank - 1].to_vec();
@@ -662,12 +687,18 @@ impl<'ctx> TypeResolver<'ctx> {
                         let b_rank = shape_b.len();
 
                         // A[..., M, K] @ B[..., K, N]
-                        if !self.require_dims_equal(
+                        match self.require_dims_equal(
                             &shape_a[a_rank - 1],
                             &shape_b[b_rank - 2],
                             state,
+                            span,
                         ) {
-                            return Type::Unknown;
+                            ConstraintResult::Feasible => {}
+
+                            ConstraintResult::Infeasible
+                            | ConstraintResult::Unknown => {
+                                return Type::Unknown;
+                            }
                         }
 
                         let batch_a = &shape_a[..a_rank - 2];
@@ -704,8 +735,18 @@ impl<'ctx> TypeResolver<'ctx> {
                                     } else if matches!(b, DimType::Known(1)) {
                                         a.clone()
                                     } else {
-                                        if !self.require_dims_equal(a, b, state) {
-                                            return Type::Unknown;
+                                        match self.require_dims_equal(
+                                            a,
+                                            b,
+                                            state,
+                                            span,
+                                        ) {
+                                            ConstraintResult::Feasible => {}
+
+                                            ConstraintResult::Infeasible
+                                            | ConstraintResult::Unknown => {
+                                                return Type::Unknown;
+                                            }
                                         }
 
                                         a.clone()
@@ -751,6 +792,7 @@ impl<'ctx> TypeResolver<'ctx> {
         args: &[ExprIR],
         program_id: i64,
         state: &mut FlowState,
+        span: &SourceSpan
     ) -> Option<Vec<DimType>> {
         let expressions: Vec<&ExprIR> = match args {
             [ExprIR::TupleExpr(tuple)] => tuple.elts.iter().collect(),
@@ -783,6 +825,7 @@ impl<'ctx> TypeResolver<'ctx> {
         call: &CallIR,
         program_id: i64,
         state: &mut FlowState,
+        span: &SourceSpan
     ) -> ResolveResult {
         let Some(first_arg) = call.args.first() else {
             return Ok(Type::Unknown);
@@ -796,7 +839,7 @@ impl<'ctx> TypeResolver<'ctx> {
 
         let type_second = self.parse_expr(second_arg, program_id, state)?;
 
-        Ok(self.torch_shapes_compatible(&type_first, &type_second, state))
+        Ok(self.torch_shapes_compatible(&type_first, &type_second, state, span))
     }
 
     fn infer_torch_factory_tensor(
@@ -804,8 +847,9 @@ impl<'ctx> TypeResolver<'ctx> {
         call: &CallIR,
         program_id: i64,
         state: &mut FlowState,
+        span: &SourceSpan
     ) -> ResolveResult {
-        let Some(shape) = self.infer_torch_size(&call.args, program_id, state) else {
+        let Some(shape) = self.infer_torch_size(&call.args, program_id, state, span) else {
             return Ok(Type::Unknown);
         };
 
@@ -827,6 +871,7 @@ impl<'ctx> TypeResolver<'ctx> {
         call: &CallIR,
         program_id: i64,
         state: &mut FlowState,
+        span: &SourceSpan
     ) -> ResolveResult {
         if call.args.is_empty() || call.args.len() > 3 {
             return Ok(Type::Unknown);
@@ -940,6 +985,7 @@ impl<'ctx> TypeResolver<'ctx> {
         call: &CallIR,
         program_id: i64,
         state: &mut FlowState,
+        span: &SourceSpan
     ) -> ResolveResult {
         // torch.reshape(input, shape)
         if call.args.len() != 2 {
@@ -948,7 +994,7 @@ impl<'ctx> TypeResolver<'ctx> {
 
         let input_type = self.parse_expr(&call.args[0], program_id, state);
 
-        let Some(mut new_shape) = self.infer_torch_size(&call.args[1..], program_id, state) else {
+        let Some(mut new_shape) = self.infer_torch_size(&call.args[1..], program_id, state, span) else {
             return Ok(Type::Unknown);
         };
 
@@ -1040,6 +1086,7 @@ impl<'ctx> TypeResolver<'ctx> {
         types: &[Type],
         dim: i64,
         state: &mut FlowState,
+        span: &SourceSpan
     ) -> ResolveResult {
         if types.is_empty() {
             return Ok(Type::Unknown);
@@ -1065,7 +1112,7 @@ impl<'ctx> TypeResolver<'ctx> {
                 let mut branch_types = types.to_vec();
                 branch_types[index] = guarded.ty.clone();
 
-                let result = self.torch_cat_types(&branch_types, dim, state)?;
+                let result = self.torch_cat_types(&branch_types, dim, state, span)?;
 
                 match result {
                     Type::FlowUnion(inner) => {
@@ -1166,8 +1213,18 @@ impl<'ctx> TypeResolver<'ctx> {
                     continue;
                 }
 
-                if !self.require_dims_equal(&base.shape[axis], &tensor.shape[axis], state) {
-                    return Ok(Type::Unknown);
+                match self.require_dims_equal(
+                    &base.shape[axis],
+                    &tensor.shape[axis],
+                    state,
+                    span,
+                ) {
+                    ConstraintResult::Feasible => {}
+
+                    ConstraintResult::Infeasible
+                    | ConstraintResult::Unknown => {
+                        return Ok(Type::Unknown);
+                    }
                 }
             }
 
@@ -1211,6 +1268,7 @@ impl<'ctx> TypeResolver<'ctx> {
         call: &CallIR,
         program_id: i64,
         state: &mut FlowState,
+        span: &SourceSpan
     ) -> ResolveResult {
         let Some(tensors_arg) = call.args.first() else {
             return Ok(Type::Unknown);
@@ -1274,7 +1332,7 @@ impl<'ctx> TypeResolver<'ctx> {
             }
         };
 
-        self.torch_cat_types(&tensor_types, dim, state)
+        self.torch_cat_types(&tensor_types, dim, state, span)
     }
 
     fn torch_stack_types(
@@ -1282,6 +1340,7 @@ impl<'ctx> TypeResolver<'ctx> {
         types: &[Type],
         dim: i64,
         state: &mut FlowState,
+        span: &SourceSpan
     ) -> ResolveResult {
         if types.is_empty() {
             return Ok(Type::Unknown);
@@ -1307,7 +1366,7 @@ impl<'ctx> TypeResolver<'ctx> {
                 let mut branch_types = types.to_vec();
                 branch_types[index] = guarded.ty.clone();
 
-                let result = self.torch_stack_types(&branch_types, dim, state)?;
+                let result = self.torch_stack_types(&branch_types, dim, state, span)?;
 
                 match result {
                     Type::FlowUnion(inner) => {
@@ -1365,8 +1424,21 @@ impl<'ctx> TypeResolver<'ctx> {
             }
 
             for axis in 0..rank {
-                if !self.require_dims_equal(&first.shape[axis], &tensor.shape[axis], state) {
-                    return Ok(Type::Unknown);
+                match self.require_dims_equal(
+                    &first.shape[axis],
+                    &tensor.shape[axis],
+                    state,
+                    span,
+                ) {
+                    ConstraintResult::Feasible => {}
+
+                    ConstraintResult::Infeasible => {
+                        return Ok(Type::Unknown);
+                    }
+
+                    ConstraintResult::Unknown => {
+                        return Ok(Type::Unknown);
+                    }
                 }
             }
         }
@@ -1394,6 +1466,7 @@ impl<'ctx> TypeResolver<'ctx> {
         call: &CallIR,
         program_id: i64,
         state: &mut FlowState,
+        span: &SourceSpan
     ) -> ResolveResult {
         let Some(tensors_arg) = call.args.first() else {
             return Ok(Type::Unknown);
@@ -1460,7 +1533,7 @@ impl<'ctx> TypeResolver<'ctx> {
             },
         };
 
-        self.torch_stack_types(&tensor_types, dim, state)
+        self.torch_stack_types(&tensor_types, dim, state, span)
     }
 
     fn infer_torch_relu(
@@ -1468,6 +1541,7 @@ impl<'ctx> TypeResolver<'ctx> {
         call: &CallIR,
         program_id: i64,
         state: &mut FlowState,
+        span: &SourceSpan
     ) -> ResolveResult {
         let input = if let Some(input) = call.args.first() {
             input
@@ -1541,12 +1615,48 @@ impl<'ctx> TypeResolver<'ctx> {
         }
     }
 
+    fn contract_return_type(
+        &self,
+        contract: &FunctionContract,
+        state: &mut FlowState,
+    ) -> Type {
+        let mut guarded_types = Vec::new();
+
+        for ret in &contract.returns {
+            if !ret.constraints.is_empty() {
+                let refs: Vec<&z3::ast::Bool> = ret.constraints.iter().collect();
+
+                let constraints = z3::ast::Bool::and(&refs);
+
+                state.constraints.push(
+                    ret.guard
+                        .implies(&constraints)
+                        .simplify()
+                )
+            }
+
+            guarded_types.push(GuardedType {
+                guard: ret.guard.clone(),
+                ty: ret.ty.clone(),
+            });
+        }
+
+        if guarded_types.len() == 1 && guarded_types[0].guard.as_bool().unwrap_or(false)
+        {
+            guarded_types[0].ty.clone()
+        } else {
+            Type::FlowUnion(guarded_types)
+        }
+    }
+
     pub fn parse_expr(
         &mut self,
         expr: &ExprIR,
         program_id: i64,
         state: &mut FlowState,
     ) -> ResolveResult {
+        let span = expr.span();
+
         match expr {
             ExprIR::Constant(ConstantIR::IntegerLit(_)) => Ok(Type::Int),
             ExprIR::Constant(ConstantIR::FloatLit(_)) => Ok(Type::Float),
@@ -1562,23 +1672,25 @@ impl<'ctx> TypeResolver<'ctx> {
             ExprIR::Call(call) => {
                 match &*call.func {
                     ExprIR::Name(name) => {
-                        // foo(...)
-                        let callee_ty = self.parse_expr(&call.func, program_id, state);
+                        let callee_ty = self.parse_expr(&call.func, program_id, state)?;
 
-                        // TODO mark difference between user defined and built-ins
-                        // for now it's just user defined, so ignore the match
                         match callee_ty {
-                            Ok(Type::Function(function_id)) => {
-                                println!("calling function {} -> {:?}", name.id, function_id);
+                            Type::Function(function_id) => {
 
                                 let supplied_args = call.args.len();
 
                                 let params = {
                                     let contracts = self.function_contracts.borrow();
 
-                                    let contract = contracts.by_id.get(&function_id).unwrap();
+                                    let contract = contracts
+                                        .by_id
+                                        .get(&function_id)
+                                        .unwrap();
 
-                                    if !self.valid_arg_count(contract, supplied_args) {
+                                    if !self.valid_arg_count(
+                                        contract,
+                                        supplied_args,
+                                    ) {
                                         return Ok(Type::Unknown);
                                     }
 
@@ -1591,12 +1703,14 @@ impl<'ctx> TypeResolver<'ctx> {
                                 for (arg, param) in call.args.iter().zip(params.iter()) {
                                     let supplied_ty = self.parse_expr(arg, program_id, state)?;
 
-                                    param_types.push(supplied_ty.clone());
-
-                                    if !self.compatible_param_type(&param.ty, &supplied_ty) {
-                                        // TODO eventually emit diagnostic
+                                    if !self.compatible_param_type(
+                                        &param.ty,
+                                        &supplied_ty,
+                                    ) {
                                         return Ok(Type::Unknown);
                                     }
+
+                                    param_types.push(supplied_ty.clone());
 
                                     bindings.push(CallBinding {
                                         symbol_id: param.symbol_id,
@@ -1609,28 +1723,33 @@ impl<'ctx> TypeResolver<'ctx> {
                                     params: param_types,
                                 };
 
-                                let specialized_contract = {
+                                let specialized = {
                                     let contracts = self.function_contracts.borrow();
 
-                                    contracts.specialized.get(&key).cloned()
+                                    contracts
+                                        .specialized
+                                        .get(&key)
+                                        .cloned()
                                 };
 
-                                match specialized_contract {
-                                    Some(_contract) => {
-                                        // turn guarded returns into type
-                                        // Ok(self.contract_)
-                                        Ok(Type::Unknown)
+                                match specialized {
+                                    Some(contract) => {
+                                        Ok(self.contract_return_type(&contract, state))
                                     }
 
-                                    None => Err(FunctionAnalysisRequest {
-                                        program_id,
-                                        function_id,
-                                        bindings,
-                                    }),
+                                    None => {
+                                        Err(FunctionAnalysisRequest {
+                                            program_id,
+                                            function_id,
+                                            bindings,
+                                        })
+                                    }
                                 }
                             }
 
-                            _ => Ok(Type::Unknown),
+                            _ => {
+                                Ok(Type::Unknown)
+                            }
                         }
                     }
 
@@ -1649,44 +1768,44 @@ impl<'ctx> TypeResolver<'ctx> {
                         match known_function {
                             KnownFunction::Torch(TorchFunction::Tensor) => {
                                 // infer torch.tensor(...)
-                                Ok(self.infer_torch_tensor(call, program_id))
+                                Ok(self.infer_torch_tensor(call, program_id, &span))
                             }
 
                             KnownFunction::Torch(TorchFunction::Matmul) => {
                                 // infer torch.matmul(...)
-                                self.infer_torch_matmul(call, program_id, state)
+                                self.infer_torch_matmul(call, program_id, state, &span)
                             }
 
                             KnownFunction::Torch(TorchFunction::Zeros)
                             | KnownFunction::Torch(TorchFunction::Ones)
                             | KnownFunction::Torch(TorchFunction::Empty) => {
                                 // infer torch.zeros(...)
-                                self.infer_torch_factory_tensor(call, program_id, state)
+                                self.infer_torch_factory_tensor(call, program_id, state, &span)
                             }
 
                             KnownFunction::Torch(TorchFunction::Arange) => {
                                 // infer torch.arange(...)
-                                self.infer_torch_arange(call, program_id, state)
+                                self.infer_torch_arange(call, program_id, state, &span)
                             }
 
                             KnownFunction::Torch(TorchFunction::Reshape) => {
                                 // infer torch.reshape(...)
-                                self.infer_torch_reshape(call, program_id, state)
+                                self.infer_torch_reshape(call, program_id, state, &span)
                             }
 
                             KnownFunction::Torch(TorchFunction::Cat) => {
                                 // infer torch.cat(...)
-                                self.infer_torch_cat(call, program_id, state)
+                                self.infer_torch_cat(call, program_id, state, &span)
                             }
 
                             KnownFunction::Torch(TorchFunction::Stack) => {
                                 // infer torch.stack(...)
-                                self.infer_torch_stack(call, program_id, state)
+                                self.infer_torch_stack(call, program_id, state, &span)
                             }
 
                             KnownFunction::Torch(TorchFunction::Relu) => {
                                 // infer torch.relu(...)
-                                self.infer_torch_relu(call, program_id, state)
+                                self.infer_torch_relu(call, program_id, state, &span)
                             }
 
                             // add the rest when happy with the basic examples
@@ -2068,6 +2187,7 @@ impl<'ctx> TypeResolver<'ctx> {
         program_id: i64,
         stmt: &StmtIR,
         state: &mut FlowState,
+        span: &SourceSpan
     ) -> ResolveResult {
         match stmt {
             StmtIR::Assign(assign_stmt) => {

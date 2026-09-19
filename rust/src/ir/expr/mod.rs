@@ -68,6 +68,8 @@ pub use unaryop_ir::UnaryOpIR;
 pub use yield_ir::YieldIR;
 pub use yieldfrom_ir::YieldFromIR;
 
+use crate::ir::span_ir::SourceSpan;
+
 #[derive(Debug, Clone)]
 pub enum ExprIR {
     Constant(ConstantIR),
@@ -119,4 +121,56 @@ pub enum ConstantIR {
     ComplexLit(ComplexIR),
     NoneLit(NoneIR),
     EllipsisLit(EllipsisIR),
+}
+
+impl ConstantIR {
+    pub fn span(&self) -> SourceSpan {
+        match self {
+            ConstantIR::IntegerLit(x) => x.span.clone().unwrap(),
+            ConstantIR::FloatLit(x) => x.span.clone().unwrap(),
+            ConstantIR::StringLit(x) => x.span.clone().unwrap(),
+            ConstantIR::BooleanLit(x) => x.span.clone().unwrap(),
+            ConstantIR::BytesLit(x) => x.span.clone().unwrap(),
+            ConstantIR::ComplexLit(x) => x.span.clone().unwrap(),
+            ConstantIR::NoneLit(x) => x.span.clone().unwrap(),
+            ConstantIR::EllipsisLit(x) => x.span.clone().unwrap(),
+        }
+    }
+}
+
+impl ExprIR {
+    pub fn span(&self) -> SourceSpan {
+        match self {
+            ExprIR::Constant(c) => c.span(),
+            ExprIR::Name(x) => x.span.clone().unwrap(),
+            ExprIR::JoinedStr(x) => x.span.clone().unwrap(),
+            ExprIR::FormattedValue(x) => x.span.clone().unwrap(),
+            ExprIR::TemplateStr(x) => x.span.clone().unwrap(),
+            ExprIR::ListExpr(x) => x.span.clone().unwrap(),
+            ExprIR::TupleExpr(x) => x.span.clone().unwrap(),
+            ExprIR::SliceExpr(x) => x.span.clone().unwrap(),
+            ExprIR::SubscriptExpr(x) => x.span.clone().unwrap(),
+            ExprIR::Attribute(x) => x.span.clone().unwrap(),
+            ExprIR::SetExpr(x) => x.span.clone().unwrap(),
+            ExprIR::DictExpr(x) => x.span.clone().unwrap(),
+            ExprIR::AwaitExpr(x) => x.span.clone().unwrap(),
+            ExprIR::YieldExpr(x) => x.span.clone().unwrap(),
+            ExprIR::YieldFromExpr(x) => x.span.clone().unwrap(),
+            ExprIR::InterpolationExpr(x) => x.span.clone().unwrap(),
+            ExprIR::BinOpExpr(x) => x.span.clone().unwrap(),
+            ExprIR::BoolOpExpr(x) => x.span.clone().unwrap(),
+            ExprIR::UnaryOpExpr(x) => x.span.clone().unwrap(),
+            ExprIR::CompareExpr(x) => x.span.clone().unwrap(),
+            ExprIR::Call(x) => x.span.clone().unwrap(),
+            ExprIR::NamedExpr(x) => x.span.clone().unwrap(),
+            ExprIR::IfExp(x) => x.span.clone().unwrap(),
+            ExprIR::LambdaExpr(x) => x.span.clone().unwrap(),
+            ExprIR::GeneratorExp(x) => x.span.clone().unwrap(),
+            ExprIR::ListComp(x) => x.span.clone().unwrap(),
+            ExprIR::DictComp(x) => x.span.clone().unwrap(),
+            ExprIR::SetComp(x) => x.span.clone().unwrap(),
+            ExprIR::StarredExpr(x) => x.span.clone().unwrap(),
+            ExprIR::IdentifierExpr(x) => x.span.clone().unwrap(),
+        }
+    }
 }

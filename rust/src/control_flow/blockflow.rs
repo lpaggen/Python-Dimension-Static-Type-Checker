@@ -4,43 +4,26 @@ use std::{
     rc::Rc,
 };
 
-use z3::ast::Ast;
-
 use crate::{
     control_flow::{
-        block_id::{BlockID, FunctionID},
-        cfg_analysis_engine::functioncontract_table::FunctionContractTable,
-        cfg_table::CfgTable,
-        class_cfg::ClassCfg,
-        flowstate::FlowState,
-        function_analysis_request::FunctionAnalysisRequest,
-        function_cfg::FunctionCfg,
-        function_contract::{ContractParam, FunctionContract, GuardedReturn},
-        graph::Graph,
-        module_cfg::ModuleCfg,
-        terminator::Terminator,
-    },
-    ir::{
+        block_id::{BlockID, FunctionID}, cfg_analysis_engine::{blocked_function_analysis::BlockedFunctionAnalysis, contour_id::ContourID, flow_block_id::FlowBlockID, functioncontract_table::FunctionContractTable}, cfg_table::CfgTable, class_cfg::ClassCfg, flowstate::FlowState, function_analysis_request::FunctionAnalysisRequest, function_cfg::FunctionCfg, function_contract::{ContractParam, FunctionContract, GuardedReturn}, graph::Graph, module_cfg::ModuleCfg, terminator::Terminator,
+    }, ir::{
         expr::{ConstantIR, ExprIR},
-        nodes::SymbolIR,
         operator::Operator,
         stmt::StmtIR,
-    },
-    linker::{program_table::ProgramTable, scope_table::GlobalSymbolTable, symbol_ref::SymbolRef},
-    type_resolver::type_resolver::TypeResolver,
-    types::types::Type,
+    }, linker::scope_table::GlobalSymbolTable, type_resolver::type_resolver::TypeResolver, types::types::Type,
 };
 
 pub struct BlockFlow<'ctx> {
-    pub incoming: HashMap<BlockID, FlowState>,
-    pub edge_states: HashMap<(BlockID, BlockID), FlowState>, // necessary to preserve conditional guards on branches
-    pub block_out: HashMap<BlockID, FlowState>,
+    pub incoming: HashMap<FlowBlockID, FlowState>,
+    pub edge_states: HashMap<(FlowBlockID, FlowBlockID), FlowState>, // necessary to preserve conditional guards on branches
+    pub block_out: HashMap<FlowBlockID, FlowState>,
 
     function_contracts: Rc<RefCell<FunctionContractTable>>,
 
     symbols: &'ctx GlobalSymbolTable,
 
-    type_resolver: TypeResolver<'ctx>,
+    pub type_resolver: TypeResolver<'ctx>,
 }
 
 impl<'ctx> BlockFlow<'ctx> {
@@ -61,6 +44,7 @@ impl<'ctx> BlockFlow<'ctx> {
 
     fn update_successor(
         &mut self,
+        contour_id: ContourID,
         graph: &Graph,
         successor: BlockID,
         queue: &mut VecDeque<BlockID>,
@@ -68,25 +52,30 @@ impl<'ctx> BlockFlow<'ctx> {
     ) {
         let successor_block = &graph.blocks[&successor];
 
+        let successor_id = FlowBlockID {
+            contour: contour_id,
+            block: successor,
+        };
+
         // find outgoing states of current block's predecessors
         let states = successor_block
             .incoming
             .iter()
-            .filter_map(|pred| self.edge_states.get(&(*pred, successor)));
+            .filter_map(|pred| self.edge_states.get(&(FlowBlockID {contour: contour_id, block: *pred}, successor_id)));
 
         // now merge the outgoing states of the current block's predecessors
         let merged = FlowState::merge(states);
 
         let changed = self
             .incoming
-            .get(&successor)
+            .get(&successor_id)
             .map(|old| old != &merged)
             .unwrap_or(true);
 
         // if successor is B1 depends on B0, just set IN[B1] = merge(OUT(predecessors[B1])), that's it
         // we only want to do this if something has changed, else we run into infinite loops
         if changed {
-            self.incoming.insert(successor, merged);
+            self.incoming.insert(successor_id, merged);
 
             if queued.insert(successor) {
                 // just means it wasn't there, Rust returns true
@@ -169,28 +158,6 @@ impl<'ctx> BlockFlow<'ctx> {
         }
     }
 
-    fn analyze_module(
-        &mut self,
-        program_id: i64,
-        module: &ModuleCfg,
-        symbols: &[SymbolIR],
-    ) -> Result<(), FunctionAnalysisRequest> {
-        let mut state = FlowState::new(z3::ast::Bool::from_bool(true));
-
-        for symbol in symbols {
-            let symbol_ref = SymbolRef {
-                program_id,
-                symbol_id: symbol.id,
-            };
-
-            state.register_unbound(&symbol_ref);
-        }
-
-        self.analyze_body(program_id, &module.graph, state)?;
-
-        Ok(())
-    }
-
     // fn populate_function_contract(&self, program_id: i64, function: &FunctionCfg, contract: &FunctionContract) -> FunctionContract {
     //     // first parse the ArgIR into the Type
     //     let mut arg_types: Vec<Type> = Vec::new();
@@ -235,165 +202,63 @@ impl<'ctx> BlockFlow<'ctx> {
         // FunctionContract { params: (), return_type, constraints: None }
     // }
 
-    fn analyze_function(
+    pub fn resume_from_block(
         &mut self,
         program_id: i64,
-        function_id: FunctionID,
-        function: &FunctionCfg,
-        symbols: &[SymbolIR],
-    ) -> Result<(), FunctionAnalysisRequest> {
-        let mut state = FlowState::new(z3::ast::Bool::from_bool(true));
-
-        for symbol in symbols {
-            if symbol.scope_id != function.scope_id {
-                continue;
-            }
-
-            let symbol_ref = SymbolRef {
-                program_id,
-                symbol_id: symbol.id,
-            };
-
-            state.register_unbound(&symbol_ref);
-        }
-
-        let mut contract = FunctionContract::new();
-
-        for param in &function.params {
-            let symbol_ref = SymbolRef {
-                program_id,
-                symbol_id: param.symbol_id,
-            };
-
-            let param_type = match &param.annotation {
-                Some(expr) => self.type_resolver.parse_annotation(expr, program_id),
-
-                None => Type::Unknown,
-            };
-
-            let param_default = param.default.as_ref().map(|default| *default.clone());
-
-            let param_contract = ContractParam {
-                symbol_id: param.symbol_id,
-                ty: param_type.clone(),
-                default: param_default,
-                kind: param.kind.clone(),
-            };
-
-            // ugly? but it works, contract is just a cheap copy made to pass to callers either way]
-            // TODO double check logic here
-            contract.params.push(param_contract);
-
-            state.bind(&symbol_ref, param_type);
-        }
-
-        // !! be mindful of the fact that there is whatever the user DECLARED, and what actually gets returned
-        // this is the former.
-        contract.declared_return_type = match &function.returns {
-            Some(expr) => self.type_resolver.parse_annotation(expr, program_id),
-            None => Type::Unknown,
-        };
-
-        self.analyze_body(program_id, &function.graph, state)?;
-
-        // check actual return statements, might move to a new function (if we want asyncdef etc support, lambdas maybe) TODO
-        let mut returns = Vec::new();
-
-        for (block_id, block) in &function.graph.blocks {
-            let Some(Terminator::Return(ret)) = &block.terminator else {
-                continue;
-            };
-
-            let Some(return_state) = self.block_out.get(block_id) else {
-                continue; // unreachable
-            };
-
-            let mut return_state = return_state.clone();
-
-            let return_type = match ret {
-                Some(expr) => self
-                    .type_resolver
-                    .parse_expr(expr, program_id, &mut return_state)?,
-
-                None => Type::None,
-            };
-
-            returns.push(GuardedReturn {
-                guard: return_state.guard.simplify(),
-                ty: return_type,
-                constraints: return_state
-                    .constraints
-                    .iter()
-                    .map(|c| c.simplify())
-                    .collect(),
-            });
-        }
-
-        contract.returns = returns;
-
-        self.function_contracts
-            .borrow_mut()
-            .by_id
-            .insert(function_id, contract);
-
-        Ok(())
-    }
-
-    // TODO further improve, this is a skeleton
-    fn analyze_class(
-        &mut self,
-        program_id: i64,
-        class: &ClassCfg,
-        symbols: &[SymbolIR],
-    ) -> Result<(), FunctionAnalysisRequest> {
-        let mut state = FlowState::new(z3::ast::Bool::from_bool(true));
-
-        for symbol in symbols {
-            let symbol_ref = SymbolRef {
-                program_id,
-                symbol_id: symbol.id,
-            };
-
-            state.register_unbound(&symbol_ref);
-        }
-
-        self.analyze_body(program_id, &class.graph, state)?;
-
-        Ok(())
-    }
-
-    // for every program, go one by one to resolve CFG instructions Bound, Unbound, MaybeUnbound and their type
-    // we want to end up with something like: Bound(int | float), etc., so we need bound status + type inference
-    pub fn analyze_body(
-        &mut self,
-        program_id: i64,
+        contour_id: ContourID,
         graph: &Graph,
-        entry_state: FlowState,
-    ) -> Result<(), FunctionAnalysisRequest> {
-        let entry = BlockID { id: 0 }; // start at entry always
+        block_id: BlockID,
+    ) -> Result<(), BlockedFunctionAnalysis> {
+        self.run_worklist(
+            program_id,
+            contour_id,
+            graph,
+            vec![block_id],
+        )
+    }
 
-        self.incoming.insert(entry, entry_state);
+    pub fn run_worklist(
+        &mut self,
+        program_id: i64,
+        contour_id: ContourID,
+        graph: &Graph,
+        initial_blocks: Vec<BlockID>
+    ) -> Result<(), BlockedFunctionAnalysis> {
 
         let mut queue: VecDeque<BlockID> = VecDeque::new();
         let mut queued: HashSet<BlockID> = HashSet::new(); // prevents duplicate updates on branches
 
-        queue.push_back(entry);
-        queued.insert(entry);
+        for block_id in initial_blocks {
+            queue.push_back(block_id);
+            queued.insert(block_id);
+        }
 
         // suppose this has B3
         while let Some(id) = queue.pop_front() {
+            let flow_id = FlowBlockID {
+                contour: contour_id,
+                block: id,
+            };
+
             queued.remove(&id);
 
             let block = graph.blocks.get(&id).unwrap();
 
             // this just gets IN[B3], which we know from merge(OUT[predecessors])
-            let mut state = self.incoming[&id].clone();
+            let mut state = self.incoming[&flow_id].clone();
 
             for &stmt in &block.statements {
-                self.analyze_stmt(stmt, &mut state, program_id)?;
+                if let Err(request) = self.analyze_stmt(stmt, &mut state, program_id) {
+                    return Err(BlockedFunctionAnalysis {
+                        block_id: id,
+                        request,
+                        program_id,
+                        contour: contour_id,
+                    })
+                }
             }
 
-            self.block_out.insert(id, state.clone());
+            self.block_out.insert(flow_id, state.clone());
 
             let successors = graph.get_outgoing_ids(&id);
 
@@ -416,28 +281,76 @@ impl<'ctx> BlockFlow<'ctx> {
 
                     false_state.guard = z3::ast::Bool::and(&[&state.guard, &not_condition]);
 
-                    self.edge_states
-                        .insert((id, branch.true_target), true_state);
+                    let true_target = FlowBlockID {
+                        contour: contour_id,
+                        block: branch.true_target,
+                    };
 
                     self.edge_states
-                        .insert((id, branch.false_target), false_state);
+                        .insert((flow_id, true_target), true_state);
 
-                    self.update_successor(graph, branch.true_target, &mut queue, &mut queued);
+                    let false_target = FlowBlockID {
+                        contour: contour_id,
+                        block: branch.false_target,
+                    };
 
-                    self.update_successor(graph, branch.false_target, &mut queue, &mut queued);
+                    self.edge_states
+                        .insert((flow_id, false_target), false_state);
+
+                    self.update_successor(contour_id, graph, branch.true_target, &mut queue, &mut queued);
+
+                    self.update_successor(contour_id, graph, branch.false_target, &mut queue, &mut queued);
                 }
 
                 _ => {
                     for successor in successors {
-                        self.edge_states.insert((id, successor), state.clone());
+                        let successor_key = FlowBlockID {
+                            contour: contour_id,
+                            block: successor,
+                        };
 
-                        self.update_successor(graph, successor, &mut queue, &mut queued);
+                        self.edge_states
+                            .insert((flow_id, successor_key), state.clone());
+
+                        self.update_successor(
+                            contour_id,
+                            graph, 
+                            successor, 
+                            &mut queue, 
+                            &mut queued
+                        );
                     }
                 }
             }
         }
 
         Ok(())
+    }
+
+    // for every program, go one by one to resolve CFG instructions Bound, Unbound, MaybeUnbound and their type
+    // we want to end up with something like: Bound(int | float), etc., so we need bound status + type inference
+    pub fn analyze_body(
+        &mut self,
+        program_id: i64,
+        contour_id: ContourID,
+        graph: &Graph,
+        entry_state: FlowState,
+    ) -> Result<(), BlockedFunctionAnalysis> {
+        let entry = BlockID { id: 0 }; // start at entry always
+
+        let entry_key = FlowBlockID {
+            contour: contour_id,
+            block: entry,
+        };
+
+        self.incoming.insert(entry_key, entry_state);
+
+        self.run_worklist(
+            program_id,
+            contour_id,
+            graph,
+            vec![entry],
+        )
     }
 
     pub fn analyze_stmt(
@@ -496,7 +409,7 @@ impl<'ctx> BlockFlow<'ctx> {
 
             StmtIR::AnnAssign(annassign) => {
                 // println!("{annassign:?}");
-                let target_type = self.type_resolver.resolve_type(program_id, stmt, state)?;
+                let target_type = self.type_resolver.resolve_type(program_id, stmt, state, &annassign.span.clone().unwrap())?;
                 if let ExprIR::Name(name) = &annassign.target {
                     let symbol_ref = self
                         .symbols
@@ -511,30 +424,5 @@ impl<'ctx> BlockFlow<'ctx> {
 
             _ => Ok(()),
         }
-    }
-
-    pub fn build(
-        &mut self,
-        cfg: &CfgTable,
-        programs: &ProgramTable,
-    ) -> Result<(), FunctionAnalysisRequest> {
-        for (id, program_cfg) in &cfg.programs {
-            let program = programs
-                .by_id
-                .get(id)
-                .expect("CFG exists without corresponding ProgramIR");
-
-            for (function_id, function_cfg) in &program_cfg.functions {
-                self.analyze_function(*id, *function_id, function_cfg, &program.symbols)?;
-            }
-
-            self.analyze_module(*id, &program_cfg.module, &program.symbols)?;
-
-            for class_cfg in program_cfg.classes.values() {
-                self.analyze_class(*id, class_cfg, &program.symbols)?;
-            }
-        }
-
-        Ok(())
     }
 }

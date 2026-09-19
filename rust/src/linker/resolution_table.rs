@@ -43,7 +43,7 @@ impl ResolutionTable {
                                 0, // global scope
                                 imported_name,
                             )
-                            .expect(&format!("culprit: {}", imported_name));
+                            .unwrap_or_else(|| panic!("culprit: {}", imported_name));
                         ResolvedTarget::Local(target_ref)
                     }
                     None => ResolvedTarget::External {

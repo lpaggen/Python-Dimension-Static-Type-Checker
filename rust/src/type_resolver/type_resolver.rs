@@ -279,7 +279,9 @@ impl<'ctx> TypeResolver<'ctx> {
 
     // follow PyTorch numeric promotion rules
     fn resolve_common_dtype(&self, element_types: &[DType]) -> DType {
-        let result = if element_types.is_empty() {
+        
+
+        if element_types.is_empty() {
             DType::Unknown
         } else if element_types.contains(&DType::Float64) {
             DType::Float64
@@ -291,9 +293,7 @@ impl<'ctx> TypeResolver<'ctx> {
             DType::Int32
         } else {
             DType::Unknown
-        };
-
-        result
+        }
     }
 
     fn infer_tensor_data(&mut self, expr: &ExprIR, program_id: i64) -> Option<TensorType> {
@@ -737,7 +737,7 @@ impl<'ctx> TypeResolver<'ctx> {
         match (lhs, rhs) {
             (DType::Unknown, _) | (_, DType::Unknown) => None,
 
-            (a, b) if a == b => Some(a.clone()),
+            (a, b) if a == b => Some(*a),
 
             _ => {
                 // incompatible matmul operand dtypes
@@ -784,7 +784,7 @@ impl<'ctx> TypeResolver<'ctx> {
         program_id: i64,
         state: &mut FlowState,
     ) -> ResolveResult {
-        let Some(first_arg) = call.args.get(0) else {
+        let Some(first_arg) = call.args.first() else {
             return Ok(Type::Unknown);
         };
 
@@ -1011,11 +1011,10 @@ impl<'ctx> TypeResolver<'ctx> {
             }
 
             None => {
-                if let (Some(input_numel), Some(requested_numel)) = (input_numel, requested_numel) {
-                    if input_numel != requested_numel {
+                if let (Some(input_numel), Some(requested_numel)) = (input_numel, requested_numel)
+                    && input_numel != requested_numel {
                         return Ok(Type::Unknown);
                     }
-                }
             }
         }
 
@@ -2072,8 +2071,8 @@ impl<'ctx> TypeResolver<'ctx> {
     ) -> ResolveResult {
         match stmt {
             StmtIR::Assign(assign_stmt) => {
-                let ty = self.parse_expr(&assign_stmt.value, program_id, state);
-                ty
+                
+                self.parse_expr(&assign_stmt.value, program_id, state)
             }
 
             StmtIR::AnnAssign(annassign_stmt) => {

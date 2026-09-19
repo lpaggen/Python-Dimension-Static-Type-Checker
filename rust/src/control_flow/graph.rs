@@ -37,7 +37,7 @@ impl<'a> Graph<'a> {
 
     pub fn get_outgoing_ids(&self, id: &BlockID) -> Vec<BlockID> {
         self.blocks
-            .get(&id)
+            .get(id)
             .unwrap()
             .terminator
             .as_ref()

@@ -52,7 +52,7 @@ impl<'ctx> BlockFlow<'ctx> {
         Self {
             incoming: HashMap::new(),
             edge_states: HashMap::new(),
-            function_contracts: function_contracts,
+            function_contracts,
             block_out: HashMap::new(),
             type_resolver,
             symbols: symbol_table,
@@ -271,10 +271,7 @@ impl<'ctx> BlockFlow<'ctx> {
                 None => Type::Unknown,
             };
 
-            let param_default = match &param.default {
-                Some(default) => Some(*default.clone()),
-                None => None,
-            };
+            let param_default = param.default.as_ref().map(|default| *default.clone());
 
             let param_contract = ContractParam {
                 symbol_id: param.symbol_id,
@@ -406,7 +403,7 @@ impl<'ctx> BlockFlow<'ctx> {
                 Some(Terminator::Return(Some(_))) => {}
 
                 Some(Terminator::Branch(branch)) => {
-                    let z3_guard = self.to_z3_bool(&branch.condition, program_id);
+                    let z3_guard = self.to_z3_bool(branch.condition, program_id);
 
                     let mut true_state = state.clone();
 
@@ -425,16 +422,16 @@ impl<'ctx> BlockFlow<'ctx> {
                     self.edge_states
                         .insert((id, branch.false_target), false_state);
 
-                    self.update_successor(&graph, branch.true_target, &mut queue, &mut queued);
+                    self.update_successor(graph, branch.true_target, &mut queue, &mut queued);
 
-                    self.update_successor(&graph, branch.false_target, &mut queue, &mut queued);
+                    self.update_successor(graph, branch.false_target, &mut queue, &mut queued);
                 }
 
                 _ => {
                     for successor in successors {
                         self.edge_states.insert((id, successor), state.clone());
 
-                        self.update_successor(&graph, successor, &mut queue, &mut queued);
+                        self.update_successor(graph, successor, &mut queue, &mut queued);
                     }
                 }
             }
@@ -533,7 +530,7 @@ impl<'ctx> BlockFlow<'ctx> {
 
             self.analyze_module(*id, &program_cfg.module, &program.symbols)?;
 
-            for (_class_id, class_cfg) in &program_cfg.classes {
+            for class_cfg in program_cfg.classes.values() {
                 self.analyze_class(*id, class_cfg, &program.symbols)?;
             }
         }

@@ -14,9 +14,9 @@ impl<'a> FunctionCfg<'a> {
     pub fn new(params: Vec<ArgIR>, returns: Option<ExprIR>, scope_id: i64) -> Self {
         Self {
             graph: Graph::new(),
-            params: params,
-            returns: returns,
-            scope_id: scope_id,
+            params,
+            returns,
+            scope_id,
         }
     }
 }

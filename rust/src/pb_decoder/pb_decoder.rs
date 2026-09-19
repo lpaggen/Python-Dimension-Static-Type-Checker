@@ -207,7 +207,7 @@ impl PBDecoder {
             body_scope_id: function.body_scope_id,
             args: params,
             body: stmts,
-            returns: returns,
+            returns,
             decorator_list: decorators,
             type_comment: function.type_comment.clone(),
             type_params: function
@@ -247,8 +247,8 @@ impl PBDecoder {
             name: class_decl.name.clone(),
             scope_id: class_decl.scope_id,
             body_scope_id: class_decl.body_scope_id,
-            body: body,
-            bases: bases,
+            body,
+            bases,
             keywords: class_decl
                 .keywords
                 .iter()
@@ -1243,10 +1243,7 @@ impl PBDecoder {
                     values.push(Self::convert_expr(value)?);
                 }
 
-                let span = match &joinedstr_ir.span {
-                    Some(span) => Some(Self::convert_span(span)),
-                    None => None,
-                };
+                let span = joinedstr_ir.span.as_ref().map(|span| Self::convert_span(span));
 
                 Ok(ExprIR::JoinedStr(JoinedStrIR { values, span }))
             }
@@ -1262,10 +1259,7 @@ impl PBDecoder {
                     None => return Err("named expression has no value".into()),
                 };
 
-                let span = match &named_expr_ir.span {
-                    Some(span) => Some(Self::convert_span(span)),
-                    None => None,
-                };
+                let span = named_expr_ir.span.as_ref().map(|span| Self::convert_span(span));
 
                 Ok(ExprIR::NamedExpr(NamedExprIR {
                     target: Box::new(Self::convert_expr(target)?),
@@ -1280,10 +1274,7 @@ impl PBDecoder {
                     None => return Err("starred expression has no value".into()),
                 };
 
-                let span = match &starred_ir.span {
-                    Some(span) => Some(Self::convert_span(span)),
-                    None => None,
-                };
+                let span = starred_ir.span.as_ref().map(|span| Self::convert_span(span));
 
                 Ok(ExprIR::StarredExpr(StarredIR {
                     value: Box::new(value),
@@ -1334,10 +1325,7 @@ impl PBDecoder {
                     generators.push(Self::convert_generator(comp)?)
                 }
 
-                let span = match &listcomp_ir.span {
-                    Some(span) => Some(Self::convert_span(span)),
-                    None => None,
-                };
+                let span = listcomp_ir.span.as_ref().map(|span| Self::convert_span(span));
 
                 Ok(ExprIR::ListComp(ListCompIR {
                     elt: Box::new(elt),
@@ -1357,10 +1345,7 @@ impl PBDecoder {
                     generators.push(Self::convert_generator(comp)?)
                 }
 
-                let span = match &setcomp_ir.span {
-                    Some(span) => Some(Self::convert_span(span)),
-                    None => None,
-                };
+                let span = setcomp_ir.span.as_ref().map(|span| Self::convert_span(span));
 
                 Ok(ExprIR::SetComp(SetCompIR {
                     elt: Box::new(elt),
@@ -1380,10 +1365,7 @@ impl PBDecoder {
                     generators.push(Self::convert_generator(comp)?)
                 }
 
-                let span = match &generatorexpr_ir.span {
-                    Some(span) => Some(Self::convert_span(span)),
-                    None => None,
-                };
+                let span = generatorexpr_ir.span.as_ref().map(|span| Self::convert_span(span));
 
                 Ok(ExprIR::GeneratorExp(GeneratorExpIR {
                     elt: Box::new(elt),
@@ -1408,10 +1390,7 @@ impl PBDecoder {
                     generators.push(Self::convert_generator(comp)?)
                 }
 
-                let span = match &dictcomp_ir.span {
-                    Some(span) => Some(Self::convert_span(span)),
-                    None => None,
-                };
+                let span = dictcomp_ir.span.as_ref().map(|span| Self::convert_span(span));
 
                 Ok(ExprIR::DictComp(DictCompIR {
                     key: Box::new(key),
@@ -1437,10 +1416,7 @@ impl PBDecoder {
                     None => return Err("if expression has no else expression".into()),
                 };
 
-                let span = match &if_expr_ir.span {
-                    Some(span) => Some(Self::convert_span(span)),
-                    None => None,
-                };
+                let span = if_expr_ir.span.as_ref().map(|span| Self::convert_span(span));
 
                 Ok(ExprIR::IfExp(IfExpIR {
                     test: Box::new(test),
@@ -1582,7 +1558,7 @@ impl PBDecoder {
 
                 Ok(ExprIR::Call(CallIR {
                     func: callee,
-                    args: args,
+                    args,
                     keywords,
                     span: Self::convert_optional_span(&call.span),
                 }))
@@ -1635,10 +1611,10 @@ impl PBDecoder {
                 let span = Self::convert_optional_span(&binop.span);
 
                 Ok(ExprIR::BinOpExpr(BinOpIR {
-                    left: left,
-                    right: right,
+                    left,
+                    right,
                     op: operator,
-                    span: span,
+                    span,
                 }))
             }
 
@@ -1660,8 +1636,8 @@ impl PBDecoder {
 
                 Ok(ExprIR::UnaryOpExpr(UnaryOpIR {
                     op: operator,
-                    operand: operand,
-                    span: span,
+                    operand,
+                    span,
                 }))
             }
 
@@ -1775,7 +1751,7 @@ impl PBDecoder {
             }
 
             None => {
-                return Err("malformed ExprIR: protobuf oneof field 'kind' is unset (the producer emitted an empty expression)".into());
+                Err("malformed ExprIR: protobuf oneof field 'kind' is unset (the producer emitted an empty expression)".into())
             }
         }
     }

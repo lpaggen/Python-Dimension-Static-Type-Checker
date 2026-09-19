@@ -19,7 +19,7 @@ impl FlowState {
             *symbol_ref,
             TypedBinding {
                 binding: BindingState::Bound,
-                ty: ty,
+                ty,
             },
         );
     }
@@ -55,7 +55,7 @@ impl FlowState {
             merged.guard = z3::ast::Bool::or(&[&merged.guard, &state.guard]);
 
             for (id, binding) in &state.by_ref {
-                match merged.by_ref.get_mut(&id) {
+                match merged.by_ref.get_mut(id) {
                     // either is exists, we want to update its binding
                     // TODO check soundness of this system
                     Some(existing) => {

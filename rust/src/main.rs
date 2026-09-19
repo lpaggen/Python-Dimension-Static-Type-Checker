@@ -2,30 +2,18 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Instant;
 
-use crate::control_flow::blockflow::BlockFlow;
-use crate::control_flow::cfg_analysis_engine::analysis_engine::AnalysisEngine;
-use crate::control_flow::cfg_analysis_engine::functioncontract_table::FunctionContractTable;
-use crate::control_flow::cfg_table::CfgTable;
-use crate::diagnostic::diagnostic::Diagnostic;
-use crate::ir::program_ir::ProgramIR;
-use crate::linker::import_graph::ImportGraph;
-use crate::linker::program_table::ProgramTable;
-use crate::linker::resolution_table::ResolutionTable;
-use crate::linker::scope_table::GlobalSymbolTable;
-use crate::pb_decoder::pb_decoder::PBDecoder;
-use crate::type_resolver::type_resolver::TypeResolver;
-
-mod control_flow;
-mod diagnostic;
-mod ir;
-mod linker;
-mod pb_decoder;
-mod type_resolver;
-mod types;
-
-pub mod pb {
-    include!(concat!(env!("OUT_DIR"), "/pdc.ir.rs"));
-}
+use pdc_rust_check::control_flow::blockflow::BlockFlow;
+use pdc_rust_check::control_flow::cfg_analysis_engine::analysis_engine::AnalysisEngine;
+use pdc_rust_check::control_flow::cfg_analysis_engine::functioncontract_table::FunctionContractTable;
+use pdc_rust_check::control_flow::cfg_table::CfgTable;
+use pdc_rust_check::diagnostic::diagnostic::Diagnostic;
+use pdc_rust_check::ir::program_ir::ProgramIR;
+use pdc_rust_check::linker::import_graph::ImportGraph;
+use pdc_rust_check::linker::program_table::ProgramTable;
+use pdc_rust_check::linker::resolution_table::ResolutionTable;
+use pdc_rust_check::linker::scope_table::GlobalSymbolTable;
+use pdc_rust_check::pb_decoder::pb_decoder::PBDecoder;
+use pdc_rust_check::type_resolver::type_resolver::TypeResolver;
 
 fn main() -> Result<(), Vec<Diagnostic>> {
     let total_start = Instant::now();

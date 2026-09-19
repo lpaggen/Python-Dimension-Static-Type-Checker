@@ -1,6 +1,7 @@
 use crate::ir::span_ir::SourceSpan;
+use serde::Serialize;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Diagnostic {
     pub severity: Severity,
     pub span: Option<SourceSpan>,
@@ -8,13 +9,14 @@ pub struct Diagnostic {
     pub message: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Severity {
     WARNING,
     ERROR,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum DiagnosticKind {
     TypeError,
     ShapeError,

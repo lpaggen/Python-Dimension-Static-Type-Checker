@@ -3,14 +3,15 @@ use std::collections::HashMap;
 use crate::{
     control_flow::{bindingstate::BindingState, bound_type::TypedBinding},
     linker::symbol_ref::SymbolRef,
+    solver::BoolExpr,
     types::types::{GuardedType, Type},
 };
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct FlowState {
-    pub guard: z3::ast::Bool, // if no guard, simply assume true, mathematically true = None, forgo Option<>
+    pub guard: BoolExpr, // if no guard, simply assume true, mathematically true = None, forgo Option<>
     pub by_ref: HashMap<SymbolRef, TypedBinding>,
-    pub constraints: Vec<z3::ast::Bool>,
+    pub constraints: Vec<BoolExpr>,
 }
 
 impl FlowState {
@@ -35,7 +36,7 @@ impl FlowState {
         );
     }
 
-    pub fn new(guard: z3::ast::Bool) -> Self {
+    pub fn new(guard: BoolExpr) -> Self {
         Self {
             by_ref: HashMap::new(),
             constraints: Vec::new(),
@@ -45,14 +46,14 @@ impl FlowState {
 
     pub fn merge<'a>(states: impl IntoIterator<Item = &'a FlowState>) -> FlowState {
         // init with false, accumulate new facts as we go
-        let mut merged = FlowState::new(z3::ast::Bool::from_bool(false));
+        let mut merged = FlowState::new(BoolExpr::from_bool(false));
 
         // there may be a better way to store this, currently this is the best i can come up with
-        let mut binding_guards: HashMap<SymbolRef, z3::ast::Bool> = HashMap::new();
+        let mut binding_guards: HashMap<SymbolRef, BoolExpr> = HashMap::new();
 
         // only reachable if any one of the INCOMING edges is reachable
         for state in states {
-            merged.guard = z3::ast::Bool::or(&[&merged.guard, &state.guard]);
+            merged.guard = BoolExpr::or(&[&merged.guard, &state.guard]);
 
             for (id, binding) in &state.by_ref {
                 match merged.by_ref.get_mut(id) {
@@ -98,7 +99,7 @@ impl FlowState {
                         }
                         binding_guards.insert(
                             *id,
-                            z3::ast::Bool::or(&[
+                            BoolExpr::or(&[
                                 &previous_guard, // Fixed: no change needed here, but ensure it's properly cloned above
                                 &state.guard,
                             ]),

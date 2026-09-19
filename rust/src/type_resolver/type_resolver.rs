@@ -1,8 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use z3::ast::Ast;
-
 pub type ResolveResult = Result<Type, FunctionAnalysisRequest>;
 
 use crate::control_flow::bindingstate::BindingState;
@@ -35,6 +33,7 @@ use crate::ir::expr_ir::ExprIR;
 use crate::linker::resolution_table::ResolutionTable;
 use crate::linker::resolved_target::ResolvedTarget;
 use crate::linker::scope_table::GlobalSymbolTable;
+use crate::solver::{BoolExpr, IntExpr, SatResult, Solver};
 use crate::types::types::DType;
 use crate::types::types::DimType;
 use crate::types::types::GuardedType;
@@ -55,7 +54,7 @@ pub struct TypeResolver<'ctx> {
     // both this layer and the layer above need to insert and query from it, this is fine
     function_contracts: Rc<RefCell<FunctionContractTable>>,
 
-    solver: z3::Solver,
+    solver: Solver,
     diagnostic_span_override: Option<SourceSpan>,
 }
 
@@ -70,7 +69,7 @@ impl<'ctx> TypeResolver<'ctx> {
             symbols,
             resolutions,
             diagnostics: Vec::new(),
-            solver: z3::Solver::new(),
+            solver: Solver::new(),
             function_contracts,
             diagnostic_span_override: None,
         }
@@ -83,8 +82,8 @@ impl<'ctx> TypeResolver<'ctx> {
         std::mem::replace(&mut self.diagnostic_span_override, span)
     }
 
-    fn add_guarded_constraint(&mut self, guard: &z3::ast::Bool, constraint: &z3::ast::Bool) {
-        self.solver.assert(guard.implies(constraint));
+    fn add_guarded_constraint(&mut self, guard: &BoolExpr, constraint: &BoolExpr) {
+        self.solver.assert(&guard.implies(constraint));
     }
 
     // similar to resolve_external_annotation, not the same return type
@@ -465,15 +464,15 @@ impl<'ctx> TypeResolver<'ctx> {
     //     }
     // }
 
-    fn require_dims_equal(&self, a: &DimType, b: &DimType, state: &mut FlowState, span: &SourceSpan) -> ConstraintResult {
+    fn require_dims_equal(&mut self, a: &DimType, b: &DimType, state: &mut FlowState, span: &SourceSpan) -> ConstraintResult {
         let equality = match (a, b) {
             (DimType::Known(a), DimType::Known(b)) => {
-                z3::ast::Int::from_i64(*a).eq(z3::ast::Int::from_i64(*b))
+                IntExpr::from_i64(*a).eq(IntExpr::from_i64(*b))
             }
 
-            (DimType::Known(a), DimType::Symbol(b)) => b.eq(z3::ast::Int::from_i64(*a)),
+            (DimType::Known(a), DimType::Symbol(b)) => b.eq(IntExpr::from_i64(*a)),
 
-            (DimType::Symbol(a), DimType::Known(b)) => a.eq(z3::ast::Int::from_i64(*b)),
+            (DimType::Symbol(a), DimType::Known(b)) => a.eq(IntExpr::from_i64(*b)),
 
             (DimType::Symbol(a), DimType::Symbol(b)) => a.eq(b),
 
@@ -490,13 +489,13 @@ impl<'ctx> TypeResolver<'ctx> {
         self.solver.pop(1);
 
         match result {
-            z3::SatResult::Sat => {
-                self.solver.assert(state.guard.implies(&equality));
+            SatResult::Sat => {
+                self.solver.assert(&state.guard.implies(&equality));
 
                 ConstraintResult::Feasible
             }
 
-            z3::SatResult::Unsat => {
+            SatResult::Unsat => {
                 let diagnostic_span = self
                     .diagnostic_span_override
                     .as_ref()
@@ -515,18 +514,30 @@ impl<'ctx> TypeResolver<'ctx> {
                     format!(" (when {guard})")
                 };
 
-                println!(
-                    "{}: shape mismatch: dimension {} must equal {}{}",
-                    diagnostic_span,
+                let message = format!(
+                    "shape mismatch: dimension {} must equal {}{}",
                     display_dim(a),
                     display_dim(b),
                     condition,
                 );
 
+                self.diagnostics.push(Diagnostic::new(
+                    Severity::ERROR,
+                    diagnostic_span.clone(),
+                    DiagnosticKind::ShapeError,
+                    &message,
+                ));
+
+                println!(
+                    "{}: {}",
+                    diagnostic_span,
+                    message,
+                );
+
                 ConstraintResult::Infeasible
             }
 
-            z3::SatResult::Unknown => {
+            SatResult::Unknown => {
                 ConstraintResult::Unknown
             }
         }
@@ -546,7 +557,7 @@ impl<'ctx> TypeResolver<'ctx> {
                 let mut results = Vec::new();
 
                 for guarded in uniontype {
-                    let branch_guard = z3::ast::Bool::and(&[&parent_guard, &guarded.guard]);
+                    let branch_guard = BoolExpr::and(&[&parent_guard, &guarded.guard]);
 
                     if !self.is_feasible(&branch_guard) {
                         continue;
@@ -578,7 +589,7 @@ impl<'ctx> TypeResolver<'ctx> {
                 let mut results = Vec::new();
 
                 for guarded in uniontype {
-                    let branch_guard = z3::ast::Bool::and(&[&parent_guard, &guarded.guard]);
+                    let branch_guard = BoolExpr::and(&[&parent_guard, &guarded.guard]);
 
                     if !self.is_feasible(&branch_guard) {
                         continue;
@@ -1097,7 +1108,7 @@ impl<'ctx> TypeResolver<'ctx> {
         })))
     }
 
-    fn is_feasible(&self, guard: &z3::ast::Bool) -> bool {
+    fn is_feasible(&mut self, guard: &BoolExpr) -> bool {
         self.solver.push();
         self.solver.assert(guard);
 
@@ -1105,7 +1116,7 @@ impl<'ctx> TypeResolver<'ctx> {
 
         self.solver.pop(1);
 
-        !matches!(result, z3::SatResult::Unsat)
+        !matches!(result, SatResult::Unsat)
     }
 
     fn torch_cat_types(
@@ -1128,7 +1139,7 @@ impl<'ctx> TypeResolver<'ctx> {
             let mut results = Vec::new();
 
             for guarded in union {
-                let branch_guard = z3::ast::Bool::and(&[&parent_guard, &guarded.guard]);
+                let branch_guard = BoolExpr::and(&[&parent_guard, &guarded.guard]);
 
                 if !self.is_feasible(&branch_guard) {
                     continue;
@@ -1259,15 +1270,15 @@ impl<'ctx> TypeResolver<'ctx> {
                 (DimType::Known(a), DimType::Known(b)) => DimType::Known(a + b),
 
                 (DimType::Known(a), DimType::Symbol(b)) => {
-                    DimType::Symbol(z3::ast::Int::add(&[&z3::ast::Int::from_i64(*a), b]))
+                    DimType::Symbol(IntExpr::add(&[&IntExpr::from_i64(*a), b]))
                 }
 
                 (DimType::Symbol(a), DimType::Known(b)) => {
-                    DimType::Symbol(z3::ast::Int::add(&[a, &z3::ast::Int::from_i64(*b)]))
+                    DimType::Symbol(IntExpr::add(&[a, &IntExpr::from_i64(*b)]))
                 }
 
                 (DimType::Symbol(a), DimType::Symbol(b)) => {
-                    DimType::Symbol(z3::ast::Int::add(&[a, b]))
+                    DimType::Symbol(IntExpr::add(&[a, b]))
                 }
 
                 _ => DimType::Unknown,
@@ -1382,7 +1393,7 @@ impl<'ctx> TypeResolver<'ctx> {
             let mut results = Vec::new();
 
             for guarded in union {
-                let branch_guard = z3::ast::Bool::and(&[&parent_guard, &guarded.guard]);
+                let branch_guard = BoolExpr::and(&[&parent_guard, &guarded.guard]);
 
                 if !self.is_feasible(&branch_guard) {
                     continue;
@@ -1651,9 +1662,9 @@ impl<'ctx> TypeResolver<'ctx> {
 
         for ret in &contract.returns {
             if !ret.constraints.is_empty() {
-                let refs: Vec<&z3::ast::Bool> = ret.constraints.iter().collect();
+                let refs: Vec<&BoolExpr> = ret.constraints.iter().collect();
 
-                let constraints = z3::ast::Bool::and(&refs);
+                let constraints = BoolExpr::and(&refs);
 
                 state.constraints.push(
                     ret.guard

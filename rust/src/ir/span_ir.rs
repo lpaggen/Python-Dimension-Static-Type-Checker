@@ -1,6 +1,7 @@
 use std::fmt;
+use serde::Serialize;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct SourceSpan {
     pub file: String,
     pub lineno: i64,

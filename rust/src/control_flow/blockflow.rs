@@ -11,7 +11,7 @@ use crate::{
         expr::{ConstantIR, ExprIR},
         operator::Operator,
         stmt::StmtIR,
-    }, linker::scope_table::GlobalSymbolTable, type_resolver::type_resolver::TypeResolver, types::types::Type,
+    }, linker::scope_table::GlobalSymbolTable, solver::BoolExpr, type_resolver::type_resolver::TypeResolver, types::types::Type,
 };
 
 pub struct BlockFlow<'ctx> {
@@ -84,34 +84,34 @@ impl<'ctx> BlockFlow<'ctx> {
         }
     }
 
-    fn to_z3_bool(&self, expr: &ExprIR, program_id: i64) -> z3::ast::Bool {
+    fn to_z3_bool(&self, expr: &ExprIR, program_id: i64) -> BoolExpr {
         match expr {
             ExprIR::Constant(ConstantIR::IntegerLit(intlit)) => {
-                z3::ast::Bool::from_bool(intlit.value != 0)
+                BoolExpr::from_bool(intlit.value != 0)
             }
 
             ExprIR::Constant(ConstantIR::FloatLit(floatlit)) => {
-                z3::ast::Bool::from_bool(floatlit.value != 0.0)
+                BoolExpr::from_bool(floatlit.value != 0.0)
             }
 
             ExprIR::Constant(ConstantIR::BooleanLit(booleanlit)) => {
-                z3::ast::Bool::from_bool(booleanlit.value)
+                BoolExpr::from_bool(booleanlit.value)
             }
 
             ExprIR::Constant(ConstantIR::StringLit(stringlit)) => {
-                z3::ast::Bool::from_bool(!stringlit.value.is_empty())
+                BoolExpr::from_bool(!stringlit.value.is_empty())
             }
 
-            ExprIR::Constant(ConstantIR::NoneLit(_)) => z3::ast::Bool::from_bool(false),
+            ExprIR::Constant(ConstantIR::NoneLit(_)) => BoolExpr::from_bool(false),
 
-            ExprIR::Constant(ConstantIR::EllipsisLit(_)) => z3::ast::Bool::from_bool(true),
+            ExprIR::Constant(ConstantIR::EllipsisLit(_)) => BoolExpr::from_bool(true),
 
             ExprIR::Constant(ConstantIR::BytesLit(byteslit)) => {
-                z3::ast::Bool::from_bool(!byteslit.value.is_empty())
+                BoolExpr::from_bool(!byteslit.value.is_empty())
             }
 
             ExprIR::Constant(ConstantIR::ComplexLit(complexlit)) => {
-                z3::ast::Bool::from_bool(complexlit.real != 0.0 || complexlit.imag != 0.0)
+                BoolExpr::from_bool(complexlit.real != 0.0 || complexlit.imag != 0.0)
             }
 
             // TODO expand on this, this is super basic and won't scale
@@ -121,14 +121,14 @@ impl<'ctx> BlockFlow<'ctx> {
                     .lookup_by_name(program_id, name.use_scope_id, &name.id)
                     .unwrap();
 
-                z3::ast::Bool::new_const(format!(
+                BoolExpr::new_const(format!(
                     "truthy_{}_{}",
                     symbol_ref.program_id, symbol_ref.symbol_id,
                 ))
             }
 
             ExprIR::BoolOpExpr(boolop) => {
-                let guards: Vec<z3::ast::Bool> = boolop
+                let guards: Vec<BoolExpr> = boolop
                     .values
                     .iter()
                     .map(|expr| self.to_z3_bool(expr, program_id))
@@ -136,13 +136,13 @@ impl<'ctx> BlockFlow<'ctx> {
 
                 match boolop.op {
                     Operator::And => {
-                        let refs: Vec<&z3::ast::Bool> = guards.iter().collect();
-                        z3::ast::Bool::and(&refs)
+                        let refs: Vec<&BoolExpr> = guards.iter().collect();
+                        BoolExpr::and(&refs)
                     }
 
                     Operator::Or => {
-                        let refs: Vec<&z3::ast::Bool> = guards.iter().collect();
-                        z3::ast::Bool::or(&refs)
+                        let refs: Vec<&BoolExpr> = guards.iter().collect();
+                        BoolExpr::or(&refs)
                     }
 
                     _ => {
@@ -275,11 +275,11 @@ impl<'ctx> BlockFlow<'ctx> {
                     let mut false_state = state.clone();
 
                     // parent condition AND current guard
-                    true_state.guard = z3::ast::Bool::and(&[&state.guard, &z3_guard]);
+                    true_state.guard = BoolExpr::and(&[&state.guard, &z3_guard]);
 
                     let not_condition = z3_guard.not();
 
-                    false_state.guard = z3::ast::Bool::and(&[&state.guard, &not_condition]);
+                    false_state.guard = BoolExpr::and(&[&state.guard, &not_condition]);
 
                     let true_target = FlowBlockID {
                         contour: contour_id,

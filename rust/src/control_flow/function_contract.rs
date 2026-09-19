@@ -1,13 +1,14 @@
 use crate::{
     ir::{arg::ArgKind, expr::ExprIR},
+    solver::BoolExpr,
     types::types::Type,
 };
 
 #[derive(Debug, Clone)]
 pub struct GuardedReturn {
-    pub guard: z3::ast::Bool,
+    pub guard: BoolExpr,
     pub ty: Type,
-    pub constraints: Vec<z3::ast::Bool>,
+    pub constraints: Vec<BoolExpr>,
 }
 
 #[derive(Debug, Clone)]

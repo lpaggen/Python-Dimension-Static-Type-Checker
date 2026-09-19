@@ -38,14 +38,17 @@ def iter_python_files(paths: list[str]):
             yield path
 
 
-def build_file(path: Path):
-    source = path.read_text(encoding="utf-8")
-    tree = ast.parse(source, filename=str(path))
+def build_source(source: str, filename: str = "playground.py"):
+    tree = ast.parse(source, filename=filename)
     builder = SemanticBuilder(
-        module_name=path.stem,
-        file_path=str(path),
+        module_name=Path(filename).stem,
+        file_path=filename,
     )
     return builder.build(tree)
+
+
+def build_file(path: Path):
+    return build_source(path.read_text(encoding="utf-8"), str(path))
 
 
 def main() -> None:

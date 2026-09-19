@@ -1,4 +1,8 @@
-use crate::{control_flow::block_id::FunctionID, linker::symbol_ref::SymbolRef};
+use crate::{
+    control_flow::block_id::FunctionID,
+    linker::symbol_ref::SymbolRef,
+    solver::{BoolExpr, IntExpr},
+};
 
 // to do rename all to *Type for clarity
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
@@ -57,7 +61,7 @@ impl Type {
 
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub struct GuardedType {
-    pub guard: z3::ast::Bool, // TODO check if this makes any sense at all
+    pub guard: BoolExpr, // TODO check if this makes any sense at all
     pub ty: Type,
 }
 
@@ -113,6 +117,6 @@ pub enum DType {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum DimType {
     Known(i64),           // could use Int yes, but more clear this way
-    Symbol(z3::ast::Int), // might become SymbolRef instead, easier to resolve
+    Symbol(IntExpr), // might become SymbolRef instead, easier to resolve
     Unknown,
 }

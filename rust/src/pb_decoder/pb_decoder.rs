@@ -61,12 +61,20 @@ impl PBDecoder {
     ) -> Result<ProgramIR, Box<dyn std::error::Error + Send + Sync>> {
         let bytes = fs::read(path)?;
 
-        let pb_program = pb::ProgramIr::decode(bytes.as_slice()).map_err(|error| {
+        Self::decode_bytes(&bytes, &path.display().to_string())
+    }
+
+    pub fn decode_bytes(
+        bytes: &[u8],
+        source_name: &str,
+    ) -> Result<ProgramIR, Box<dyn std::error::Error + Send + Sync>> {
+
+        let pb_program = pb::ProgramIr::decode(bytes).map_err(|error| {
             io::Error::new(
                 io::ErrorKind::InvalidData,
                 format!(
                     "failed to decode protobuf file '{}': {error}",
-                    path.display()
+                    source_name
                 ),
             )
         })?;
@@ -95,7 +103,7 @@ impl PBDecoder {
                     io::ErrorKind::InvalidData,
                     format!(
                         "failed to decode module body in protobuf file '{}': {error}",
-                        path.display()
+                        source_name
                     ),
                 )
             })?;

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PDC browser smoke test</title>
+  <style>
+    body { font: 16px/1.5 system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+    textarea { box-sizing: border-box; min-height: 28rem; width: 100%; font: 14px/1.45 monospace; }
+    button { margin: 1rem 0; padding: .6rem 1rem; }
+    #status { color: #555; }
+    .diagnostic { border-left: 4px solid #c33; margin: .75rem 0; padding: .6rem .8rem; background: #fff4f4; }
+  </style>
+</head>
+<body>
+  <h1>Python Dimension Checker</h1>
+  <p id="status">Loading the checker…</p>
+  <textarea id="source">import torch
+
+def foo(a: torch.Tensor, b: torch.Tensor):
+    return torch.matmul(a, b)
+
+a = torch.tensor([[1, 2, 3]])
+b = torch.tensor([
+    [1, 2],
+    [3, 4],
+    [5, 6],
+    [7, 8],
+    [9, 10],
+])
+
+result = foo(a, b)</textarea>
+  <button id="analyze" type="button" disabled>Analyze</button>
+  <section id="diagnostics" aria-live="polite"></section>
+  <script type="module" src="playground.js"></script>
+</body>
+</html>

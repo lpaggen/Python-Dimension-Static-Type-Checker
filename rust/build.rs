@@ -4,6 +4,12 @@ fn main() {
     println!("cargo:rerun-if-changed=../proto/.proto");
     prost_build::compile_protos(&["../proto/.proto"], &["../proto"]).unwrap();
 
+    // The browser build receives protobuf bytes directly from Pyodide. It
+    // must not run the native Python frontend as part of cross-compilation.
+    if env::var("CARGO_CFG_TARGET_ARCH").as_deref() == Ok("wasm32") {
+        return;
+    }
+
     for path in [
         "main.py",
         "example",

@@ -1,8 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use z3::ast::Ast;
-
-use crate::{control_flow::{block_id::{ClassID, FunctionID}, blockflow::BlockFlow, call_binding::CallBinding, cfg_analysis_engine::{blocked_function_analysis::BlockedFunctionAnalysis, contour_id::ContourID, flow_block_id::FlowBlockID, function_contract_key::FunctionSpecializationKey, functioncontract_table::FunctionContractTable}, cfg_table::CfgTable, class_cfg::ClassCfg, flowstate::FlowState, function_analysis_request::FunctionAnalysisRequest, function_cfg::FunctionCfg, function_contract::{ContractParam, FunctionContract, GuardedReturn}, module_cfg::ModuleCfg, terminator::Terminator}, ir::{nodes::SymbolIR, span_ir::SourceSpan}, linker::{program_table::ProgramTable, symbol_ref::SymbolRef}, types::types::Type};
+use crate::{control_flow::{block_id::{ClassID, FunctionID}, blockflow::BlockFlow, call_binding::CallBinding, cfg_analysis_engine::{blocked_function_analysis::BlockedFunctionAnalysis, contour_id::ContourID, flow_block_id::FlowBlockID, function_contract_key::FunctionSpecializationKey, functioncontract_table::FunctionContractTable}, cfg_table::CfgTable, class_cfg::ClassCfg, flowstate::FlowState, function_analysis_request::FunctionAnalysisRequest, function_cfg::FunctionCfg, function_contract::{ContractParam, FunctionContract, GuardedReturn}, module_cfg::ModuleCfg, terminator::Terminator}, ir::{nodes::SymbolIR, span_ir::SourceSpan}, linker::{program_table::ProgramTable, symbol_ref::SymbolRef}, solver::BoolExpr, types::types::Type};
 
 pub struct AnalysisEngine<'ctx> {
     pub flow: BlockFlow<'ctx>,
@@ -87,7 +85,7 @@ impl<'ctx> AnalysisEngine<'ctx> {
         let contour_id = ContourID::Function(function_id);
 
         let mut state =
-            FlowState::new(z3::ast::Bool::from_bool(true));
+            FlowState::new(BoolExpr::from_bool(true));
 
         for symbol in symbols {
             if symbol.scope_id != function.scope_id {
@@ -263,7 +261,7 @@ impl<'ctx> AnalysisEngine<'ctx> {
         module: &ModuleCfg,
         symbols: &[SymbolIR],
     ) -> Result<(), BlockedFunctionAnalysis> {
-        let mut state = FlowState::new(z3::ast::Bool::from_bool(true));
+        let mut state = FlowState::new(BoolExpr::from_bool(true));
 
         for symbol in symbols {
             let symbol_ref = SymbolRef {
@@ -291,7 +289,7 @@ impl<'ctx> AnalysisEngine<'ctx> {
         function: &FunctionCfg,
         symbols: &[SymbolIR],
     ) -> Result<FunctionContract, BlockedFunctionAnalysis> {
-        let mut state = FlowState::new(z3::ast::Bool::from_bool(true));
+        let mut state = FlowState::new(BoolExpr::from_bool(true));
 
         let contour_id = ContourID::Function(function_id);
 
@@ -430,7 +428,7 @@ impl<'ctx> AnalysisEngine<'ctx> {
         class: &ClassCfg,
         symbols: &[SymbolIR],
     ) -> Result<(), BlockedFunctionAnalysis> {
-        let mut state = FlowState::new(z3::ast::Bool::from_bool(true));
+        let mut state = FlowState::new(BoolExpr::from_bool(true));
 
         let contour_id = ContourID::Class(class_id);
 

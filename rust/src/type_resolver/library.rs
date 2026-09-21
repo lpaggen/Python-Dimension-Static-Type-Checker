@@ -64,6 +64,7 @@ pub struct UserDefinedLibrary {
 pub enum KnownFunction {
     Torch(TorchFunction),
     NumPy(NumPyFunction),
+    Jax(JaxFunction),
     Math(MathFunction),
 }
 
@@ -92,6 +93,20 @@ pub enum NumPyFunction {
     Concatenate,
     Stack,
     Matmul,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum JaxFunction {
+    Array,
+    Zeros,
+    Ones,
+    Empty,
+    Arange,
+    Reshape,
+    Concatenate,
+    Stack,
+    Matmul,
+    Relu,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

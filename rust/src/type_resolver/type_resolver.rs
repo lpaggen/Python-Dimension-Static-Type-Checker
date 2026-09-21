@@ -26,6 +26,7 @@ use crate::ir::stmt::StmtIR;
 use crate::type_resolver::constraint_result::ConstraintResult;
 use crate::type_resolver::library::KnownFunction;
 use crate::type_resolver::library::KnownLibrary;
+use crate::type_resolver::library::JaxFunction;
 use crate::type_resolver::library::NumPyFunction;
 use crate::type_resolver::library::ResolvedAttributePath;
 use crate::type_resolver::library::TorchFunction;
@@ -179,8 +180,39 @@ impl<'ctx> TypeResolver<'ctx> {
                 Some(KnownFunction::NumPy(NumPyFunction::Matmul))
             }
 
+            // JAX functions are available as jax.numpy.foo and, when
+            // `jax.numpy` is imported directly, as jnp.foo.
+            (KnownLibrary::Jax, [namespace, name]) if namespace == "numpy" => {
+                Self::resolve_jax_function(name)
+            }
+
+            (KnownLibrary::Jax, [name]) => Self::resolve_jax_function(name),
+
+            (KnownLibrary::Jax, [namespace, name])
+                if namespace == "nn" && name == "relu" =>
+            {
+                Some(KnownFunction::Jax(JaxFunction::Relu))
+            }
+
             _ => None,
         }
+    }
+
+    fn resolve_jax_function(name: &str) -> Option<KnownFunction> {
+        let function = match name {
+            "array" => JaxFunction::Array,
+            "zeros" => JaxFunction::Zeros,
+            "ones" => JaxFunction::Ones,
+            "empty" => JaxFunction::Empty,
+            "arange" => JaxFunction::Arange,
+            "reshape" => JaxFunction::Reshape,
+            "concatenate" => JaxFunction::Concatenate,
+            "stack" => JaxFunction::Stack,
+            "matmul" => JaxFunction::Matmul,
+            _ => return None,
+        };
+
+        Some(KnownFunction::Jax(function))
     }
 
     fn resolve_name_root(&self, name: &NameIR, program_id: i64) -> Option<KnownLibrary> {
@@ -191,7 +223,13 @@ impl<'ctx> TypeResolver<'ctx> {
         let target = self.resolutions.imports.get(&symbol_ref)?;
 
         match target {
-            ResolvedTarget::External { module, name: _ } => KnownLibrary::from_str(module),
+            ResolvedTarget::External { module, name: _ } => {
+                KnownLibrary::from_str(module).or_else(|| {
+                    module
+                        .split_once('.')
+                        .and_then(|(root, _)| KnownLibrary::from_str(root))
+                })
+            }
 
             ResolvedTarget::Local(_) => None,
         }
@@ -373,7 +411,7 @@ impl<'ctx> TypeResolver<'ctx> {
                 };
 
                 match (path.root, path.attrs.as_slice()) {
-                    (KnownLibrary::PyTorch, [name]) => match name.as_str() {
+                    (KnownLibrary::PyTorch, [name]) | (KnownLibrary::Jax, [name]) => match name.as_str() {
                         "bool" => DType::Bool,
 
                         "uint8" => DType::UInt8,
@@ -392,6 +430,23 @@ impl<'ctx> TypeResolver<'ctx> {
 
                         _ => DType::Unknown,
                     },
+
+                    (KnownLibrary::Jax, [namespace, name]) if namespace == "numpy" => {
+                        match name.as_str() {
+                            "bool_" | "bool" => DType::Bool,
+                            "uint8" => DType::UInt8,
+                            "int8" => DType::Int8,
+                            "int16" => DType::Int16,
+                            "int32" => DType::Int32,
+                            "int64" => DType::Int64,
+                            "float16" => DType::Float16,
+                            "float32" => DType::Float32,
+                            "float64" => DType::Float64,
+                            "complex64" => DType::Complex64,
+                            "complex128" => DType::Complex128,
+                            _ => DType::Unknown,
+                        }
+                    }
 
                     _ => DType::Unknown,
                 }
@@ -435,6 +490,31 @@ impl<'ctx> TypeResolver<'ctx> {
         Type::Tensor(TensorTypeState::Resolved(info))
 
         // resolve dtype, find argument "dtype" and resolve if exists else unknown dtype (? double check)
+    }
+
+    fn infer_jax_array(&mut self, call: &CallIR, program_id: i64) -> Type {
+        let Some(data_arg) = call.args.first() else {
+            return Type::Unknown;
+        };
+
+        let Some(mut info) = self.infer_tensor_data(data_arg, program_id) else {
+            return Type::Tensor(TensorTypeState::Unresolved);
+        };
+
+        info.dtype = match call
+            .keywords
+            .iter()
+            .find(|kw| kw.arg.as_deref() == Some("dtype"))
+        {
+            Some(keyword) => self.infer_tensor_dtype(keyword, program_id),
+            None => match info.dtype {
+                DType::Int64 => DType::Int32,
+                DType::Float64 => DType::Float32,
+                dtype => dtype,
+            },
+        };
+
+        Type::Tensor(TensorTypeState::Resolved(info))
     }
 
     // fn require_dims_equal(
@@ -869,12 +949,13 @@ impl<'ctx> TypeResolver<'ctx> {
         Ok(self.torch_shapes_compatible(&type_first, &type_second, state, span))
     }
 
-    fn infer_torch_factory_tensor(
+    fn infer_factory_tensor(
         &mut self,
         call: &CallIR,
         program_id: i64,
         state: &mut FlowState,
-        span: &SourceSpan
+        span: &SourceSpan,
+        default_dtype: DType,
     ) -> ResolveResult {
         let Some(shape) = self.infer_torch_size(&call.args, program_id, state, span) else {
             return Ok(Type::Unknown);
@@ -885,7 +966,7 @@ impl<'ctx> TypeResolver<'ctx> {
             .iter()
             .find(|kw| kw.arg.as_deref() == Some("dtype"))
             .map(|kw| self.infer_tensor_dtype(kw, program_id))
-            .unwrap_or(DType::Float32);
+            .unwrap_or(default_dtype);
 
         Ok(Type::Tensor(TensorTypeState::Resolved(TensorType {
             shape,
@@ -893,12 +974,14 @@ impl<'ctx> TypeResolver<'ctx> {
         })))
     }
 
-    fn infer_torch_arange(
+    fn infer_arange(
         &mut self,
         call: &CallIR,
         program_id: i64,
         state: &mut FlowState,
-        span: &SourceSpan
+        span: &SourceSpan,
+        default_int_dtype: DType,
+        default_float_dtype: DType,
     ) -> ResolveResult {
         if call.args.is_empty() || call.args.len() > 3 {
             return Ok(Type::Unknown);
@@ -938,9 +1021,9 @@ impl<'ctx> TypeResolver<'ctx> {
             if !valid_numeric {
                 DType::Unknown
             } else if has_float {
-                DType::Float32
+                default_float_dtype
             } else {
-                DType::Int64
+                default_int_dtype
             }
         };
 
@@ -1108,12 +1191,13 @@ impl<'ctx> TypeResolver<'ctx> {
         !matches!(result, z3::SatResult::Unsat)
     }
 
-    fn torch_cat_types(
+    fn concat_types(
         &mut self,
         types: &[Type],
         dim: i64,
         state: &mut FlowState,
-        span: &SourceSpan
+        span: &SourceSpan,
+        allow_pytorch_empty_1d: bool,
     ) -> ResolveResult {
         if types.is_empty() {
             return Ok(Type::Unknown);
@@ -1139,7 +1223,13 @@ impl<'ctx> TypeResolver<'ctx> {
                 let mut branch_types = types.to_vec();
                 branch_types[index] = guarded.ty.clone();
 
-                let result = self.torch_cat_types(&branch_types, dim, state, span)?;
+                let result = self.concat_types(
+                    &branch_types,
+                    dim,
+                    state,
+                    span,
+                    allow_pytorch_empty_1d,
+                )?;
 
                 match result {
                     Type::FlowUnion(inner) => {
@@ -1180,7 +1270,9 @@ impl<'ctx> TypeResolver<'ctx> {
         // torch.cat permits a 1-D empty tensor of shape (0,) regardless
         // of the rank of the other tensors.
         let is_empty_1d = |tensor: &TensorType| {
-            tensor.shape.len() == 1 && matches!(tensor.shape[0], DimType::Known(0))
+            allow_pytorch_empty_1d
+                && tensor.shape.len() == 1
+                && matches!(tensor.shape[0], DimType::Known(0))
         };
 
         let base = tensors.iter().find(|tensor| !is_empty_1d(tensor));
@@ -1290,12 +1382,14 @@ impl<'ctx> TypeResolver<'ctx> {
         })))
     }
 
-    fn infer_torch_cat(
+    fn infer_concat(
         &mut self,
         call: &CallIR,
         program_id: i64,
         state: &mut FlowState,
-        span: &SourceSpan
+        span: &SourceSpan,
+        axis_keyword: &str,
+        allow_pytorch_empty_1d: bool,
     ) -> ResolveResult {
         let Some(tensors_arg) = call.args.first() else {
             return Ok(Type::Unknown);
@@ -1329,7 +1423,7 @@ impl<'ctx> TypeResolver<'ctx> {
         let keyword_dim = call
             .keywords
             .iter()
-            .find(|kw| kw.arg.as_deref() == Some("dim"))
+            .find(|kw| kw.arg.as_deref() == Some(axis_keyword))
             .map(|kw| &*kw.value);
 
         // Specifying dim both positionally and by keyword is invalid.
@@ -1359,7 +1453,13 @@ impl<'ctx> TypeResolver<'ctx> {
             }
         };
 
-        self.torch_cat_types(&tensor_types, dim, state, span)
+        self.concat_types(
+            &tensor_types,
+            dim,
+            state,
+            span,
+            allow_pytorch_empty_1d,
+        )
     }
 
     fn torch_stack_types(
@@ -1488,12 +1588,13 @@ impl<'ctx> TypeResolver<'ctx> {
         })))
     }
 
-    fn infer_torch_stack(
+    fn infer_stack(
         &mut self,
         call: &CallIR,
         program_id: i64,
         state: &mut FlowState,
-        span: &SourceSpan
+        span: &SourceSpan,
+        axis_keyword: &str,
     ) -> ResolveResult {
         let Some(tensors_arg) = call.args.first() else {
             return Ok(Type::Unknown);
@@ -1535,7 +1636,7 @@ impl<'ctx> TypeResolver<'ctx> {
         let keyword_dim = call
             .keywords
             .iter()
-            .find(|kw| kw.arg.as_deref() == Some("dim"))
+            .find(|kw| kw.arg.as_deref() == Some(axis_keyword))
             .map(|kw| &*kw.value);
 
         if positional_dim.is_some() && keyword_dim.is_some() {
@@ -1811,12 +1912,25 @@ impl<'ctx> TypeResolver<'ctx> {
                             | KnownFunction::Torch(TorchFunction::Ones)
                             | KnownFunction::Torch(TorchFunction::Empty) => {
                                 // infer torch.zeros(...)
-                                self.infer_torch_factory_tensor(call, program_id, state, &span)
+                                self.infer_factory_tensor(
+                                    call,
+                                    program_id,
+                                    state,
+                                    &span,
+                                    DType::Float32,
+                                )
                             }
 
                             KnownFunction::Torch(TorchFunction::Arange) => {
                                 // infer torch.arange(...)
-                                self.infer_torch_arange(call, program_id, state, &span)
+                                self.infer_arange(
+                                    call,
+                                    program_id,
+                                    state,
+                                    &span,
+                                    DType::Int64,
+                                    DType::Float32,
+                                )
                             }
 
                             KnownFunction::Torch(TorchFunction::Reshape) => {
@@ -1826,16 +1940,59 @@ impl<'ctx> TypeResolver<'ctx> {
 
                             KnownFunction::Torch(TorchFunction::Cat) => {
                                 // infer torch.cat(...)
-                                self.infer_torch_cat(call, program_id, state, &span)
+                                self.infer_concat(call, program_id, state, &span, "dim", true)
                             }
 
                             KnownFunction::Torch(TorchFunction::Stack) => {
                                 // infer torch.stack(...)
-                                self.infer_torch_stack(call, program_id, state, &span)
+                                self.infer_stack(call, program_id, state, &span, "dim")
                             }
 
                             KnownFunction::Torch(TorchFunction::Relu) => {
                                 // infer torch.relu(...)
+                                self.infer_torch_relu(call, program_id, state, &span)
+                            }
+
+                            KnownFunction::Jax(JaxFunction::Array) => {
+                                Ok(self.infer_jax_array(call, program_id))
+                            }
+
+                            KnownFunction::Jax(JaxFunction::Zeros)
+                            | KnownFunction::Jax(JaxFunction::Ones)
+                            | KnownFunction::Jax(JaxFunction::Empty) => self.infer_factory_tensor(
+                                call,
+                                program_id,
+                                state,
+                                &span,
+                                DType::Float32,
+                            ),
+
+                            KnownFunction::Jax(JaxFunction::Arange) => self.infer_arange(
+                                call,
+                                program_id,
+                                state,
+                                &span,
+                                DType::Int32,
+                                DType::Float32,
+                            ),
+
+                            KnownFunction::Jax(JaxFunction::Reshape) => {
+                                self.infer_torch_reshape(call, program_id, state, &span)
+                            }
+
+                            KnownFunction::Jax(JaxFunction::Concatenate) => {
+                                self.infer_concat(call, program_id, state, &span, "axis", false)
+                            }
+
+                            KnownFunction::Jax(JaxFunction::Stack) => {
+                                self.infer_stack(call, program_id, state, &span, "axis")
+                            }
+
+                            KnownFunction::Jax(JaxFunction::Matmul) => {
+                                self.infer_torch_matmul(call, program_id, state, &span)
+                            }
+
+                            KnownFunction::Jax(JaxFunction::Relu) => {
                                 self.infer_torch_relu(call, program_id, state, &span)
                             }
 

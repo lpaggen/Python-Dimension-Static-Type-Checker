@@ -122,8 +122,8 @@ impl<'ctx> BlockFlow<'ctx> {
                     .unwrap();
 
                 BoolExpr::new_const(format!(
-                    "truthy_{}_{}",
-                    symbol_ref.program_id, symbol_ref.symbol_id,
+                    "truthy_{}_{}::{}",
+                    symbol_ref.program_id, symbol_ref.symbol_id, name.id,
                 ))
             }
 

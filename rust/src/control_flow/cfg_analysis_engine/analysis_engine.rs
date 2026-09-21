@@ -29,19 +29,32 @@ impl<'ctx> AnalysisEngine<'ctx> {
             }
 
             for (function_id, function_cfg) in &program_cfg.functions {
-                let contract = self.analyze_function(
-                    *id, 
-                    *function_id, 
-                    function_cfg, 
-                    &program.symbols,
-                )?;
+                loop {
+                    match self.analyze_function(
+                        *id,
+                        *function_id,
+                        function_cfg,
+                        &program.symbols,
+                    ) {
+                        Ok(contract) => {
+                            self.contracts
+                                .borrow_mut()
+                                .by_id
+                                .insert(*function_id, contract);
 
-                self.contracts
-                    .borrow_mut()
-                    .by_id
-                    .insert(*function_id, contract);
+                            break;
+                        }
+
+                        Err(blocked) => {
+                            self.resolve_specialization(
+                                cfg,
+                                programs,
+                                &blocked.request,
+                            )?;
+                        }
+                    }
+                }
             }
-
             let mut result = self.analyze_module(
                 *id,
                 ContourID::Module(0),
@@ -188,30 +201,45 @@ impl<'ctx> AnalysisEngine<'ctx> {
             .get(&request.function_id)
             .unwrap();
 
-        let contract = self.analyze_function_specialized(
-            request.program_id,
-            request.function_id,
-            function,
-            &program.symbols,
-            &request.bindings,
-            &request.call_site,
-        )?;
+        loop {
+            match self.analyze_function_specialized(
+                request.program_id,
+                request.function_id,
+                function,
+                &program.symbols,
+                &request.bindings,
+                &request.call_site,
+            ) {
+                Ok(contract) => {
+                    let key = FunctionSpecializationKey {
+                        function_id: request.function_id,
+                        params: request
+                            .bindings
+                            .iter()
+                            .map(|binding| binding.ty.clone())
+                            .collect(),
+                    };
 
-        let key = FunctionSpecializationKey {
-            function_id: request.function_id,
-            params: request
-                .bindings
-                .iter()
-                .map(|binding| binding.ty.clone())
-                .collect(),
-        };
+                    self.contracts
+                        .borrow_mut()
+                        .specialized
+                        .insert(key, contract);
 
-        self.contracts
-            .borrow_mut()
-            .specialized
-            .insert(key, contract);
+                    return Ok(());
+                }
 
-        Ok(())
+                Err(blocked) => {
+                    self.resolve_specialization(
+                        cfg,
+                        programs,
+                        &blocked.request,
+                    )?;
+
+                    // nested specialization is now cached;
+                    // retry the parent specialization from the start
+                }
+            }
+        }
     }
 
     fn resume_blocked(

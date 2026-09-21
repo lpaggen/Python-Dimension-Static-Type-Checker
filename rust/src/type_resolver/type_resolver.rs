@@ -464,7 +464,32 @@ impl<'ctx> TypeResolver<'ctx> {
     //     }
     // }
 
-    fn require_dims_equal(&mut self, a: &DimType, b: &DimType, state: &mut FlowState, span: &SourceSpan) -> ConstraintResult {
+    fn display_dim(dim: &DimType) -> String {
+        match dim {
+            DimType::Known(value) => value.to_string(),
+            DimType::Symbol(symbol) => symbol.to_string(),
+            DimType::Unknown => "unknown".to_owned(),
+        }
+    }
+
+    fn display_shape(shape: &[DimType]) -> (String, Vec<usize>) {
+        let mut text = String::from("[");
+        let mut offsets = Vec::with_capacity(shape.len());
+
+        for (index, dim) in shape.iter().enumerate() {
+            if index > 0 {
+                text.push_str(", ");
+            }
+
+            offsets.push(text.chars().count());
+            text.push_str(&Self::display_dim(dim));
+        }
+
+        text.push(']');
+        (text, offsets)
+    }
+
+    fn check_dims_equal(&mut self, a: &DimType, b: &DimType, state: &mut FlowState) -> ConstraintResult {
         let equality = match (a, b) {
             (DimType::Known(a), DimType::Known(b)) => {
                 IntExpr::from_i64(*a).eq(IntExpr::from_i64(*b))
@@ -495,52 +520,86 @@ impl<'ctx> TypeResolver<'ctx> {
                 ConstraintResult::Feasible
             }
 
-            SatResult::Unsat => {
-                let diagnostic_span = self
-                    .diagnostic_span_override
-                    .as_ref()
-                    .unwrap_or(span);
-
-                let display_dim = |dim: &DimType| match dim {
-                    DimType::Known(value) => value.to_string(),
-                    DimType::Symbol(symbol) => symbol.to_string(),
-                    DimType::Unknown => "unknown".to_owned(),
-                };
-
-                let guard = state.guard.simplify();
-                let condition = if guard.as_bool() == Some(true) {
-                    String::new()
-                } else {
-                    format!(" (when {guard})")
-                };
-
-                let message = format!(
-                    "shape mismatch: dimension {} must equal {}{}",
-                    display_dim(a),
-                    display_dim(b),
-                    condition,
-                );
-
-                self.diagnostics.push(Diagnostic::new(
-                    Severity::ERROR,
-                    diagnostic_span.clone(),
-                    DiagnosticKind::ShapeError,
-                    &message,
-                ));
-
-                println!(
-                    "{}: {}",
-                    diagnostic_span,
-                    message,
-                );
-
-                ConstraintResult::Infeasible
-            }
+            SatResult::Unsat => ConstraintResult::Infeasible,
 
             SatResult::Unknown => {
                 ConstraintResult::Unknown
             }
         }
+    }
+
+    fn report_shape_error(&mut self, span: &SourceSpan, message: String) {
+        let diagnostic_span = self.diagnostic_span_override.as_ref().unwrap_or(span);
+
+        self.diagnostics.push(Diagnostic::new(
+            Severity::ERROR,
+            diagnostic_span.clone(),
+            DiagnosticKind::ShapeError,
+            &message,
+        ));
+
+        println!("{}: error: {}", diagnostic_span, message);
+    }
+
+    fn require_dims_equal(&mut self, a: &DimType, b: &DimType, state: &mut FlowState, span: &SourceSpan) -> ConstraintResult {
+        let result = self.check_dims_equal(a, b, state);
+
+        if matches!(result, ConstraintResult::Infeasible) {
+            let guard = state.guard.simplify();
+            let condition = if guard.as_bool() == Some(true) {
+                String::new()
+            } else {
+                format!(" (when {guard})")
+            };
+            let message = format!(
+                "shape mismatch: dimension {} must equal {}{}",
+                Self::display_dim(a),
+                Self::display_dim(b),
+                condition,
+            );
+            self.report_shape_error(span, message);
+        }
+
+        result
+    }
+
+    fn require_matmul_dims_equal(
+        &mut self,
+        shape_a: &[DimType],
+        axis_a: usize,
+        shape_b: &[DimType],
+        axis_b: usize,
+        state: &mut FlowState,
+        span: &SourceSpan,
+    ) -> ConstraintResult {
+        let result = self.check_dims_equal(&shape_a[axis_a], &shape_b[axis_b], state);
+
+        if matches!(result, ConstraintResult::Infeasible) {
+            let (left, left_offsets) = Self::display_shape(shape_a);
+            let (right, right_offsets) = Self::display_shape(shape_b);
+            let left_marker = left_offsets[axis_a];
+            let right_marker = left.chars().count() + 3 + right_offsets[axis_b];
+            let marker_gap = right_marker.saturating_sub(left_marker + 1);
+            let guard = state.guard.simplify();
+            let condition = if guard.as_bool() == Some(true) {
+                String::new()
+            } else {
+                format!(" (when {guard})")
+            };
+
+            let message = format!(
+                "incompatible shapes for matmul:\n    {left} @ {right}\n    {}^{}^\n    {}{} != {}{}",
+                " ".repeat(left_marker),
+                " ".repeat(marker_gap),
+                " ".repeat(left_marker),
+                Self::display_dim(&shape_a[axis_a]),
+                Self::display_dim(&shape_b[axis_b]),
+                condition,
+            );
+            self.report_shape_error(span, message);
+        }
+
+        result
     }
 
     fn torch_shapes_compatible(
@@ -645,9 +704,11 @@ impl<'ctx> TypeResolver<'ctx> {
                 match (shape_a.len(), shape_b.len()) {
                     // [K] @ [K] -> []
                     (1, 1) => {
-                        match self.require_dims_equal(
-                            &shape_a[0],
-                            &shape_b[0],
+                        match self.require_matmul_dims_equal(
+                            shape_a,
+                            0,
+                            shape_b,
+                            0,
                             state,
                             span,
                         ) {
@@ -669,9 +730,11 @@ impl<'ctx> TypeResolver<'ctx> {
                     (1, _) => {
                         let b_rank = shape_b.len();
 
-                        match self.require_dims_equal(
-                            &shape_a[0],
-                            &shape_b[b_rank - 2],
+                        match self.require_matmul_dims_equal(
+                            shape_a,
+                            0,
+                            shape_b,
+                            b_rank - 2,
                             state,
                             span,
                         ) {
@@ -697,9 +760,11 @@ impl<'ctx> TypeResolver<'ctx> {
                     (_, 1) => {
                         let a_rank = shape_a.len();
 
-                        match self.require_dims_equal(
-                            &shape_a[a_rank - 1],
-                            &shape_b[0],
+                        match self.require_matmul_dims_equal(
+                            shape_a,
+                            a_rank - 1,
+                            shape_b,
+                            0,
                             state,
                             span,
                         ) {
@@ -725,9 +790,11 @@ impl<'ctx> TypeResolver<'ctx> {
                         let b_rank = shape_b.len();
 
                         // A[..., M, K] @ B[..., K, N]
-                        match self.require_dims_equal(
-                            &shape_a[a_rank - 1],
-                            &shape_b[b_rank - 2],
+                        match self.require_matmul_dims_equal(
+                            shape_a,
+                            a_rank - 1,
+                            shape_b,
+                            b_rank - 2,
                             state,
                             span,
                         ) {
@@ -773,9 +840,11 @@ impl<'ctx> TypeResolver<'ctx> {
                                     } else if matches!(b, DimType::Known(1)) {
                                         a.clone()
                                     } else {
-                                        match self.require_dims_equal(
-                                            a,
-                                            b,
+                                        match self.require_matmul_dims_equal(
+                                            shape_a,
+                                            i - offset_a,
+                                            shape_b,
+                                            i - offset_b,
                                             state,
                                             span,
                                         ) {
@@ -1711,6 +1780,12 @@ impl<'ctx> TypeResolver<'ctx> {
                 match &*call.func {
                     ExprIR::Name(name) => {
                         let callee_ty = self.parse_expr(&call.func, program_id, state)?;
+
+                        println!(
+                            "CALL {:?} resolved callee to {:?}",
+                            name.id,
+                            callee_ty,
+                        );
 
                         match callee_ty {
                             Type::Function(function_id) => {

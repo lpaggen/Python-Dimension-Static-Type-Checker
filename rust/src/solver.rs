@@ -112,6 +112,8 @@ impl BoolExpr {
                 let values: Vec<_> = values.iter().map(Self::simplify).collect();
                 if values.iter().any(|value| value.as_bool() == Some(false)) {
                     Self::Constant(false)
+                } else if has_complementary_values(&values) {
+                    Self::Constant(false)
                 } else {
                     let mut values: Vec<_> = values
                         .into_iter()
@@ -127,6 +129,8 @@ impl BoolExpr {
             Self::Or(values) => {
                 let values: Vec<_> = values.iter().map(Self::simplify).collect();
                 if values.iter().any(|value| value.as_bool() == Some(true)) {
+                    Self::Constant(true)
+                } else if has_complementary_values(&values) {
                     Self::Constant(true)
                 } else {
                     let mut values: Vec<_> = values
@@ -196,6 +200,15 @@ impl BoolExpr {
     }
 }
 
+fn has_complementary_values(values: &[BoolExpr]) -> bool {
+    values.iter().any(|value| match value {
+        BoolExpr::Not(inner) => values.iter().any(|other| other == inner.as_ref()),
+        value => values
+            .iter()
+            .any(|other| matches!(other, BoolExpr::Not(inner) if inner.as_ref() == value)),
+    })
+}
+
 fn smt_variadic(operator: &str, values: &[BoolExpr]) -> String {
     format!(
         "({operator} {})",
@@ -219,7 +232,81 @@ impl fmt::Display for IntExpr {
 
 impl fmt::Display for BoolExpr {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(&self.to_smt2())
+        fn write_expr(
+            expression: &BoolExpr,
+            formatter: &mut fmt::Formatter<'_>,
+            parent_precedence: u8,
+        ) -> fmt::Result {
+            let precedence = match expression {
+                BoolExpr::Implies(_, _) => 1,
+                BoolExpr::Or(_) => 2,
+                BoolExpr::And(_) => 3,
+                BoolExpr::Not(_) => 4,
+                _ => 5,
+            };
+            let parenthesize = precedence < parent_precedence;
+            if parenthesize {
+                formatter.write_str("(")?;
+            }
+
+            match expression {
+                BoolExpr::Constant(value) => write!(formatter, "{value}"),
+                BoolExpr::Variable(name) => formatter.write_str(
+                    name.rsplit_once("::").map_or(name, |(_, label)| label),
+                ),
+                BoolExpr::Equal(left, right) => write!(formatter, "{left} == {right}"),
+                BoolExpr::And(values) | BoolExpr::Or(values) => {
+                    let operator = if matches!(expression, BoolExpr::And(_)) {
+                        " and "
+                    } else {
+                        " or "
+                    };
+                    for (index, value) in values.iter().enumerate() {
+                        if index > 0 {
+                            formatter.write_str(operator)?;
+                        }
+                        write_expr(value, formatter, precedence)?;
+                    }
+                    Ok(())
+                }
+                BoolExpr::Not(value) => {
+                    formatter.write_str("not ")?;
+                    write_expr(value, formatter, precedence)
+                }
+                BoolExpr::Implies(left, right) => {
+                    write_expr(left, formatter, precedence)?;
+                    formatter.write_str(" implies ")?;
+                    write_expr(right, formatter, precedence)
+                }
+            }?;
+
+            if parenthesize {
+                formatter.write_str(")")?;
+            }
+            Ok(())
+        }
+
+        write_expr(self, formatter, 0)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BoolExpr;
+
+    #[test]
+    fn simplifies_complementary_boolean_values() {
+        let flag = BoolExpr::new_const("truthy_4_2::flag");
+
+        assert_eq!(BoolExpr::or(&[&flag, &flag.not()]), BoolExpr::from_bool(true));
+        assert_eq!(BoolExpr::and(&[&flag, &flag.not()]), BoolExpr::from_bool(false));
+    }
+
+    #[test]
+    fn displays_source_label_instead_of_solver_identifier() {
+        let flag = BoolExpr::new_const("truthy_4_2::flag");
+
+        assert_eq!(flag.not().to_string(), "not flag");
     }
 }
 

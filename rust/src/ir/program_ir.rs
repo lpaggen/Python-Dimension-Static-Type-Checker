@@ -3,6 +3,8 @@ use crate::ir::{
     stmt::{StmtIR, import_ir::ImportIR},
 };
 
+// pub decls: Vec<DeclIR>, // may have been useful to keep classes and functions signatures actually
+
 #[derive(Debug, Clone)]
 pub struct ProgramIR {
     pub module_name: String,
@@ -10,6 +12,5 @@ pub struct ProgramIR {
     pub scopes: Vec<ScopeIR>,
     pub symbols: Vec<SymbolIR>,
     pub imports: Vec<ImportIR>,
-    // pub decls: Vec<DeclIR>, // may have been useful to keep classes and functions signatures actually
     pub body: Vec<StmtIR>,
 }

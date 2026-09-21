@@ -82,11 +82,15 @@ mod tests {
             .expect("ex7 protobuf should decode");
 
         assert!(diagnostics.iter().any(|diagnostic| {
-            diagnostic.message == "shape mismatch: dimension 3 must equal 5"
+            diagnostic.message.starts_with("incompatible shapes for matmul:")
+                && diagnostic.message.contains("[1, 2] @ [3, 2]")
+                && diagnostic.message.contains("2 != 3")
+                && diagnostic.message.contains("(when not flag)")
+                && !diagnostic.message.contains("pdc_")
                 && diagnostic
                     .span
                     .as_ref()
-                    .is_some_and(|span| span.lineno == 31)
+                    .is_some_and(|span| span.lineno == 23)
         }));
     }
 }

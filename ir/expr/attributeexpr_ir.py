@@ -17,8 +17,7 @@ class AttributeExprIR(ExprIR):
 
         attr_proto.base.CopyFrom(self.base.to_proto())
 
-        if self.span is not None:
-            attr_proto.span.CopyFrom(self.span.to_proto())
+        attr_proto.span.CopyFrom(self.span.to_proto())
 
         expr = _pb2.ExprIR()
         expr.attribute.CopyFrom(attr_proto)

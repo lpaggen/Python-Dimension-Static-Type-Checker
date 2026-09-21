@@ -4,5 +4,5 @@ use crate::ir::span_ir::SourceSpan;
 pub struct ComplexIR {
     pub real: f64,
     pub imag: f64,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }

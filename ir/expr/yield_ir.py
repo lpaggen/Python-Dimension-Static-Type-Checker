@@ -8,7 +8,7 @@ from ir.expr.expr_ir import ExprIR
 @dataclass
 class YieldIR(ExprIR):
     value: ExprIR | None
-    span: SourceSpan | None
+    span: SourceSpan
 
     def to_proto(self):
         return _pb2.ExprIR(

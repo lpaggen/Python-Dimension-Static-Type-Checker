@@ -39,8 +39,7 @@ class ClassDefIR(StmtIR):
         )
         proto.type_params.extend([param.to_proto() for param in self.type_params])
 
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
 
         # stmt = _pb2.DeclIR()
         # stmt.class_decl.CopyFrom(proto)

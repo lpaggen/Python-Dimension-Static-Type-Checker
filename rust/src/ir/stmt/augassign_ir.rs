@@ -7,5 +7,5 @@ pub struct AugAssignIR {
     pub target: Box<ExprIR>,
     pub op: Operator,
     pub value: Box<ExprIR>,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }

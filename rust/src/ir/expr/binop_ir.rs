@@ -5,5 +5,5 @@ pub struct BinOpIR {
     pub left: Box<ExprIR>,
     pub right: Box<ExprIR>,
     pub op: Operator,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }

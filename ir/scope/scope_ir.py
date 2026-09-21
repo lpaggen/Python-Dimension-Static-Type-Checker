@@ -22,7 +22,6 @@ class ScopeIR(IRNode):
         if self.parent_id is not None:
             proto.parent_id = self.parent_id
 
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
 
         return proto

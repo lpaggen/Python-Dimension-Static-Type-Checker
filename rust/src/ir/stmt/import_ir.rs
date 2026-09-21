@@ -19,13 +19,13 @@ impl From<i32> for ImportKind {
 
 #[derive(Debug, Clone)]
 pub struct ImportIR {
-    pub id: i64,
-    pub local_symbol_id: i64,
-    pub scope_id: i64,
+    pub id: usize,
+    pub local_symbol_id: usize,
+    pub scope_id: usize,
     pub kind: ImportKind,
     pub module_name: String,
     pub imported_name: Option<String>,
     pub alias: Option<String>,
-    pub relative_level: i64,
-    pub span: Option<SourceSpan>, // ? needed ?
+    pub relative_level: usize,
+    pub span: SourceSpan, // ? needed ?
 }

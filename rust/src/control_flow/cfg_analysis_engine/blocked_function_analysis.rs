@@ -3,7 +3,7 @@ use crate::control_flow::{block_id::BlockID, cfg_analysis_engine::contour_id::Co
 // used to carry the block ID over to the parent AnalysisEngine
 #[derive(Debug)]
 pub struct BlockedFunctionAnalysis {
-    pub program_id: i64,
+    pub program_id: usize,
     pub contour: ContourID,
     pub block_id: BlockID,
     pub request: FunctionAnalysisRequest,

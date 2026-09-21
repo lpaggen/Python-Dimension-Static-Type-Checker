@@ -9,15 +9,14 @@ from ir.expr.expr_ir import ExprIR
 class KeywordIR(ExprIR):
     arg: str | None
     value: ExprIR
-    span: SourceSpan | None = None
+    span: SourceSpan
 
     def to_proto(self):
         proto = _pb2.KeywordArgIR()
         if self.arg is not None:
             proto.arg = self.arg
         proto.value.CopyFrom(self.value.to_proto())
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
         return proto
 
 
@@ -26,7 +25,7 @@ class CallIR(ExprIR):
     func: ExprIR
     args: list[ExprIR]
     keywords: list[KeywordIR]
-    span: SourceSpan | None = None
+    span: SourceSpan
 
     def to_proto(self):
         proto = _pb2.CallExprIR(
@@ -34,6 +33,5 @@ class CallIR(ExprIR):
             args=[arg.to_proto() for arg in self.args],
             keywords=[keyword.to_proto() for keyword in self.keywords],
         )
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
         return _pb2.ExprIR(call=proto)

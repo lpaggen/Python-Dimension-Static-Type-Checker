@@ -4,5 +4,5 @@ use crate::ir::{expr_ir::ExprIR, nodes::CompIR, span_ir::SourceSpan};
 pub struct GeneratorExprIR {
     pub elt: Box<ExprIR>,
     pub generators: Vec<CompIR>,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }

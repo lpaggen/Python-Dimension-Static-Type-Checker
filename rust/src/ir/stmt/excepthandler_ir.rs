@@ -5,5 +5,5 @@ pub struct ExceptHandlerIR {
     pub exception_type: Option<ExprIR>,
     pub name: Option<String>,
     pub body: Vec<StmtIR>,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }

@@ -215,7 +215,11 @@ impl<'ctx> TypeResolver<'ctx> {
         Some(KnownFunction::Jax(function))
     }
 
-    fn resolve_name_root(&self, name: &NameIR, program_id: i64) -> Option<KnownLibrary> {
+    fn resolve_name_root(
+        &self, 
+        name: &NameIR, 
+        program_id: usize
+    ) -> Option<KnownLibrary> {
         let symbol_ref = self
             .symbols
             .lookup_by_name(program_id, name.use_scope_id, &name.id)?;
@@ -238,7 +242,7 @@ impl<'ctx> TypeResolver<'ctx> {
     fn resolve_attribute(
         &self,
         attr: &AttributeIR,
-        program_id: i64,
+        program_id: usize,
     ) -> Option<ResolvedAttributePath> {
         match &*attr.value {
             ExprIR::Name(name) => Some(ResolvedAttributePath {
@@ -298,7 +302,7 @@ impl<'ctx> TypeResolver<'ctx> {
         }
     }
 
-    fn infer_container_element_types(&mut self, expr: &ExprIR, program_id: i64) -> DType {
+    fn infer_container_element_types(&mut self, expr: &ExprIR, program_id: usize) -> DType {
         match expr {
             ExprIR::ListExpr(list_expr) => {
                 let mut element_types = Vec::new();
@@ -345,7 +349,7 @@ impl<'ctx> TypeResolver<'ctx> {
         }
     }
 
-    fn infer_tensor_data(&mut self, expr: &ExprIR, program_id: i64) -> Option<TensorType> {
+    fn infer_tensor_data(&mut self, expr: &ExprIR, program_id: usize) -> Option<TensorType> {
         let _default_dtype = DType::Unknown;
         match expr {
             ExprIR::Constant(ConstantIR::IntegerLit(_)) => {
@@ -377,7 +381,7 @@ impl<'ctx> TypeResolver<'ctx> {
     }
 
     // support both bare name and torch.whatever
-    fn infer_tensor_dtype(&self, kw: &KeywordIR, program_id: i64) -> DType {
+    fn infer_tensor_dtype(&self, kw: &KeywordIR, program_id: usize) -> DType {
         if kw.arg.as_deref() != Some("dtype") {
             return DType::Unknown;
         }
@@ -457,7 +461,7 @@ impl<'ctx> TypeResolver<'ctx> {
     }
 
     // get more information about the tensors, their dtype, their dimensions etc
-    fn infer_torch_tensor(&mut self, call: &CallIR, program_id: i64, span: &SourceSpan) -> Type {
+    fn infer_torch_tensor(&mut self, call: &CallIR, program_id: usize, span: &SourceSpan) -> Type {
         // pytorch tensor can look like: torch.tensor(3), torch.tensor([...]), need to parse possible variants
         let Some(data_arg) = call.args.first() else {
             self.diagnostics.push(Diagnostic {
@@ -492,7 +496,7 @@ impl<'ctx> TypeResolver<'ctx> {
         // resolve dtype, find argument "dtype" and resolve if exists else unknown dtype (? double check)
     }
 
-    fn infer_jax_array(&mut self, call: &CallIR, program_id: i64) -> Type {
+    fn infer_jax_array(&mut self, call: &CallIR, program_id: usize) -> Type {
         let Some(data_arg) = call.args.first() else {
             return Type::Unknown;
         };
@@ -897,7 +901,7 @@ impl<'ctx> TypeResolver<'ctx> {
     fn infer_torch_size(
         &mut self,
         args: &[ExprIR],
-        program_id: i64,
+        program_id: usize,
         state: &mut FlowState,
         span: &SourceSpan
     ) -> Option<Vec<DimType>> {
@@ -930,7 +934,7 @@ impl<'ctx> TypeResolver<'ctx> {
     fn infer_torch_matmul(
         &mut self,
         call: &CallIR,
-        program_id: i64,
+        program_id: usize,
         state: &mut FlowState,
         span: &SourceSpan
     ) -> ResolveResult {
@@ -952,7 +956,7 @@ impl<'ctx> TypeResolver<'ctx> {
     fn infer_factory_tensor(
         &mut self,
         call: &CallIR,
-        program_id: i64,
+        program_id: usize,
         state: &mut FlowState,
         span: &SourceSpan,
         default_dtype: DType,
@@ -977,7 +981,7 @@ impl<'ctx> TypeResolver<'ctx> {
     fn infer_arange(
         &mut self,
         call: &CallIR,
-        program_id: i64,
+        program_id: usize,
         state: &mut FlowState,
         span: &SourceSpan,
         default_int_dtype: DType,
@@ -1093,7 +1097,7 @@ impl<'ctx> TypeResolver<'ctx> {
     fn infer_torch_reshape(
         &mut self,
         call: &CallIR,
-        program_id: i64,
+        program_id: usize,
         state: &mut FlowState,
         span: &SourceSpan
     ) -> ResolveResult {
@@ -1385,7 +1389,7 @@ impl<'ctx> TypeResolver<'ctx> {
     fn infer_concat(
         &mut self,
         call: &CallIR,
-        program_id: i64,
+        program_id: usize,
         state: &mut FlowState,
         span: &SourceSpan,
         axis_keyword: &str,
@@ -1591,7 +1595,7 @@ impl<'ctx> TypeResolver<'ctx> {
     fn infer_stack(
         &mut self,
         call: &CallIR,
-        program_id: i64,
+        program_id: usize,
         state: &mut FlowState,
         span: &SourceSpan,
         axis_keyword: &str,
@@ -1667,7 +1671,7 @@ impl<'ctx> TypeResolver<'ctx> {
     fn infer_torch_relu(
         &mut self,
         call: &CallIR,
-        program_id: i64,
+        program_id: usize,
         state: &mut FlowState,
         span: &SourceSpan
     ) -> ResolveResult {
@@ -1780,7 +1784,7 @@ impl<'ctx> TypeResolver<'ctx> {
     pub fn parse_expr(
         &mut self,
         expr: &ExprIR,
-        program_id: i64,
+        program_id: usize,
         state: &mut FlowState,
     ) -> ResolveResult {
         let span = expr.span();
@@ -2282,7 +2286,11 @@ impl<'ctx> TypeResolver<'ctx> {
         }
     }
 
-    fn resolve_annotation_name(&self, program_id: i64, name: &NameIR) -> Type {
+    fn resolve_annotation_name(
+        &self, 
+        program_id: usize, 
+        name: &NameIR
+    ) -> Type {
         let symbol_ref = match self.symbols.global_lookup(program_id, &name.id) {
             Some(symbol_ref) => symbol_ref,
             None => return Type::Unknown,
@@ -2308,7 +2316,11 @@ impl<'ctx> TypeResolver<'ctx> {
         }
     }
 
-    pub fn parse_annotation(&self, expr: &ExprIR, program_id: i64) -> Type {
+    pub fn parse_annotation(
+        &self, 
+        expr: &ExprIR, 
+        program_id: usize
+    ) -> Type {
         match expr {
             ExprIR::Name(name) => match name.id.as_str() {
                 "int" => Type::Int,
@@ -2372,7 +2384,7 @@ impl<'ctx> TypeResolver<'ctx> {
 
     pub fn resolve_type(
         &mut self,
-        program_id: i64,
+        program_id: usize,
         stmt: &StmtIR,
         state: &mut FlowState,
         span: &SourceSpan

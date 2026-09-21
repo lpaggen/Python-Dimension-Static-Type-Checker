@@ -8,10 +8,9 @@ from ir.expr.expr_ir import ExprIR
 class BoolOpIR(ExprIR):
     values: list[ExprIR]
     op: Operator
-    span: SourceSpan | None = None
+    span: SourceSpan
 
     def to_proto(self):
         proto = _pb2.BoolOpIR(values=[value.to_proto() for value in self.values], op=self.op.value)
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
         return _pb2.ExprIR(boolop=proto)

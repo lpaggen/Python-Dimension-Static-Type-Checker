@@ -8,5 +8,5 @@ pub struct InterpolationIR {
     pub str: Option<String>,
     pub conversion: Conversion,
     pub format_spec: Option<JoinedStrIR>,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }

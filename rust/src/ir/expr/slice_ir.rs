@@ -5,5 +5,5 @@ pub struct SliceIR {
     pub lower: Option<Box<ExprIR>>,
     pub upper: Option<Box<ExprIR>>,
     pub step: Option<Box<ExprIR>>,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }

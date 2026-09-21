@@ -19,8 +19,7 @@ class IdentifierIR(ExprIR):
             use_scope_id=self.use_scope_id,
         )
 
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
 
         expr = _pb2.ExprIR()
         expr.identifier.CopyFrom(proto)

@@ -22,13 +22,13 @@ message ProgramIR {
 
 message SetIR {
   repeated ExprIR elts = 1;
-  optional SourceSpan span = 2;
+  SourceSpan span = 2;
 }
 
 message DictIR {
   repeated DictKeyIR keys = 1;
   repeated ExprIR values = 2;
-  optional SourceSpan span = 3;
+  SourceSpan span = 3;
 }
 
 // A wrapper is required because protobuf repeated message fields cannot contain null.
@@ -39,7 +39,7 @@ message DictKeyIR {
 
 message StarredIR {
   ExprIR value = 1;
-  optional SourceSpan span = 2;
+  SourceSpan span = 2;
 }
 
 message ScopeIR {
@@ -47,7 +47,7 @@ message ScopeIR {
   string name = 2;
   ScopeKind kind = 3;
   optional int64 parent_id = 4;
-  optional SourceSpan span = 5;
+  SourceSpan span = 5;
 }
 
 enum ScopeKind {
@@ -63,7 +63,7 @@ message SymbolIR {
   string name = 2;
   SymbolKind kind = 3;
   int64 scope_id = 4;
-  optional SourceSpan span = 5;
+  SourceSpan span = 5;
 }
 
 enum SymbolKind {
@@ -86,7 +86,7 @@ message ImportIR {
   optional string alias = 7;
   int64 relative_level = 8;
 
-  optional SourceSpan span = 9;
+  SourceSpan span = 9;
 }
 
 enum ImportKind {
@@ -132,7 +132,7 @@ message AssignIR {
   repeated ExprIR target = 1;
   ExprIR value = 2;
   optional string type_comment = 3;
-  optional SourceSpan span = 6;
+  SourceSpan span = 6;
 }
 
 message AnnAssignIR {
@@ -140,7 +140,7 @@ message AnnAssignIR {
   ExprIR annotation = 2;
   optional ExprIR value = 3;
   int64 simple = 4;
-  optional SourceSpan span = 6;
+  SourceSpan span = 6;
 }
 
 message AsyncForIR {
@@ -149,14 +149,14 @@ message AsyncForIR {
   repeated StmtIR body = 3;
   repeated StmtIR orelse = 4;
   optional string type_comment = 5;
-  optional SourceSpan span = 6;
+  SourceSpan span = 6;
 }
 
 message AsyncWithIR {
   repeated WithItemIR items = 1;
   repeated StmtIR body = 2;
   optional string type_comment = 3;
-  optional SourceSpan span = 4;
+  SourceSpan span = 4;
 }
 
 message AsyncFunctionDefIR {
@@ -167,47 +167,47 @@ message AsyncFunctionDefIR {
   optional ExprIR returns = 5;
   optional string type_comment = 6;
   uint64 scope_id = 7;
-  optional SourceSpan span = 8;
+  SourceSpan span = 8;
   repeated TypeParamIR type_params = 9;
 }
 
 message DeleteIR {
   repeated ExprIR targets = 1;
-  optional SourceSpan span = 2;
+  SourceSpan span = 2;
 }
 
 message AssertIR {
   ExprIR test = 1;
   optional ExprIR msg = 2;
-  optional SourceSpan span = 3;
+  SourceSpan span = 3;
 }
 
 message RaiseIR {
   optional ExprIR exc = 1;
   optional ExprIR cause = 2;
-  optional SourceSpan span = 3;
+  SourceSpan span = 3;
 }
 
 message GlobalIR {
   repeated string names = 1;
-  optional SourceSpan span = 2;
+  SourceSpan span = 2;
 }
 
 message NonlocalIR {
   repeated string names = 1;
-  optional SourceSpan span = 2;
+  SourceSpan span = 2;
 }
 
 message PassIR {
-  optional SourceSpan span = 1;
+  SourceSpan span = 1;
 }
 
 message BreakIR {
-  optional SourceSpan span = 1;
+  SourceSpan span = 1;
 }
 
 message ContinueIR {
-  optional SourceSpan span = 1;
+  SourceSpan span = 1;
 }
 
 message WithItemIR {
@@ -219,14 +219,14 @@ message WithIR {
   repeated WithItemIR items = 1;
   repeated StmtIR body = 2;
   optional string type_comment = 3;
-  optional SourceSpan span = 4;
+  SourceSpan span = 4;
 }
 
 message ExceptHandlerIR {
   optional ExprIR type = 1;
   optional string name = 2;
   repeated StmtIR body = 3;
-  optional SourceSpan span = 4;
+  SourceSpan span = 4;
 }
 
 message TryIR {
@@ -234,7 +234,7 @@ message TryIR {
   repeated ExceptHandlerIR handlers = 2;
   repeated StmtIR orelse = 3;
   repeated StmtIR finalbody = 4;
-  optional SourceSpan span = 5;
+  SourceSpan span = 5;
 }
 
 message TryStarIR {
@@ -242,31 +242,31 @@ message TryStarIR {
   repeated ExceptHandlerIR handlers = 2;
   repeated StmtIR orelse = 3;
   repeated StmtIR finalbody = 4;
-  optional SourceSpan span = 5;
+  SourceSpan span = 5;
 }
 
 message TypeAliasIR {
   ExprIR name = 1;
   repeated TypeParamIR type_params = 2;
   ExprIR value = 3;
-  optional SourceSpan span = 4;
+  SourceSpan span = 4;
 }
 
 message AugAssignIR {
   ExprIR target = 1;
   Operator op = 2;
   ExprIR value = 3;
-  optional SourceSpan span = 4;
+  SourceSpan span = 4;
 }
 
 message ReturnIR {
   optional ExprIR value = 1;
-  optional SourceSpan span = 2;
+  SourceSpan span = 2;
 }
 
 message ExprStmtIR {
   ExprIR value = 1;
-  optional SourceSpan span = 2;
+  SourceSpan span = 2;
 }
 
 message IfIR {
@@ -276,7 +276,7 @@ message IfIR {
   int64 else_scope_id = 4;
   repeated StmtIR body = 5;
   repeated StmtIR orelse = 6;
-  optional SourceSpan span = 7;
+  SourceSpan span = 7;
 }
 
 message ForLoopIR {
@@ -286,7 +286,7 @@ message ForLoopIR {
   int64 body_scope_id = 4;
   repeated StmtIR body = 5;
   repeated StmtIR orelse = 6;
-  optional SourceSpan span = 7;
+  SourceSpan span = 7;
 }
 
 message WhileLoopIR {
@@ -295,7 +295,7 @@ message WhileLoopIR {
   int64 body_scope_id = 3;
   repeated StmtIR body = 4;
   repeated StmtIR orelse = 5;
-  optional SourceSpan span = 6;
+  SourceSpan span = 6;
 }
 
 message FunctionDefIR {
@@ -308,7 +308,7 @@ message FunctionDefIR {
   repeated StmtIR body = 7;
   optional ExprIR returns = 8;
   repeated ExprIR decorator_list = 9;
-  optional SourceSpan span = 10;
+  SourceSpan span = 10;
   optional string type_comment = 11;
   repeated TypeParamIR type_params = 12;
 }
@@ -319,7 +319,7 @@ message ArgIR {
   ArgKind kind = 3;
   optional ExprIR annotation = 4;
   optional ExprIR default = 5;
-  optional SourceSpan span = 6;
+  SourceSpan span = 6;
 }
 
 message ClassDefIR {
@@ -333,7 +333,7 @@ message ClassDefIR {
   repeated StmtIR body = 6;
   repeated ExprIR bases = 7;
   repeated ExprIR decorator_list = 8;
-  optional SourceSpan span = 9;
+  SourceSpan span = 9;
   repeated KeywordArgIR keywords = 10;
   repeated TypeParamIR type_params = 11;
 }
@@ -355,7 +355,7 @@ message PatternIR {
 
 message ValuePatternIR {
   ExprIR value = 1;
-  optional SourceSpan span = 2;
+  SourceSpan span = 2;
 }
 
 enum SingletonValue {
@@ -367,19 +367,19 @@ enum SingletonValue {
 
 message SingletonPatternIR {
   SingletonValue value = 1;
-  optional SourceSpan span = 2;
+  SourceSpan span = 2;
 }
 
 message SequencePatternIR {
   repeated PatternIR patterns = 1;
-  optional SourceSpan span = 2;
+  SourceSpan span = 2;
 }
 
 message MappingPatternIR {
   repeated ExprIR keys = 1;
   repeated PatternIR patterns = 2;
   optional string rest = 3;
-  optional SourceSpan span = 4;
+  SourceSpan span = 4;
 }
 
 message ClassPatternIR {
@@ -387,38 +387,38 @@ message ClassPatternIR {
   repeated PatternIR patterns = 2;
   repeated string kwd_attrs = 3;
   repeated PatternIR kwd_patterns = 4;
-  optional SourceSpan span = 5;
+  SourceSpan span = 5;
 }
 
 message StarPatternIR {
   optional string name = 1;
-  optional SourceSpan span = 2;
+  SourceSpan span = 2;
 }
 
 message CapturePatternIR {
   string name = 1;
-  optional SourceSpan span = 2;
+  SourceSpan span = 2;
 }
 
 message WildcardPatternIR {
-  optional SourceSpan span = 1;
+  SourceSpan span = 1;
 }
 
 message AsPatternIR {
   PatternIR pattern = 1;
   string name = 2;
-  optional SourceSpan span = 3;
+  SourceSpan span = 3;
 }
 
 message OrPatternIR {
   repeated PatternIR patterns = 1;
-  optional SourceSpan span = 2;
+  SourceSpan span = 2;
 }
 
 message MatchIR {
   ExprIR subject = 2;
   repeated MatchCaseIR cases = 3;
-  optional SourceSpan span = 4;
+  SourceSpan span = 4;
 }
 
 message MatchCaseIR {
@@ -426,14 +426,14 @@ message MatchCaseIR {
   PatternIR pattern = 2;
   optional ExprIR guard = 3;
   repeated StmtIR body = 4;
-  optional SourceSpan span = 5;
+  SourceSpan span = 5;
 }
 
 message IfExprIR {
   ExprIR test = 1;
   ExprIR body = 2;
   ExprIR orelse = 3;
-  optional SourceSpan span = 4;
+  SourceSpan span = 4;
 }
 
 message ComplexIR {
@@ -447,64 +447,64 @@ message CompIR {
   ExprIR iter = 2;
   repeated ExprIR ifs = 3;
   bool is_async = 4;
-  optional SourceSpan span = 5;
+  SourceSpan span = 5;
 }
 
 message ListCompIR {
   ExprIR elt = 1;
   repeated CompIR generators = 2;
-  optional SourceSpan span = 3;
+  SourceSpan span = 3;
 }
 
 message SetCompIR {
   ExprIR elt = 1;
   repeated CompIR generators = 2;
-  optional SourceSpan span = 3;
+  SourceSpan span = 3;
 }
 
 message DictCompIR {
   ExprIR key = 1;
   ExprIR value = 2;
   repeated CompIR generators = 3;
-  optional SourceSpan span = 4;
+  SourceSpan span = 4;
 }
 
 message FormattedValueIR {
   ExprIR value = 1;
   int32 conversion = 2;
   JoinedStrIR format_spec = 3;
-  optional SourceSpan span = 4;
+  SourceSpan span = 4;
 }
 
 message JoinedStrIR {
   repeated ExprIR values = 1;
-  optional SourceSpan span = 2;
+  SourceSpan span = 2;
 }
 
 message GeneratorExprIR {
   ExprIR elt = 1;
   repeated CompIR generators = 2;
-  optional SourceSpan span = 3;
+  SourceSpan span = 3;
 }
 
 message AwaitIR {
   ExprIR value = 1;
-  optional SourceSpan span = 2;
+  SourceSpan span = 2;
 }
 
 message YieldIR {
   optional ExprIR value = 1;
-  optional SourceSpan span = 2;
+  SourceSpan span = 2;
 }
 
 message YieldFromIR {
   ExprIR value = 1;
-  optional SourceSpan span = 2;
+  SourceSpan span = 2;
 }
 
 message TemplateStrIR {
   repeated ExprIR values = 1;
-  optional SourceSpan span = 2;
+  SourceSpan span = 2;
 }
 
 message InterpolationIR {
@@ -512,12 +512,12 @@ message InterpolationIR {
   optional string str = 2;
   int32 conversion = 3;
   JoinedStrIR format_spec = 4;
-  optional SourceSpan span = 5;
+  SourceSpan span = 5;
 }
 
 message BytesIR {
   repeated int32 value = 1;
-  optional SourceSpan span = 2;
+  SourceSpan span = 2;
 }
 
 message ConstantIR {
@@ -586,109 +586,109 @@ enum ArgKind {
 message NamedExprIR {
   ExprIR target = 1;
   ExprIR value = 2;
-  optional SourceSpan span = 3;
+  SourceSpan span = 3;
 }
 
 message IdentifierIR {
   string id = 1;
   int64 use_scope_id = 2;
-  optional SourceSpan span = 3;
+  SourceSpan span = 3;
 }
 
 message IntegerIR {
   int64 value = 1;
-  optional SourceSpan span = 2;
+  SourceSpan span = 2;
 }
 
 message FloatIR {
   double value = 1;
-  optional SourceSpan span = 2;
+  SourceSpan span = 2;
 }
 
 message StringIR {
   string value = 1;
-  optional SourceSpan span = 2;
+  SourceSpan span = 2;
 }
 
 message BooleanIR {
   bool value = 1;
-  optional SourceSpan span = 2;
+  SourceSpan span = 2;
 }
 
 message NoneIR {
-  optional SourceSpan span = 1;
+  SourceSpan span = 1;
 }
 
 message EllipsisIR {
-  optional SourceSpan span = 1;
+  SourceSpan span = 1;
 }
 
 message ListIR {
   repeated ExprIR elts = 1;
-  optional SourceSpan span = 2;
+  SourceSpan span = 2;
 }
 
 message TupleIR {
   repeated ExprIR elts = 1;
-  optional SourceSpan span = 2;
+  SourceSpan span = 2;
 }
 
 message CallExprIR {
   ExprIR func = 1;
   repeated ExprIR args = 2;
   repeated KeywordArgIR keywords = 3;
-  optional SourceSpan span = 4;
+  SourceSpan span = 4;
 }
 
 message KeywordArgIR {
   optional string arg = 1;
   ExprIR value = 2;
-  optional SourceSpan span = 3;
+  SourceSpan span = 3;
 }
 
 message AttributeExprIR {
   ExprIR value = 1;
   string attr = 2;
-  optional SourceSpan span = 3;
+  SourceSpan span = 3;
 }
 
 message BinOpIR {
   ExprIR left = 1;
   ExprIR right = 2;
   Operator op = 3;
-  optional SourceSpan span = 4;
+  SourceSpan span = 4;
 }
 
 message UnaryOpIR {
   Operator op = 1;
   ExprIR operand = 2;
-  optional SourceSpan span = 3;
+  SourceSpan span = 3;
 }
 
 message BoolOpIR {
   Operator op = 1;
   repeated ExprIR values = 2;
-  optional SourceSpan span = 3;
+  SourceSpan span = 3;
 }
 
 message CompareIR {
   ExprIR left = 1;
   repeated Operator ops = 2;
   repeated ExprIR comparators = 3;
-  optional SourceSpan span = 4;
+  SourceSpan span = 4;
 }
 
 message SubscriptIR {
   ExprIR value = 1;
   ExprIR slice = 2;
-  optional SourceSpan span = 3;
+  SourceSpan span = 3;
 }
 
 message SliceIR {
   optional ExprIR lower = 1;
   optional ExprIR upper = 2;
   optional ExprIR step = 3;
-  optional SourceSpan span = 4;
+  SourceSpan span = 4;
 }
 
 message TypeParamIR {
@@ -703,19 +703,19 @@ message TypeVarIR {
   string name = 1;
   optional ExprIR bound = 2;
   optional ExprIR default_value = 3;
-  optional SourceSpan span = 4;
+  SourceSpan span = 4;
 }
 
 message ParamSpecIR {
   string name = 1;
   optional ExprIR default_value = 2;
-  optional SourceSpan span = 3;
+  SourceSpan span = 3;
 }
 
 message TypeVarTupleIR {
   string name = 1;
   optional ExprIR default_value = 2;
-  optional SourceSpan span = 3;
+  SourceSpan span = 3;
 }
 
 message DimIR {
@@ -728,24 +728,24 @@ message DimIR {
 }
 
 message UnknownDimIR {
-  optional SourceSpan span = 1;
+  SourceSpan span = 1;
 }
 
 message SymDimIR {
   string name = 1;
-  optional SourceSpan span = 2;
+  SourceSpan span = 2;
 }
 
 message ScalarDimIR {
   int64 value = 1;
-  optional SourceSpan span = 2;
+  SourceSpan span = 2;
 }
 
 message BinaryDimIR {
   Operator operator = 1;
   DimIR left = 2;
   DimIR right = 3;
-  optional SourceSpan span = 4;
+  SourceSpan span = 4;
 }
 
 enum Operator {

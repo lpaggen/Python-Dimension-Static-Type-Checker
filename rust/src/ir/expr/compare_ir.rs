@@ -5,5 +5,5 @@ pub struct CompareIR {
     pub left: Box<ExprIR>,
     pub ops: Vec<Operator>,
     pub comparators: Vec<ExprIR>,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }

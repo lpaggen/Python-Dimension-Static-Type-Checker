@@ -19,8 +19,7 @@ class NamedExprIR(ExprIR):
 
         proto.value.CopyFrom(self.value.to_proto())
 
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
 
         expr = _pb2.ExprIR()
         expr.named_expr.CopyFrom(proto)

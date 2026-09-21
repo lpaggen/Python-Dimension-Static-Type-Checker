@@ -4,5 +4,5 @@ use crate::ir::{expr_ir::ExprIR, span_ir::SourceSpan};
 pub struct RaiseIR {
     pub exc: Option<ExprIR>,
     pub cause: Option<ExprIR>,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }

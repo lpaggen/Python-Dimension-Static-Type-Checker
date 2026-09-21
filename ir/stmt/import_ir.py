@@ -15,7 +15,7 @@ class ImportIR(StmtIR):
     imported_name: str | None
     alias: str | None
     relative_level: int
-    span: SourceSpan | None
+    span: SourceSpan
 
     def to_proto(self):
         proto = _pb2.ImportIR(
@@ -33,8 +33,7 @@ class ImportIR(StmtIR):
         if self.alias is not None:
             proto.alias = self.alias
 
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
 
         return _pb2.StmtIR(
             import_stmt=proto
@@ -56,7 +55,6 @@ class ImportIR(StmtIR):
         if self.alias is not None:
             proto.alias = self.alias
 
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
 
         return proto

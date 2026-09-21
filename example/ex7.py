@@ -1,23 +1,24 @@
-import torch
+import jax
+import jax.numpy as jnp
 
-def foo(a: torch.Tensor, b: torch.Tensor):
-    return torch.matmul(a, b)
+def foo(a: jax.Array, b: jax.Array):
+    return jnp.matmul(a, b)
 
-a1 = torch.tensor([[1, 2, 3]])          # [1, 3]
-b1 = torch.tensor([[1], [2], [3]])      # [3, 1]
+a1 = jnp.array([[1, 2, 3]])             # [1, 3], int32
+b1 = jnp.array([[1], [2], [3]])         # [3, 1], int32
 
-a2 = torch.tensor([
+a2 = jnp.array([
     [1, 2, 3],
     [4, 5, 6]
 ])                                      # [2, 3]
 
-b2 = torch.tensor([
+b2 = jnp.array([
     [1, 2, 3, 4],
     [5, 6, 7, 8],
     [9, 10, 11, 12]
 ])                                      # [3, 4]
 
-bad_b = torch.tensor([
+bad_b = jnp.array([
     [1, 2],
     [3, 4],
     [5, 6],

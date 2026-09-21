@@ -15,5 +15,5 @@ pub struct AsyncFunctionDefIR {
     pub type_comment: Option<String>,
     pub scope_id: u64,
     pub type_params: Vec<TypeParamIR>,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }

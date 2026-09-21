@@ -23,8 +23,7 @@ class ValuePatternIR(PatternIR):
 
         proto.value.CopyFrom(self.value.to_proto())
 
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
 
         pattern = _pb2.PatternIR()
         pattern.value_pattern.CopyFrom(proto)
@@ -46,8 +45,7 @@ class SingletonPatternIR(PatternIR):
         else:
             proto.value = _pb2.SINGLETON_FALSE
 
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
 
         pattern = _pb2.PatternIR()
         pattern.singleton_pattern.CopyFrom(proto)
@@ -67,8 +65,7 @@ class SequencePatternIR(PatternIR):
             for pattern in self.patterns
         ])
 
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
 
         pattern = _pb2.PatternIR()
         pattern.sequence_pattern.CopyFrom(proto)
@@ -98,8 +95,7 @@ class MappingPatternIR(PatternIR):
         if self.rest is not None:
             proto.rest = self.rest
 
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
 
         pattern = _pb2.PatternIR()
         pattern.mapping_pattern.CopyFrom(proto)
@@ -131,8 +127,7 @@ class ClassPatternIR(PatternIR):
             for pattern in self.kwd_patterns
         ])
 
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
 
         pattern = _pb2.PatternIR()
         pattern.class_pattern.CopyFrom(proto)
@@ -150,8 +145,7 @@ class StarPatternIR(PatternIR):
         if self.name is not None:
             proto.name = self.name
 
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
 
         pattern = _pb2.PatternIR()
         pattern.star_pattern.CopyFrom(proto)
@@ -168,8 +162,7 @@ class CapturePatternIR(PatternIR):
 
         proto.name = self.name
 
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
 
         pattern = _pb2.PatternIR()
         pattern.capture_pattern.CopyFrom(proto)
@@ -183,8 +176,7 @@ class WildcardPatternIR(PatternIR):
     def to_proto(self):
         proto = _pb2.WildcardPatternIR()
 
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
 
         pattern = _pb2.PatternIR()
         pattern.wildcard_pattern.CopyFrom(proto)
@@ -203,8 +195,7 @@ class AsPatternIR(PatternIR):
         proto.pattern.CopyFrom(self.pattern.to_proto())
         proto.name = self.name
 
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
 
         pattern = _pb2.PatternIR()
         pattern.as_pattern.CopyFrom(proto)
@@ -224,8 +215,7 @@ class OrPatternIR(PatternIR):
             for pattern in self.patterns
         ])
 
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
 
         pattern = _pb2.PatternIR()
         pattern.or_pattern.CopyFrom(proto)

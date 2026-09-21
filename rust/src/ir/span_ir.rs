@@ -3,10 +3,10 @@ use std::fmt;
 #[derive(Debug, Clone)]
 pub struct SourceSpan {
     pub file: String,
-    pub lineno: i64,
-    pub col_offset: i64,
-    pub end_lineno: Option<i64>,
-    pub end_col_offset: Option<i64>,
+    pub lineno: usize,
+    pub col_offset: usize,
+    pub end_lineno: Option<usize>,
+    pub end_col_offset: Option<usize>,
 }
 
 impl fmt::Display for SourceSpan {

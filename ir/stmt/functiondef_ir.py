@@ -43,8 +43,7 @@ class FunctionDefIR(StmtIR):
         if self.type_comment is not None:
             proto.type_comment = self.type_comment
 
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
 
         # stmt = _pb2.DeclIR()
         # stmt.function.CopyFrom(proto)

@@ -18,7 +18,7 @@ pub enum PatternIR {
 #[derive(Debug, Clone)]
 pub struct ValuePatternIR {
     pub value: ExprIR,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }
 
 #[derive(Debug, Clone)]
@@ -27,13 +27,13 @@ pub struct SingletonPatternIR {
     /// Some(true)  => Python `True`
     /// Some(false) => Python `False`
     pub value: Option<bool>,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }
 
 #[derive(Debug, Clone)]
 pub struct SequencePatternIR {
     pub patterns: Vec<PatternIR>,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }
 
 #[derive(Debug, Clone)]
@@ -41,7 +41,7 @@ pub struct MappingPatternIR {
     pub keys: Vec<ExprIR>,
     pub patterns: Vec<PatternIR>,
     pub rest: Option<String>,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }
 
 #[derive(Debug, Clone)]
@@ -50,36 +50,36 @@ pub struct ClassPatternIR {
     pub patterns: Vec<PatternIR>,
     pub kwd_attrs: Vec<String>,
     pub kwd_patterns: Vec<PatternIR>,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }
 
 #[derive(Debug, Clone)]
 pub struct StarPatternIR {
     /// None corresponds to `*_`
     pub name: Option<String>,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }
 
 #[derive(Debug, Clone)]
 pub struct CapturePatternIR {
     pub name: String,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }
 
 #[derive(Debug, Clone)]
 pub struct WildcardPatternIR {
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }
 
 #[derive(Debug, Clone)]
 pub struct AsPatternIR {
     pub pattern: Box<PatternIR>,
     pub name: String,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }
 
 #[derive(Debug, Clone)]
 pub struct OrPatternIR {
     pub patterns: Vec<PatternIR>,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }

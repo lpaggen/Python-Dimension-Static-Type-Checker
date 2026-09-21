@@ -77,7 +77,7 @@ impl<'ctx> AnalysisEngine<'ctx> {
 
     fn analyze_function_specialized(
         &mut self,
-        program_id: i64,
+        program_id: usize,
         function_id: FunctionID,
         function: &FunctionCfg,
         symbols: &[SymbolIR],
@@ -258,7 +258,7 @@ impl<'ctx> AnalysisEngine<'ctx> {
 
     fn analyze_module(
         &mut self,
-        program_id: i64,
+        program_id: usize,
         contour_id: ContourID,
         module: &ModuleCfg,
         symbols: &[SymbolIR],
@@ -286,7 +286,7 @@ impl<'ctx> AnalysisEngine<'ctx> {
 
     fn analyze_function(
         &mut self,
-        program_id: i64,
+        program_id: usize,
         function_id: FunctionID,
         function: &FunctionCfg,
         symbols: &[SymbolIR],
@@ -367,7 +367,7 @@ impl<'ctx> AnalysisEngine<'ctx> {
 
     fn collect_function_returns(
         &mut self, 
-        program_id: i64,
+        program_id: usize,
         contour_id: ContourID,
         function: &FunctionCfg,
     ) -> Result<Vec<GuardedReturn>, BlockedFunctionAnalysis>{
@@ -425,7 +425,7 @@ impl<'ctx> AnalysisEngine<'ctx> {
     // TODO further improve, this is a skeleton
     fn analyze_class(
         &mut self,
-        program_id: i64,
+        program_id: usize,
         class_id: ClassID,
         class: &ClassCfg,
         symbols: &[SymbolIR],

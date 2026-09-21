@@ -6,5 +6,5 @@ pub struct IfExprIR {
     pub test: Box<ExprIR>,
     pub body: Box<ExprIR>,
     pub orelse: Box<ExprIR>,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }

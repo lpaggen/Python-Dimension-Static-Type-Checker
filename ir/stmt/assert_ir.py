@@ -10,7 +10,7 @@ from ir.stmt.stmt_ir import StmtIR
 class AssertIR(StmtIR):
     test: ExprIR
     msg: ExprIR | None
-    span: SourceSpan | None
+    span: SourceSpan
 
     def to_proto(self):
         return _pb2.StmtIR(

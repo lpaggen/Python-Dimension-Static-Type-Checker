@@ -5,7 +5,7 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct FunctionAnalysisRequest {
-    pub program_id: i64,
+    pub program_id: usize,
     pub function_id: FunctionID,
     pub bindings: Vec<CallBinding>,
     /// The source call that caused this specialization to be analyzed.

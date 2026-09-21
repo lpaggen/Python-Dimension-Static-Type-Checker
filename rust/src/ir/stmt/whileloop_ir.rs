@@ -7,7 +7,7 @@ pub struct WhileLoopIR {
     pub body_scope_id: i64,
     pub body: Vec<StmtIR>,
     pub orelse: Vec<StmtIR>,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }
 
 impl WhileLoopIR {
@@ -17,7 +17,7 @@ impl WhileLoopIR {
         body_scope_id: i64,
         body: Vec<StmtIR>,
         orelse: Vec<StmtIR>,
-        span: Option<SourceSpan>,
+        span: SourceSpan,
     ) -> Self {
         Self {
             test: Box::new(test),

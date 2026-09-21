@@ -16,6 +16,5 @@ class NameIR(ExprIR):
 
     def to_proto(self):
         proto = _pb2.IdentifierIR(id=self.id, use_scope_id=self.use_scope_id)
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
         return _pb2.ExprIR(identifier=proto)

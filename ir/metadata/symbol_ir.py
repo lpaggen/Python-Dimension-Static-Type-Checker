@@ -10,7 +10,7 @@ class SymbolIR(IRNode):
     name: str
     kind: object
     scope_id: int
-    span: SourceSpan | None
+    span: SourceSpan
     def to_proto(self):
         proto = _pb2.SymbolIR(
             id=self.id,
@@ -19,7 +19,6 @@ class SymbolIR(IRNode):
             scope_id=self.scope_id,
         )
 
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
 
         return proto

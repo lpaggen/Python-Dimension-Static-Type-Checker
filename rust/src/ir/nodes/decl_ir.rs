@@ -10,7 +10,7 @@ pub enum DeclIR {
 }
 
 impl DeclIR {
-    pub fn span(&self) -> &Option<SourceSpan> {
+    pub fn span(&self) -> &SourceSpan {
         match self {
             Self::Binding(node) => &node.span,
             Self::Function(node) => &node.span,

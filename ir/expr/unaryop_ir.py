@@ -12,6 +12,5 @@ class UnaryOpIR(ExprIR):
 
     def to_proto(self):
         proto = _pb2.UnaryOpIR(op=self.op.value, operand=self.operand.to_proto())
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
         return _pb2.ExprIR(unaryop=proto)

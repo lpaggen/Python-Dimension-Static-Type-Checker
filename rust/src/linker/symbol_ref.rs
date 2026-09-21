@@ -1,5 +1,5 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SymbolRef {
-    pub program_id: i64,
-    pub symbol_id: i64,
+    pub program_id: usize,
+    pub symbol_id: usize,
 }

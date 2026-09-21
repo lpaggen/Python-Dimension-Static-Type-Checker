@@ -5,5 +5,5 @@ pub struct TypeAliasIR {
     pub name: ExprIR,
     pub type_params: Vec<ParamIR>,
     pub value: ExprIR,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }

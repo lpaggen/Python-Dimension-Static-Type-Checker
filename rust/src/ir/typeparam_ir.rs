@@ -12,19 +12,19 @@ pub struct TypeVarIR {
     pub name: String,
     pub bound: Option<ExprIR>,
     pub default_value: Option<ExprIR>,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }
 
 #[derive(Debug, Clone)]
 pub struct ParamSpecIR {
     pub name: String,
     pub default_value: Option<ExprIR>,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }
 
 #[derive(Debug, Clone)]
 pub struct TypeVarTupleIR {
     pub name: String,
     pub default_value: Option<ExprIR>,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }

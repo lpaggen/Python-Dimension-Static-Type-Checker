@@ -2,11 +2,11 @@ use crate::ir::span_ir::SourceSpan;
 
 #[derive(Debug, Clone)]
 pub struct SymbolIR {
-    pub id: i64,
+    pub id: usize,
     pub name: String,
     pub kind: SymbolKind,
-    pub scope_id: i64,
-    pub span: Option<SourceSpan>,
+    pub scope_id: usize,
+    pub span: SourceSpan,
 }
 
 #[derive(Debug, Clone, PartialEq)]

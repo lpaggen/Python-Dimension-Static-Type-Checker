@@ -4,9 +4,9 @@ use crate::ir::{expr_ir::ExprIR, span_ir::SourceSpan, stmt_ir::StmtIR};
 pub struct ForIR {
     pub target: Box<ExprIR>,
     pub iter: Box<ExprIR>,
-    pub scope_id: i64,
-    pub body_scope_id: i64,
+    pub scope_id: usize,
+    pub body_scope_id: usize,
     pub body: Vec<StmtIR>,
     pub orelse: Vec<StmtIR>,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }

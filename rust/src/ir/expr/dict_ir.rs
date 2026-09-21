@@ -5,5 +5,5 @@ use crate::ir::span_ir::SourceSpan;
 pub struct DictIR {
     pub keys: Vec<Option<ExprIR>>,
     pub values: Vec<ExprIR>,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }

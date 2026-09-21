@@ -2,6 +2,6 @@
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ScopeRef {
-    pub program_id: i64,
-    pub scope_id: i64,
+    pub program_id: usize,
+    pub scope_id: usize,
 }

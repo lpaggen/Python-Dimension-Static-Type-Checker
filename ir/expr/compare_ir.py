@@ -17,6 +17,5 @@ class CompareIR(ExprIR):
             ops=[op.value if isinstance(op, Operator) else op for op in self.ops],
             comparators=[value.to_proto() for value in self.comparators],
         )
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
         return _pb2.ExprIR(compare=proto)

@@ -6,5 +6,5 @@ pub struct TryIR {
     pub handlers: Vec<ExceptHandlerIR>,
     pub orelse: Vec<StmtIR>,
     pub finalbody: Vec<StmtIR>,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }

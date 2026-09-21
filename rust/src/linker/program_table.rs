@@ -5,8 +5,8 @@ use crate::ir::program_ir::ProgramIR;
 // use rayon::prelude::*;
 
 pub struct ProgramTable {
-    pub by_id: HashMap<i64, ProgramIR>,
-    pub by_name: HashMap<String, i64>,
+    pub by_id: HashMap<usize, ProgramIR>,
+    pub by_name: HashMap<String, usize>,
 }
 
 impl ProgramTable {
@@ -19,21 +19,20 @@ impl ProgramTable {
     }
 
     pub fn build_tables(&mut self, programs: Vec<ProgramIR>) {
-        for (id, program) in programs.into_iter().enumerate() {
-            let id = id as i64;
+        for program in programs.into_iter() {
             let module_name = program.module_name.clone();
 
-            self.by_name.insert(module_name, id);
-            self.by_id.insert(id, program);
+            self.by_name.insert(module_name, program.id);
+            self.by_id.insert(program.id, program);
         }
     }
 
-    pub fn get_by_id(&self, id: i64) -> Option<&ProgramIR> {
+    pub fn get_by_id(&self, id: usize) -> Option<&ProgramIR> {
         self.by_id.get(&id)
     }
 
     pub fn get_by_name(&self, module_name: &str) -> Option<&ProgramIR> {
-        let id: &i64 = self.by_name.get(module_name)?;
+        let id: &usize = self.by_name.get(module_name)?;
         self.by_id.get(id)
     }
 }

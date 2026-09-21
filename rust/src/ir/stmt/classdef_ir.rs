@@ -7,15 +7,15 @@ use crate::ir::{
 
 #[derive(Debug, Clone)]
 pub struct ClassDefIR {
-    pub id: i64,
-    pub symbol_id: i64,
+    pub id: usize,
+    pub symbol_id: usize,
     pub name: String,
-    pub scope_id: i64,
-    pub body_scope_id: i64,
+    pub scope_id: usize,
+    pub body_scope_id: usize,
     pub body: Vec<StmtIR>,
     pub bases: Vec<ExprIR>,
     pub keywords: Vec<KeywordIR>,
     pub decorator_list: Vec<ExprIR>,
     pub type_params: Vec<TypeParamIR>,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }

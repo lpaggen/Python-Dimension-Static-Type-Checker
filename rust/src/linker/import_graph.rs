@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use crate::linker::program_table::ProgramTable;
 
 pub struct ImportGraph {
-    pub outgoing: HashMap<i64, HashSet<i64>>,
+    pub outgoing: HashMap<usize, HashSet<usize>>,
 }
 
 impl ImportGraph {
@@ -31,24 +31,24 @@ impl ImportGraph {
         }
     }
 
-    pub fn imports_of(&self, program_id: i64) -> Option<&HashSet<i64>> {
+    pub fn imports_of(&self, program_id: usize) -> Option<&HashSet<usize>> {
         self.outgoing.get(&program_id)
     }
 
     /// Returns SCCs in dependency-first order.
-    pub fn tarjan_scc(&self) -> Vec<HashSet<i64>> {
+    pub fn tarjan_scc(&self) -> Vec<HashSet<usize>> {
         struct TarjanState {
             next_index: usize,
-            indices: HashMap<i64, usize>,
-            low_links: HashMap<i64, usize>,
-            stack: Vec<i64>,
-            on_stack: HashSet<i64>,
-            components: Vec<HashSet<i64>>,
+            indices: HashMap<usize, usize>,
+            low_links: HashMap<usize, usize>,
+            stack: Vec<usize>,
+            on_stack: HashSet<usize>,
+            components: Vec<HashSet<usize>>,
         }
 
         fn strong_connect(
-            vertex: i64,
-            graph: &HashMap<i64, HashSet<i64>>,
+            vertex: usize,
+            graph: &HashMap<usize, HashSet<usize>>,
             state: &mut TarjanState,
         ) {
             let vertex_index = state.next_index;

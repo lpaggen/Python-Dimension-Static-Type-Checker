@@ -53,7 +53,7 @@ class BytesIR(ConstantIR):
 class ComplexIR(ConstantIR):
     real: float
     imag: float
-    span: SourceSpan | None
+    span: SourceSpan
 
     def to_proto(self):
         return _pb2.ExprIR(
@@ -61,7 +61,7 @@ class ComplexIR(ConstantIR):
                 complex_lit=_pb2.ComplexIR(
                     real=self.real,
                     imag=self.imag,
-                    span=self.span.to_proto() if self.span is not None else None,
+                    span=self.span.to_proto(),
                 )
             )
         )
@@ -104,7 +104,7 @@ class IntegerIR(ConstantIR):
 @dataclass
 class NoneIR(ConstantIR):
     value: None
-    span: SourceSpan | None
+    span: SourceSpan
 
     def to_proto(self):
         return _pb2.ExprIR(

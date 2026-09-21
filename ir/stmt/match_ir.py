@@ -24,8 +24,7 @@ class MatchIR(StmtIR):
             for case in self.cases
         ])
 
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
 
         stmt = _pb2.StmtIR()
         stmt.match.CopyFrom(proto)
@@ -53,7 +52,6 @@ class MatchCaseIR(StmtIR):
             for stmt in self.body
         ])
 
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
 
         return proto

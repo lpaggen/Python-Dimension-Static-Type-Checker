@@ -12,6 +12,5 @@ class StarredIR(ExprIR):
 
     def to_proto(self):
         proto = _pb2.StarredIR(value=self.value.to_proto())
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
         return _pb2.ExprIR(starred=proto)

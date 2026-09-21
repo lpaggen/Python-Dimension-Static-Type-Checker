@@ -18,11 +18,11 @@ pub struct Cfg<'a> {
 
     pub current_function_id: usize,
     pub current_class_id: usize,
-    pub program_id: i64, // copy of ProgramTable's own ID, needed for SymbolRef creation
+    pub program_id: usize, // copy of ProgramTable's own ID, needed for SymbolRef creation
 }
 
 impl<'a> Cfg<'a> {
-    pub fn new(id: i64) -> Self {
+    pub fn new(id: usize) -> Self {
         Self {
             module: ModuleCfg {
                 graph: Graph::new(),

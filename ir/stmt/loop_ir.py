@@ -35,8 +35,7 @@ class WhileLoopIR(StmtIR):
         proto.body.extend([stmt_to_proto(stmt) for stmt in self.body])
         proto.orelse.extend([stmt_to_proto(stmt) for stmt in self.orelse])
 
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
 
         stmt = _pb2.StmtIR()
         stmt.while_loop.CopyFrom(proto)
@@ -74,7 +73,7 @@ class ForLoopIR(StmtIR):
         body_scope_id: int,
         body: list[IRNode],
         orelse: list[IRNode],
-        span: SourceSpan = None,
+        span: SourceSpan,
     ):
         super().__init__(span)
         self.target = target
@@ -96,8 +95,7 @@ class ForLoopIR(StmtIR):
         proto.body.extend([stmt_to_proto(stmt) for stmt in self.body])
         proto.orelse.extend([stmt_to_proto(stmt) for stmt in self.orelse])
 
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
 
         stmt = _pb2.StmtIR()
         stmt.for_loop.CopyFrom(proto)

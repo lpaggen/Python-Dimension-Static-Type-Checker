@@ -7,5 +7,5 @@ pub struct AsyncForIR {
     pub body: Vec<StmtIR>,
     pub orelse: Vec<StmtIR>,
     pub type_comment: Option<String>,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }

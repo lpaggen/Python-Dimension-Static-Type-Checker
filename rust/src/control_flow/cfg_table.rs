@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::{control_flow::cfg::Cfg, linker::program_table::ProgramTable};
 
 pub struct CfgTable<'a> {
-    pub programs: HashMap<i64, Cfg<'a>>,
+    pub programs: HashMap<usize, Cfg<'a>>,
 }
 
 impl<'a> CfgTable<'a> {

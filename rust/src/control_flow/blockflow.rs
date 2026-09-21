@@ -84,7 +84,7 @@ impl<'ctx> BlockFlow<'ctx> {
         }
     }
 
-    fn to_z3_bool(&self, expr: &ExprIR, program_id: i64) -> z3::ast::Bool {
+    fn to_z3_bool(&self, expr: &ExprIR, program_id: usize) -> z3::ast::Bool {
         match expr {
             ExprIR::Constant(ConstantIR::IntegerLit(intlit)) => {
                 z3::ast::Bool::from_bool(intlit.value != 0)
@@ -204,7 +204,7 @@ impl<'ctx> BlockFlow<'ctx> {
 
     pub fn resume_from_block(
         &mut self,
-        program_id: i64,
+        program_id: usize,
         contour_id: ContourID,
         graph: &Graph,
         block_id: BlockID,
@@ -219,7 +219,7 @@ impl<'ctx> BlockFlow<'ctx> {
 
     pub fn run_worklist(
         &mut self,
-        program_id: i64,
+        program_id: usize,
         contour_id: ContourID,
         graph: &Graph,
         initial_blocks: Vec<BlockID>
@@ -331,7 +331,7 @@ impl<'ctx> BlockFlow<'ctx> {
     // we want to end up with something like: Bound(int | float), etc., so we need bound status + type inference
     pub fn analyze_body(
         &mut self,
-        program_id: i64,
+        program_id: usize,
         contour_id: ContourID,
         graph: &Graph,
         entry_state: FlowState,
@@ -357,7 +357,7 @@ impl<'ctx> BlockFlow<'ctx> {
         &mut self,
         stmt: &StmtIR,
         state: &mut FlowState,
-        program_id: i64,
+        program_id: usize,
     ) -> Result<(), FunctionAnalysisRequest> {
         match stmt {
             StmtIR::Function(function) => {
@@ -409,7 +409,7 @@ impl<'ctx> BlockFlow<'ctx> {
 
             StmtIR::AnnAssign(annassign) => {
                 // println!("{annassign:?}");
-                let target_type = self.type_resolver.resolve_type(program_id, stmt, state, &annassign.span.clone().unwrap())?;
+                let target_type = self.type_resolver.resolve_type(program_id, stmt, state, &annassign.span.clone())?;
                 if let ExprIR::Name(name) = &annassign.target {
                     let symbol_ref = self
                         .symbols

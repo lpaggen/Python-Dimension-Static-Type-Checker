@@ -10,5 +10,5 @@ pub struct ClassIR {
     pub body: Vec<StmtIR>,
     pub bases: Vec<ExprIR>,
     pub decorators: Vec<ExprIR>,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }

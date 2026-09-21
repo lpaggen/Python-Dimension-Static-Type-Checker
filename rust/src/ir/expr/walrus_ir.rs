@@ -5,5 +5,5 @@ use crate::ir::span_ir::SourceSpan;
 pub struct NamedExprIR {
     pub target: String,
     pub value: Box<ExprIR>,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }

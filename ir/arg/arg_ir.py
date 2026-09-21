@@ -37,7 +37,6 @@ class ArgIR(IRNode):
         if self.default is not None:
             proto.default.CopyFrom(self.default.to_proto())
 
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
 
         return proto

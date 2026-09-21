@@ -10,14 +10,14 @@
 # class GeneratorExpIR(ExprIR):
 #     elt: ExprIR
 #     generators: list[CompIR]
-#     span: SourceSpan | None
+#     span: SourceSpan
 
 #     def to_proto(self):
 #         return _pb2.ExprIR(
 #             generator_exp=_pb2.GeneratorExpIR(
 #                 elt=self.elt.to_proto(),
 #                 generators=[gen.to_proto() for gen in self.generators],
-#                 span=self.span.to_proto() if self.span is not None else None,
+#                 span=self.span.to_proto(),
 #             )
 #         )
 

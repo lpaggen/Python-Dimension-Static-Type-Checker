@@ -11,7 +11,7 @@ class AnnAssignIR(StmtIR):
     annotation: ExprIR
     value: ExprIR | None
     simple: int
-    span: SourceSpan | None
+    span: SourceSpan
 
     def to_proto(self):
         proto = _pb2.AnnAssignIR(
@@ -23,7 +23,6 @@ class AnnAssignIR(StmtIR):
         if self.value is not None:
             proto.value.CopyFrom(self.value.to_proto())
 
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
 
         return _pb2.StmtIR(annassign=proto)

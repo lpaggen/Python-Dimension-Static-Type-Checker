@@ -5,5 +5,5 @@ pub struct WithIR {
     pub items: Vec<WithItemIR>,
     pub body: Vec<StmtIR>,
     pub type_comment: Option<String>,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }

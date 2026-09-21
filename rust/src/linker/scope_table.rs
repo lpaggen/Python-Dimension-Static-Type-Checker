@@ -4,16 +4,16 @@ use std::collections::HashMap;
 use crate::linker::{program_table::ProgramTable, symbol_ref::SymbolRef};
 
 pub struct ProgramSymbolTable {
-    pub by_scope_id: HashMap<i64, ScopeSymbolTable>,
+    pub by_scope_id: HashMap<usize, ScopeSymbolTable>,
 }
 
 pub struct ScopeSymbolTable {
-    pub parent_id: Option<i64>,
+    pub parent_id: Option<usize>,
     pub by_name: HashMap<String, SymbolRef>,
 }
 
 pub struct GlobalSymbolTable {
-    pub by_program_id: HashMap<i64, ProgramSymbolTable>,
+    pub by_program_id: HashMap<usize, ProgramSymbolTable>,
 }
 
 impl GlobalSymbolTable {
@@ -25,8 +25,8 @@ impl GlobalSymbolTable {
 
     pub fn lookup_by_name(
         &self,
-        program_id: i64,
-        mut scope_id: i64,
+        program_id: usize,
+        mut scope_id: usize,
         name: &str,
     ) -> Option<SymbolRef> {
         loop {
@@ -50,7 +50,7 @@ impl GlobalSymbolTable {
         }
     }
 
-    pub fn global_lookup(&self, program_id: i64, name: &str) -> Option<SymbolRef> {
+    pub fn global_lookup(&self, program_id: usize, name: &str) -> Option<SymbolRef> {
         self.lookup_by_name(program_id, 0, name)
     }
 

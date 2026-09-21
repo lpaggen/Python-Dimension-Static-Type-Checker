@@ -5,6 +5,7 @@ use crate::ir::{
 
 #[derive(Debug, Clone)]
 pub struct ProgramIR {
+    pub id: usize,
     pub module_name: String,
     pub file_path: String,
     pub scopes: Vec<ScopeIR>,

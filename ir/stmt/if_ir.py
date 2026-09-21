@@ -26,8 +26,7 @@ class IfIR(StmtIR):
         proto.body.extend([stmt_to_proto(stmt) for stmt in self.body])
         proto.orelse.extend([stmt_to_proto(stmt) for stmt in self.orelse])
 
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
 
         stmt = _pb2.StmtIR()
         stmt.if_stmt.CopyFrom(proto)

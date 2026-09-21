@@ -20,6 +20,5 @@ class SliceIR(ExprIR):
             proto.upper.CopyFrom(self.upper.to_proto())
         if self.step is not None:
             proto.step.CopyFrom(self.step.to_proto())
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
         return _pb2.ExprIR(slice=proto)

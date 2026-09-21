@@ -18,8 +18,7 @@ class IfExpIR(ExprIR):
         proto.body.CopyFrom(self.body.to_proto())
         proto.orelse.CopyFrom(self.orelse.to_proto())
 
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
 
         expr = _pb2.ExprIR()
         expr.if_expr.CopyFrom(proto)  # use your actual oneof field name

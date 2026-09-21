@@ -1,5 +1,6 @@
 use crate::ir::nodes::TypeParamIR;
 use crate::ir::{expr_ir::ExprIR, span_ir::SourceSpan, stmt_ir::StmtIR};
+use crate::linker::symbol_ref::SymbolRef;
 
 #[derive(Debug, Clone)]
 pub enum ArgKind {
@@ -27,32 +28,33 @@ impl TryFrom<i32> for ArgKind {
 
 #[derive(Debug, Clone)]
 pub struct ArgIR {
-    pub symbol_id: i64,
+    pub symbol_id: usize,
     pub arg: String,
     pub kind: ArgKind,
     pub annotation: Option<ExprIR>,
     pub default: Option<Box<ExprIR>>,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }
 
 #[derive(Debug, Clone)]
 pub struct ReturnIR {
     pub value: Option<Box<ExprIR>>,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }
 
 #[derive(Debug, Clone)]
 pub struct FunctionDefIR {
-    pub id: i64,
-    pub symbol_id: i64,
+    pub id: usize,
+    pub symbol_id: usize,
     pub name: String,
-    pub scope_id: i64,
-    pub body_scope_id: i64,
+    pub scope_id: usize,
+    pub body_scope_id: usize,
     pub args: Vec<ArgIR>,
     pub body: Vec<StmtIR>,
     pub returns: Option<ExprIR>,
     pub decorator_list: Vec<ExprIR>,
     pub type_comment: Option<String>,
     pub type_params: Vec<TypeParamIR>,
-    pub span: Option<SourceSpan>,
+    pub symbol_ref: SymbolRef,
+    pub span: SourceSpan,
 }

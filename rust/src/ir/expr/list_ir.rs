@@ -3,5 +3,5 @@ use crate::ir::{expr_ir::ExprIR, span_ir::SourceSpan};
 #[derive(Debug, Clone)]
 pub struct ListIR {
     pub elts: Vec<ExprIR>,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }

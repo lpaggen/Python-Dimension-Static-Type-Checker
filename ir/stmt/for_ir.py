@@ -14,7 +14,7 @@ class ForIR(StmtIR):
     body_scope_id: int
     body: List[IRNode]
     orelse: List[IRNode]
-    span: SourceSpan | None = None
+    span: SourceSpan
     def to_proto(self):
         proto = _pb2.ForLoopIR(
             scope_id=self.scope_id,
@@ -26,8 +26,7 @@ class ForIR(StmtIR):
         proto.body.extend([stmt_to_proto(stmt) for stmt in self.body])
         proto.orelse.extend([stmt_to_proto(stmt) for stmt in self.orelse])
 
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
 
         stmt = _pb2.StmtIR()
         stmt.for_loop.CopyFrom(proto)

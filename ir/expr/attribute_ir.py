@@ -13,6 +13,5 @@ class AttributeIR(ExprIR):
 
     def to_proto(self):
         proto = _pb2.AttributeExprIR(attr=self.attr, value=self.value.to_proto())
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
         return _pb2.ExprIR(attribute=proto)

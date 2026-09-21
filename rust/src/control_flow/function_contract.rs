@@ -12,7 +12,7 @@ pub struct GuardedReturn {
 
 #[derive(Debug, Clone)]
 pub struct ContractParam {
-    pub symbol_id: i64,
+    pub symbol_id: usize,
     pub ty: Type,
     pub default: Option<ExprIR>,
     pub kind: ArgKind,

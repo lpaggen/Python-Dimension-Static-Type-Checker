@@ -9,10 +9,9 @@ class BinOpIR(ExprIR):
     left: ExprIR
     right: ExprIR
     op: Operator
-    span: SourceSpan | None = None
+    span: SourceSpan
 
     def to_proto(self):
         proto = _pb2.BinOpIR(left=self.left.to_proto(), right=self.right.to_proto(), op=self.op.value)
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
         return _pb2.ExprIR(binop=proto)

@@ -27,7 +27,13 @@ class IRBuilder:
             name="<module>",
             kind=ScopeKind.SCOPE_MODULE,
             parent_id=None,
-            span=None,
+            span=SourceSpan(
+                file=file_path,
+                lineno=0,
+                col_offset=0,
+                end_lineno=None,
+                end_col_offset=None,
+            ),
         )
 
     def new_scope(self, name, kind, parent_id, span) -> int:

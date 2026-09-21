@@ -8,7 +8,7 @@ pub struct ForLoopIR {
     pub body_scope_id: i64,
     pub body: Vec<StmtIR>,
     pub orelse: Vec<StmtIR>,
-    pub span: Option<SourceSpan>,
+    pub span: SourceSpan,
 }
 
 impl ForLoopIR {
@@ -19,7 +19,7 @@ impl ForLoopIR {
         body_scope_id: i64,
         body: Vec<StmtIR>,
         orelse: Vec<StmtIR>,
-        span: Option<SourceSpan>,
+        span: SourceSpan,
     ) -> Self {
         Self {
             target: Box::new(target),

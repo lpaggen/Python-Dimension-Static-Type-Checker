@@ -10,7 +10,7 @@ class AssignIR(StmtIR):
     target: list[ExprIR]
     value: ExprIR | None
     type_comment: str
-    span: SourceSpan | None
+    span: SourceSpan
 
     def to_proto(self):
         proto = _pb2.AssignIR(
@@ -21,7 +21,6 @@ class AssignIR(StmtIR):
         if self.value is not None:
             proto.value.CopyFrom(self.value.to_proto())
 
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
 
         return _pb2.StmtIR(assign=proto)

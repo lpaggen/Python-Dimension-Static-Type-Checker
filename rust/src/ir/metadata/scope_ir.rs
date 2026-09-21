@@ -2,11 +2,11 @@ use crate::ir::span_ir::SourceSpan;
 
 #[derive(Debug, Clone)]
 pub struct ScopeIR {
-    pub id: i64,
+    pub id: usize,
     pub name: String,
     pub kind: ScopeKind,
-    pub parent_id: Option<i64>,
-    pub span: Option<SourceSpan>,
+    pub parent_id: Option<usize>,
+    pub span: SourceSpan,
 }
 
 #[derive(Debug, Clone)]

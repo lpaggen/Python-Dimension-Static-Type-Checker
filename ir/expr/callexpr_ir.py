@@ -4,7 +4,7 @@ from generated import _pb2
 
 
 class KeywordArgIR(ExprIR):
-    def __init__(self, name: str | None, value: ExprIR, span: SourceSpan = None):
+    def __init__(self, name: str | None, value: ExprIR, span: SourceSpan):
         super().__init__(span=span, value=value)  # TODO check if value should be IdentifierIR or not
         self.name = name
         self.value = value
@@ -15,14 +15,13 @@ class KeywordArgIR(ExprIR):
             name=self.name if self.name is not None else "",
         )
         proto.value.CopyFrom(self.value.to_proto())
-        if self.span is not None:
-            proto.span.CopyFrom(self.span.to_proto())
+        proto.span.CopyFrom(self.span.to_proto())
         return proto
 
 
 class CallExprIR(ExprIR):
     def __init__(
-        self, callee, args: list[ExprIR], kwargs: list[KeywordArgIR], span=None
+        self, callee, args: list[ExprIR], kwargs: list[KeywordArgIR], span: SourceSpan
     ):
         super().__init__(span=span, value=callee)
         self.span = span

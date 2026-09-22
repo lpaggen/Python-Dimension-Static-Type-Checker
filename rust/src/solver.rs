@@ -221,12 +221,80 @@ fn simplify_variadic(values: &[BoolExpr], conjunction: bool) -> BoolExpr {
         })
     });
 
+    while let Some((left, right, replacement)) = find_consensus_pair(&unique, conjunction) {
+        unique.remove(right);
+        unique.remove(left);
+        if !unique.contains(&replacement) {
+            unique.push(replacement);
+        }
+
+        if has_complementary_values(&unique) {
+            return BoolExpr::Constant(absorbing);
+        }
+    }
+
     match unique.len() {
         0 => BoolExpr::Constant(identity),
         1 => unique.remove(0),
         _ if conjunction => BoolExpr::And(unique),
         _ => BoolExpr::Or(unique),
     }
+}
+
+fn find_consensus_pair(
+    values: &[BoolExpr],
+    conjunction: bool,
+) -> Option<(usize, usize, BoolExpr)> {
+    for left_index in 0..values.len() {
+        for right_index in (left_index + 1)..values.len() {
+            let left = term_parts(&values[left_index], conjunction);
+            let right = term_parts(&values[right_index], conjunction);
+            let common: Vec<_> = left
+                .iter()
+                .filter(|value| right.contains(value))
+                .cloned()
+                .collect();
+            let left_only: Vec<_> = left
+                .iter()
+                .filter(|value| !common.contains(value))
+                .collect();
+            let right_only: Vec<_> = right
+                .iter()
+                .filter(|value| !common.contains(value))
+                .collect();
+
+            if left_only.len() != 1
+                || right_only.len() != 1
+                || !are_complements(left_only[0], right_only[0])
+            {
+                continue;
+            }
+
+            let replacement = match common.len() {
+                0 => BoolExpr::Constant(!conjunction),
+                1 => common[0].clone(),
+                _ if conjunction => BoolExpr::Or(common),
+                _ => BoolExpr::And(common),
+            };
+
+            return Some((left_index, right_index, replacement));
+        }
+    }
+
+    None
+}
+
+fn term_parts(value: &BoolExpr, conjunction: bool) -> Vec<BoolExpr> {
+    match value {
+        BoolExpr::Or(values) if conjunction => values.clone(),
+        BoolExpr::And(values) if !conjunction => values.clone(),
+        value => vec![value.clone()],
+    }
+}
+
+fn are_complements(left: &BoolExpr, right: &BoolExpr) -> bool {
+    matches!(left, BoolExpr::Not(inner) if inner.as_ref() == right)
+        || matches!(right, BoolExpr::Not(inner) if inner.as_ref() == left)
 }
 
 fn has_complementary_values(values: &[BoolExpr]) -> bool {
@@ -342,6 +410,21 @@ mod tests {
         assert_eq!(
             BoolExpr::or(&[&a, &BoolExpr::and(&[&a, &b])]),
             a,
+        );
+    }
+
+    #[test]
+    fn simplifies_cfg_style_partitioned_guards() {
+        let a = BoolExpr::new_const("truthy_4_2::a");
+        let b = BoolExpr::new_const("truthy_4_3::b");
+        let a_and_b = BoolExpr::and(&[&a, &b]);
+        let a_and_not_b = BoolExpr::and(&[&a, &b.not()]);
+        let partition = BoolExpr::or(&[&a_and_b, &a_and_not_b, &a.not()]);
+
+        assert_eq!(partition, BoolExpr::from_bool(true));
+        assert_eq!(
+            BoolExpr::and(&[&partition, &a, &b.not()]),
+            BoolExpr::and(&[&a, &b.not()]),
         );
     }
 

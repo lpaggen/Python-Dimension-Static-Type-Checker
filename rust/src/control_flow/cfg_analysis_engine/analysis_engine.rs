@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use z3::ast::Ast;
 
-use crate::{control_flow::{block_id::{ClassID, FunctionID}, blockflow::BlockFlow, call_binding::CallBinding, cfg_analysis_engine::{blocked_function_analysis::BlockedFunctionAnalysis, contour_id::ContourID, flow_block_id::FlowBlockID, function_contract_key::FunctionSpecializationKey, functioncontract_table::FunctionContractTable}, cfg_table::CfgTable, class_cfg::ClassCfg, flowstate::FlowState, function_analysis_request::FunctionAnalysisRequest, function_cfg::FunctionCfg, function_contract::{ContractParam, FunctionContract, GuardedReturn}, module_cfg::ModuleCfg, terminator::Terminator}, ir::{nodes::SymbolIR, span_ir::SourceSpan}, linker::{program_table::ProgramTable, symbol_ref::SymbolRef}, types::types::Type};
+use crate::{control_flow::{block_id::{ClassID, FunctionID}, blockflow::BlockFlow, call_binding::CallBinding, cfg::Cfg, cfg_analysis_engine::{blocked_function_analysis::BlockedFunctionAnalysis, contour_id::ContourID, flow_block_id::FlowBlockID, function_contract_key::FunctionSpecializationKey, functioncontract_table::FunctionContractTable}, cfg_table::CfgTable, class_cfg::ClassCfg, flowstate::FlowState, function_analysis_request::FunctionAnalysisRequest, function_cfg::FunctionCfg, function_contract::{ContractParam, FunctionContract, GuardedReturn}, module_cfg::ModuleCfg, terminator::Terminator}, ir::{nodes::{SymbolIR, symbol_ir::SymbolKind}, span_ir::SourceSpan}, linker::{program_table::ProgramTable, symbol_ref::SymbolRef}, types::types::Type};
 
 pub struct AnalysisEngine<'ctx> {
     pub flow: BlockFlow<'ctx>,
@@ -21,33 +21,10 @@ impl<'ctx> AnalysisEngine<'ctx> {
                 .get(id)
                 .expect("CFG exists without corresponding ProgramIR");
 
-            for (class_id, class_cfg) in &program_cfg.classes {
-                self.analyze_class(
-                    *id, 
-                    *class_id,
-                    class_cfg, 
-                    &program.symbols
-                )?;
-            }
-
-            for (function_id, function_cfg) in &program_cfg.functions {
-                let contract = self.analyze_function(
-                    *id, 
-                    *function_id, 
-                    function_cfg, 
-                    &program.symbols,
-                )?;
-
-                self.contracts
-                    .borrow_mut()
-                    .by_id
-                    .insert(*function_id, contract);
-            }
-
             let mut result = self.analyze_module(
                 *id,
                 ContourID::Module(0),
-                &program_cfg.module,
+                program_cfg,
                 &program.symbols,
             );
 
@@ -72,7 +49,6 @@ impl<'ctx> AnalysisEngine<'ctx> {
         }
 
         Ok(())
-
     }
 
     fn analyze_function_specialized(
@@ -83,21 +59,31 @@ impl<'ctx> AnalysisEngine<'ctx> {
         symbols: &[SymbolIR],
         bindings: &[CallBinding],
         call_site: &SourceSpan,
+        parent_state: Rc<RefCell<FlowState>>,
     ) -> Result<FunctionContract, BlockedFunctionAnalysis> {
         let contour_id = ContourID::Function(function_id);
 
-        let mut state =
-            FlowState::new(z3::ast::Bool::from_bool(true));
+        let function_state = Rc::new(RefCell::new(
+            FlowState::new(
+                function.scope_id,
+                z3::ast::Bool::from_bool(true),
+                Some(Rc::clone(&parent_state)),
+            )
+        ));
 
-        for symbol in symbols {
-            if symbol.scope_id != function.scope_id {
-                continue;
+        {
+            let mut state = function_state.borrow_mut();
+
+            for symbol in symbols {
+                if symbol.scope_id != function.scope_id {
+                    continue;
+                }
+
+                state.register_unbound(&SymbolRef {
+                    program_id,
+                    symbol_id: symbol.id,
+                });
             }
-
-            state.register_unbound(&SymbolRef {
-                program_id,
-                symbol_id: symbol.id,
-            });
         }
 
         let mut contract = FunctionContract::new();
@@ -134,10 +120,11 @@ impl<'ctx> AnalysisEngine<'ctx> {
                 kind: param.kind.clone(),
             });
 
-            state.bind(
-                &symbol_ref,
-                entry_ty,
-            );
+            function_state.borrow_mut()
+                .bind(
+                    &symbol_ref,
+                    entry_ty,
+                );
         }
 
         contract.declared_return_type =
@@ -157,7 +144,7 @@ impl<'ctx> AnalysisEngine<'ctx> {
 
         let analysis_result = self
             .flow
-            .analyze_body(program_id, contour_id, &function.graph, state)
+            .analyze_body(program_id, contour_id, &function.graph, function_state)
             .and_then(|_| self.collect_function_returns(program_id, contour_id, function));
 
         self.flow
@@ -190,14 +177,28 @@ impl<'ctx> AnalysisEngine<'ctx> {
             .get(&request.function_id)
             .unwrap();
 
-        let contract = self.analyze_function_specialized(
-            request.program_id,
-            request.function_id,
-            function,
-            &program.symbols,
-            &request.bindings,
-            &request.call_site,
-        )?;
+        // need to loop else stops after 1 call
+        let contract = loop {
+            match self.analyze_function_specialized(
+                request.program_id,
+                request.function_id,
+                function,
+                &program.symbols,
+                &request.bindings,
+                &request.call_site,
+                Rc::clone(&request.parent_state),
+            ) {
+                Ok(contract) => break contract,
+
+                Err(blocked) => {
+                    self.resolve_specialization(
+                        cfg,
+                        programs,
+                        &blocked.request,
+                    )?;
+                }
+            }
+        };
 
         let key = FunctionSpecializationKey {
             function_id: request.function_id,
@@ -260,25 +261,64 @@ impl<'ctx> AnalysisEngine<'ctx> {
         &mut self,
         program_id: usize,
         contour_id: ContourID,
-        module: &ModuleCfg,
+        cfg: &Cfg,
         symbols: &[SymbolIR],
     ) -> Result<(), BlockedFunctionAnalysis> {
-        let mut state = FlowState::new(z3::ast::Bool::from_bool(true));
+        let module_state = Rc::new(RefCell::new(
+            FlowState::new(
+                cfg.module.scope_id,
+                z3::ast::Bool::from_bool(true),
+                None,
+            )
+        ));
 
-        for symbol in symbols {
-            let symbol_ref = SymbolRef {
-                program_id,
-                symbol_id: symbol.id,
-            };
+        {
+            let mut state = module_state.borrow_mut();
 
-            state.register_unbound(&symbol_ref);
+            for symbol in symbols {
+                if symbol.scope_id != cfg.module.scope_id {
+                    continue;  // anything which doesn't belong to this scope
+                }
+
+                let symbol_ref = SymbolRef {
+                    program_id,
+                    symbol_id: symbol.id,
+                };
+
+                state.register_unbound(&symbol_ref);
+            }
+        }
+
+        for (function_id, function) in &cfg.functions {
+            let contract = self.analyze_function(
+                program_id, 
+                *function_id, 
+                function, 
+                symbols,
+                Rc::clone(&module_state)
+            )?;
+
+            self.contracts
+                .borrow_mut()
+                .by_id
+                .insert(*function_id, contract);
+        }
+
+        for (class_id, class) in &cfg.classes {
+            self.analyze_class(
+                program_id, 
+                *class_id, 
+                class, 
+                symbols,
+                Rc::clone(&module_state)
+            )?;
         }
 
         self.flow.analyze_body(
             program_id, 
             contour_id, 
-            &module.graph, 
-            state
+            &cfg.module.graph, 
+            Rc::clone(&module_state),
         )?;
 
         Ok(())
@@ -290,22 +330,36 @@ impl<'ctx> AnalysisEngine<'ctx> {
         function_id: FunctionID,
         function: &FunctionCfg,
         symbols: &[SymbolIR],
+        parent_state: Rc<RefCell<FlowState>>,
     ) -> Result<FunctionContract, BlockedFunctionAnalysis> {
-        let mut state = FlowState::new(z3::ast::Bool::from_bool(true));
+        // TODO this is a problem; a new state means function calls resolve to UNKNOWN
+        // we should find a way for the lookups to also check lexically visible expressions
+        // so we pass the parent state too somehow, and let symbol_ref find the stuff we need?
+        let function_state = Rc::new(RefCell::new(
+            FlowState::new(
+                function.scope_id,
+                z3::ast::Bool::from_bool(true),
+                Some(Rc::clone(&parent_state)),
+            )
+        ));
 
         let contour_id = ContourID::Function(function_id);
 
-        for symbol in symbols {
-            if symbol.scope_id != function.scope_id {
-                continue;
+        {
+            let mut state = function_state.borrow_mut();
+
+            for symbol in symbols {
+                if symbol.scope_id != function.scope_id {
+                    continue;
+                }
+
+                let symbol_ref = SymbolRef {
+                    program_id,
+                    symbol_id: symbol.id,
+                };
+
+                state.register_unbound(&symbol_ref);
             }
-
-            let symbol_ref = SymbolRef {
-                program_id,
-                symbol_id: symbol.id,
-            };
-
-            state.register_unbound(&symbol_ref);
         }
 
         let mut contract = FunctionContract::new();
@@ -331,11 +385,13 @@ impl<'ctx> AnalysisEngine<'ctx> {
                 kind: param.kind.clone(),
             };
 
-            // ugly? but it works, contract is just a cheap copy made to pass to callers either way]
+            // ugly? but it works, contract is just a cheap copy made to pass to callers either way
             // TODO double check logic here
             contract.params.push(param_contract);
 
-            state.bind(&symbol_ref, param_type);
+            function_state
+                .borrow_mut()
+                .bind(&symbol_ref, param_type);
         }
 
         // !! be mindful of the fact that there is whatever the user DECLARED, and what actually gets returned
@@ -351,7 +407,7 @@ impl<'ctx> AnalysisEngine<'ctx> {
             program_id, 
             contour_id,
             &function.graph, 
-            state
+            function_state
         )?;
 
         let returns = self.collect_function_returns(
@@ -429,18 +485,29 @@ impl<'ctx> AnalysisEngine<'ctx> {
         class_id: ClassID,
         class: &ClassCfg,
         symbols: &[SymbolIR],
+        parent_state: Rc<RefCell<FlowState>>,
     ) -> Result<(), BlockedFunctionAnalysis> {
-        let mut state = FlowState::new(z3::ast::Bool::from_bool(true));
+        let class_state = Rc::new(RefCell::new(
+            FlowState::new(
+                class.scope_id,
+                z3::ast::Bool::from_bool(true),
+                Some(Rc::clone(&parent_state)),
+            )
+        ));
 
         let contour_id = ContourID::Class(class_id);
 
-        for symbol in symbols {
-            let symbol_ref = SymbolRef {
-                program_id,
-                symbol_id: symbol.id,
-            };
+        {
+            let mut state = class_state.borrow_mut();
 
-            state.register_unbound(&symbol_ref);
+            for symbol in symbols {
+                let symbol_ref = SymbolRef {
+                    program_id,
+                    symbol_id: symbol.id,
+                };
+
+                state.register_unbound(&symbol_ref);
+            }
         }
 
         self
@@ -449,7 +516,7 @@ impl<'ctx> AnalysisEngine<'ctx> {
             program_id, 
             contour_id,
             &class.graph, 
-            state
+            class_state
         )?;
 
         Ok(())

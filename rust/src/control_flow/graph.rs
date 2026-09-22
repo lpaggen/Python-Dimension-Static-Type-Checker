@@ -311,7 +311,7 @@ impl<'a> Graph<'a> {
                     }
 
                     let function_id = FunctionID {
-                        id: functiondef_stmt.id,
+                        id: functiondef_stmt.symbol_id,
                     };
                     // cfg.current_function_id += 1;
 

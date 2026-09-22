@@ -1,4 +1,5 @@
 // use rayon::prelude::*;
+use std::cell::RefCell;
 use std::collections::HashMap;
 
 use crate::linker::{program_table::ProgramTable, symbol_ref::SymbolRef};
@@ -14,16 +15,35 @@ pub struct ScopeSymbolTable {
 
 pub struct GlobalSymbolTable {
     pub by_program_id: HashMap<usize, ProgramSymbolTable>,
+    cache: RefCell<HashMap<(usize, usize, String), Option<SymbolRef>>>,  // using program_id, symbol_id too
 }
 
 impl GlobalSymbolTable {
     pub fn new() -> Self {
         Self {
             by_program_id: HashMap::new(),
+            cache: RefCell::new(HashMap::new()),
         }
     }
 
     pub fn lookup_by_name(
+        &self,
+        program_id: usize,
+        scope_id: usize,
+        name: &str,
+    ) -> Option<SymbolRef> {
+        let key = (program_id, scope_id, name.to_owned());
+
+        if let Some(result) = self.cache.borrow().get(&key).copied() {
+            return result;
+        }
+
+        let result = self.lookup_by_name_uncached(program_id, scope_id, name);
+        self.cache.borrow_mut().insert(key, result);
+        result
+    }
+
+    fn lookup_by_name_uncached(
         &self,
         program_id: usize,
         mut scope_id: usize,
@@ -58,6 +78,8 @@ impl GlobalSymbolTable {
     // depends, if programs are huge, maybe it makes sense, will see
     // keeping sequential for now
     pub fn build(&mut self, programs: &ProgramTable) {
+        self.cache.get_mut().clear();
+
         for (&program_id, program) in &programs.by_id {
             let mut program_symbols = ProgramSymbolTable {
                 by_scope_id: HashMap::new(),

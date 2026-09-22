@@ -1870,6 +1870,11 @@ impl<'ctx> TypeResolver<'ctx> {
                                     }
 
                                     None => {
+                                        let parent_state = state
+                                            .lexical_parent
+                                            .clone()
+                                            .unwrap_or_else(|| Rc::new(RefCell::new(state.clone())));
+
                                         Err(FunctionAnalysisRequest {
                                             program_id,
                                             function_id,
@@ -1878,6 +1883,7 @@ impl<'ctx> TypeResolver<'ctx> {
                                                 .diagnostic_span_override
                                                 .clone()
                                                 .unwrap_or(span),
+                                            parent_state,
                                         })
                                     }
                                 }
@@ -2052,10 +2058,10 @@ impl<'ctx> TypeResolver<'ctx> {
                     .unwrap();
 
                 Ok(state
-                    .by_ref
-                    .get(&symbol_ref)
-                    .map(|binding| binding.ty.clone())
-                    .unwrap_or(Type::Unknown))
+                    .lookup(&symbol_ref)
+                    .map(|binding| binding.ty)
+                    .unwrap_or(Type::Unknown)
+                )
             }
 
             ExprIR::TupleExpr(tuple) => {

@@ -76,7 +76,6 @@ fn main() -> Result<(), Vec<Diagnostic>> {
     let flow = BlockFlow::new(
         TypeResolver::new(&symbols, &resolved, Rc::clone(&function_contracts)),
         &symbols,
-        Rc::clone(&function_contracts),
     );
 
     let mut analysis_engine = AnalysisEngine {

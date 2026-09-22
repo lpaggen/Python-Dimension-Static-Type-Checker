@@ -1,25 +1,21 @@
 use std::{
-    cell::RefCell,
-    collections::{HashMap, HashSet, VecDeque},
-    rc::Rc,
+    cell::RefCell, collections::{HashMap, HashSet, VecDeque}, rc::Rc,
 };
 
 use crate::{
     control_flow::{
-        block_id::{BlockID, FunctionID}, cfg_analysis_engine::{blocked_function_analysis::BlockedFunctionAnalysis, contour_id::ContourID, flow_block_id::FlowBlockID, functioncontract_table::FunctionContractTable}, cfg_table::CfgTable, class_cfg::ClassCfg, flowstate::FlowState, function_analysis_request::FunctionAnalysisRequest, function_cfg::FunctionCfg, function_contract::{ContractParam, FunctionContract, GuardedReturn}, graph::Graph, module_cfg::ModuleCfg, terminator::Terminator,
+        block_id::{BlockID, FunctionID}, cfg_analysis_engine::{blocked_function_analysis::BlockedFunctionAnalysis, contour_id::ContourID, flow_block_id::FlowBlockID}, flowstate::FlowState, function_analysis_request::FunctionAnalysisRequest, graph::Graph, terminator::Terminator,
     }, ir::{
         expr::{ConstantIR, ExprIR},
         operator::Operator,
         stmt::StmtIR,
-    }, linker::scope_table::GlobalSymbolTable, type_resolver::type_resolver::TypeResolver, types::types::Type,
+    }, linker::{scope_table::GlobalSymbolTable, symbol_ref::SymbolRef}, type_resolver::type_resolver::TypeResolver, types::types::Type,
 };
 
 pub struct BlockFlow<'ctx> {
     pub incoming: HashMap<FlowBlockID, FlowState>,
     pub edge_states: HashMap<(FlowBlockID, FlowBlockID), FlowState>, // necessary to preserve conditional guards on branches
     pub block_out: HashMap<FlowBlockID, FlowState>,
-
-    function_contracts: Rc<RefCell<FunctionContractTable>>,
 
     symbols: &'ctx GlobalSymbolTable,
 
@@ -30,12 +26,10 @@ impl<'ctx> BlockFlow<'ctx> {
     pub fn new(
         type_resolver: TypeResolver<'ctx>,
         symbol_table: &'ctx GlobalSymbolTable,
-        function_contracts: Rc<RefCell<FunctionContractTable>>,
     ) -> Self {
         Self {
             incoming: HashMap::new(),
             edge_states: HashMap::new(),
-            function_contracts,
             block_out: HashMap::new(),
             type_resolver,
             symbols: symbol_table,
@@ -152,6 +146,7 @@ impl<'ctx> BlockFlow<'ctx> {
             }
 
             _ => {
+                println!("{:?}", expr);
                 // default to assume accessible branch TODO check
                 todo!()
             }
@@ -202,6 +197,7 @@ impl<'ctx> BlockFlow<'ctx> {
         // FunctionContract { params: (), return_type, constraints: None }
     // }
 
+    // ideally we want "resume_from_statement"
     pub fn resume_from_block(
         &mut self,
         program_id: usize,
@@ -334,7 +330,7 @@ impl<'ctx> BlockFlow<'ctx> {
         program_id: usize,
         contour_id: ContourID,
         graph: &Graph,
-        entry_state: FlowState,
+        entry_state: Rc<RefCell<FlowState>>,
     ) -> Result<(), BlockedFunctionAnalysis> {
         let entry = BlockID { id: 0 }; // start at entry always
 
@@ -343,7 +339,11 @@ impl<'ctx> BlockFlow<'ctx> {
             block: entry,
         };
 
-        self.incoming.insert(entry_key, entry_state);
+        {
+            let state = entry_state.borrow().clone();
+
+            self.incoming.insert(entry_key, state);
+        }
 
         self.run_worklist(
             program_id,
@@ -366,12 +366,12 @@ impl<'ctx> BlockFlow<'ctx> {
                 //     None => Type::Unknown,
                 // };
 
-                let symbol_ref = self
-                    .symbols
-                    .lookup_by_name(program_id, function.scope_id, &function.name)
-                    .unwrap();
+                let symbol_ref = SymbolRef {
+                    program_id,
+                    symbol_id: function.symbol_id
+                };
 
-                let function_id = FunctionID { id: function.id };
+                let function_id = FunctionID { id: function.symbol_id };
 
                 state.bind(&symbol_ref, Type::Function(function_id));
 

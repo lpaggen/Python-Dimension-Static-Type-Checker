@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
     control_flow::{bindingstate::BindingState, bound_type::TypedBinding},
@@ -8,12 +8,28 @@ use crate::{
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct FlowState {
+    // FlowState represents what the analysis knows at a certain point, and holds the information needed to lookup bindings across multiple scopes
     pub guard: z3::ast::Bool, // if no guard, simply assume true, mathematically true = None, forgo Option<>
-    pub by_ref: HashMap<SymbolRef, TypedBinding>,
     pub constraints: Vec<z3::ast::Bool>,
+    pub scope_id: usize,
+    pub by_ref: HashMap<SymbolRef, TypedBinding>,  // TypedBinding holds the BOUND status + type
+    pub lexical_parent: Option<Rc<RefCell<FlowState>>>, // since one parent may have multiple children states, each one needs a reference to it
 }
 
 impl FlowState {
+    pub fn lookup(
+        &self, 
+        symbol_ref: &SymbolRef,
+    ) -> Option<TypedBinding> {
+        if let Some(binding) = self.by_ref.get(symbol_ref) {
+            return Some(binding.clone());
+        }
+
+        self.lexical_parent
+            .as_ref()
+            .and_then(|parent| parent.borrow().lookup(symbol_ref))
+    }
+
     pub fn bind(&mut self, symbol_ref: &SymbolRef, ty: Type) {
         self.by_ref.insert(
             *symbol_ref,
@@ -35,23 +51,39 @@ impl FlowState {
         );
     }
 
-    pub fn new(guard: z3::ast::Bool) -> Self {
+    pub fn new(
+        scope_id: usize,
+        guard: z3::ast::Bool,
+        lexical_parent: Option<Rc<RefCell<FlowState>>>,
+    ) -> Self {
         Self {
-            by_ref: HashMap::new(),
-            constraints: Vec::new(),
+            scope_id,
             guard,
+            constraints: Vec::new(),
+            by_ref: HashMap::new(),
+            lexical_parent,
         }
     }
 
     pub fn merge<'a>(states: impl IntoIterator<Item = &'a FlowState>) -> FlowState {
+        let mut states = states.into_iter();
+
         // init with false, accumulate new facts as we go
-        let mut merged = FlowState::new(z3::ast::Bool::from_bool(false));
+        let first = states
+            .next()
+            .expect("cannot merge zero flow states");
+
+        let mut merged = FlowState::new(
+            first.scope_id,
+            z3::ast::Bool::from_bool(false),
+            first.lexical_parent.clone(),
+        );
 
         // there may be a better way to store this, currently this is the best i can come up with
         let mut binding_guards: HashMap<SymbolRef, z3::ast::Bool> = HashMap::new();
 
         // only reachable if any one of the INCOMING edges is reachable
-        for state in states {
+        for state in std::iter::once(first).chain(states) {
             merged.guard = z3::ast::Bool::or(&[&merged.guard, &state.guard]);
 
             for (id, binding) in &state.by_ref {

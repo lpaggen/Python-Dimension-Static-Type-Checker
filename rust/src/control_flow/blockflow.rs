@@ -11,7 +11,7 @@ use crate::{
         expr::{ConstantIR, ExprIR},
         operator::Operator,
         stmt::StmtIR,
-    }, linker::scope_table::GlobalSymbolTable, solver::BoolExpr, type_resolver::type_resolver::TypeResolver, types::types::Type,
+    }, linker::{scope_table::GlobalSymbolTable, symbol_ref::SymbolRef}, solver::BoolExpr, type_resolver::type_resolver::TypeResolver, types::types::Type,
 };
 
 pub struct BlockFlow<'ctx> {
@@ -334,7 +334,7 @@ impl<'ctx> BlockFlow<'ctx> {
         program_id: i64,
         contour_id: ContourID,
         graph: &Graph,
-        entry_state: FlowState,
+        entry_state: Rc<RefCell<FlowState>>,
     ) -> Result<(), BlockedFunctionAnalysis> {
         let entry = BlockID { id: 0 }; // start at entry always
 
@@ -343,7 +343,7 @@ impl<'ctx> BlockFlow<'ctx> {
             block: entry,
         };
 
-        self.incoming.insert(entry_key, entry_state);
+        self.incoming.insert(entry_key, entry_state.borrow().clone());
 
         self.run_worklist(
             program_id,
@@ -366,12 +366,12 @@ impl<'ctx> BlockFlow<'ctx> {
                 //     None => Type::Unknown,
                 // };
 
-                let symbol_ref = self
-                    .symbols
-                    .lookup_by_name(program_id, function.scope_id, &function.name)
-                    .unwrap();
+                let symbol_ref = SymbolRef {
+                    program_id,
+                    symbol_id: function.symbol_id,
+                };
 
-                let function_id = FunctionID { id: function.id };
+                let function_id = FunctionID { id: function.symbol_id };
 
                 state.bind(&symbol_ref, Type::Function(function_id));
 

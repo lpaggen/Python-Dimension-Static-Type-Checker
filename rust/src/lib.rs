@@ -83,14 +83,13 @@ mod tests {
 
         assert!(diagnostics.iter().any(|diagnostic| {
             diagnostic.message.starts_with("incompatible shapes for matmul:")
-                && diagnostic.message.contains("[1, 2] @ [3, 2]")
+                && diagnostic.message.contains("[1, 2] @ [3, 1]")
                 && diagnostic.message.contains("2 != 3")
-                && diagnostic.message.contains("(when not flag)")
                 && !diagnostic.message.contains("pdc_")
                 && diagnostic
                     .span
                     .as_ref()
-                    .is_some_and(|span| span.lineno == 23)
+                    .is_some_and(|span| span.lineno == 25)
         }));
     }
 }

@@ -1,23 +1,25 @@
 import torch
 
-def foo():
-    x = 44
+def project(x, w):
+    return torch.matmul(x, w)
 
-a = foo()
-b = foo()
+def chain(x, w1, w2):
+    first = project(x, w1)
+    return project(first, w2)
 
-if a:
-    if b:
-        x = torch.tensor([[1, 2, 3]])      # [1,3]
-    else:
-        x = torch.tensor([[1, 2]])         # [1,2]
-else:
-    x = torch.tensor([[1, 2, 3, 4]])       # [1,4]
+x = torch.tensor([[1, 2, 3]])  # [1,3]
 
-w = torch.tensor([
+w1 = torch.tensor([
     [1, 2],
     [3, 4],
     [5, 6],
-])                                         # [3,2]
+])  # [3,2]
 
-y = torch.matmul(x, w)
+# WRONG: first has shape [1,2], so this must have first dim 2
+w2 = torch.tensor([
+    [1],
+    [2],
+    [3],
+])  # [3,1]
+
+result = chain(x, w1, w2)

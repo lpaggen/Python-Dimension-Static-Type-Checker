@@ -1778,14 +1778,8 @@ impl<'ctx> TypeResolver<'ctx> {
             // so this is where we start parsing tensors, amongst other things
             ExprIR::Call(call) => {
                 match &*call.func {
-                    ExprIR::Name(name) => {
+                    ExprIR::Name(_name) => {
                         let callee_ty = self.parse_expr(&call.func, program_id, state)?;
-
-                        println!(
-                            "CALL {:?} resolved callee to {:?}",
-                            name.id,
-                            callee_ty,
-                        );
 
                         match callee_ty {
                             Type::Function(function_id) => {
@@ -1851,6 +1845,11 @@ impl<'ctx> TypeResolver<'ctx> {
                                     }
 
                                     None => {
+                                        let parent_state = state
+                                            .lexical_parent
+                                            .clone()
+                                            .unwrap_or_else(|| Rc::new(RefCell::new(state.clone())));
+
                                         Err(FunctionAnalysisRequest {
                                             program_id,
                                             function_id,
@@ -1859,6 +1858,7 @@ impl<'ctx> TypeResolver<'ctx> {
                                                 .diagnostic_span_override
                                                 .clone()
                                                 .unwrap_or(span),
+                                            parent_state,
                                         })
                                     }
                                 }
@@ -1977,9 +1977,8 @@ impl<'ctx> TypeResolver<'ctx> {
                     .unwrap();
 
                 Ok(state
-                    .by_ref
-                    .get(&symbol_ref)
-                    .map(|binding| binding.ty.clone())
+                    .lookup(&symbol_ref)
+                    .map(|binding| binding.ty)
                     .unwrap_or(Type::Unknown))
             }
 

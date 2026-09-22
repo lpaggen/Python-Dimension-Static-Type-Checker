@@ -17,19 +17,26 @@
   <p id="status">Loading the checker…</p>
   <textarea id="source">import torch
 
-def foo(a: torch.Tensor, b: torch.Tensor):
-    return torch.matmul(a, b)
+def project(x, w):
+    return torch.matmul(x, w)
 
-a = torch.tensor([[1, 2, 3]])
-b = torch.tensor([
+def chain(x, w1, w2):
+    first = project(x, w1)
+    return project(first, w2)
+
+x = torch.tensor([[1, 2, 3]])
+w1 = torch.tensor([
     [1, 2],
     [3, 4],
     [5, 6],
-    [7, 8],
-    [9, 10],
+])
+w2 = torch.tensor([
+    [1],
+    [2],
+    [3],
 ])
 
-result = foo(a, b)</textarea>
+result = chain(x, w1, w2)</textarea>
   <button id="analyze" type="button" disabled>Analyze</button>
   <section id="diagnostics" aria-live="polite"></section>
   <script type="module" src="playground.js"></script>

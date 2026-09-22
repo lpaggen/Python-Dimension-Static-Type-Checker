@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
     control_flow::{bindingstate::BindingState, bound_type::TypedBinding},
@@ -10,11 +10,23 @@ use crate::{
 #[derive(Clone, PartialEq, Debug)]
 pub struct FlowState {
     pub guard: BoolExpr, // if no guard, simply assume true, mathematically true = None, forgo Option<>
+    pub scope_id: i64,
     pub by_ref: HashMap<SymbolRef, TypedBinding>,
     pub constraints: Vec<BoolExpr>,
+    pub lexical_parent: Option<Rc<RefCell<FlowState>>>,
 }
 
 impl FlowState {
+    pub fn lookup(&self, symbol_ref: &SymbolRef) -> Option<TypedBinding> {
+        if let Some(binding) = self.by_ref.get(symbol_ref) {
+            return Some(binding.clone());
+        }
+
+        self.lexical_parent
+            .as_ref()
+            .and_then(|parent| parent.borrow().lookup(symbol_ref))
+    }
+
     pub fn bind(&mut self, symbol_ref: &SymbolRef, ty: Type) {
         self.by_ref.insert(
             *symbol_ref,
@@ -36,23 +48,36 @@ impl FlowState {
         );
     }
 
-    pub fn new(guard: BoolExpr) -> Self {
+    pub fn new(
+        scope_id: i64,
+        guard: BoolExpr,
+        lexical_parent: Option<Rc<RefCell<FlowState>>>,
+    ) -> Self {
         Self {
+            scope_id,
             by_ref: HashMap::new(),
             constraints: Vec::new(),
             guard,
+            lexical_parent,
         }
     }
 
     pub fn merge<'a>(states: impl IntoIterator<Item = &'a FlowState>) -> FlowState {
+        let mut states = states.into_iter();
+
         // init with false, accumulate new facts as we go
-        let mut merged = FlowState::new(BoolExpr::from_bool(false));
+        let first = states.next().expect("cannot merge zero flow states");
+        let mut merged = FlowState::new(
+            first.scope_id,
+            BoolExpr::from_bool(false),
+            first.lexical_parent.clone(),
+        );
 
         // there may be a better way to store this, currently this is the best i can come up with
         let mut binding_guards: HashMap<SymbolRef, BoolExpr> = HashMap::new();
 
         // only reachable if any one of the INCOMING edges is reachable
-        for state in states {
+        for state in std::iter::once(first).chain(states) {
             merged.guard = BoolExpr::or(&[&merged.guard, &state.guard]);
 
             for (id, binding) in &state.by_ref {

@@ -108,44 +108,21 @@ impl BoolExpr {
 
     pub fn simplify(&self) -> Self {
         match self {
-            Self::And(values) => {
-                let values: Vec<_> = values.iter().map(Self::simplify).collect();
-                if values.iter().any(|value| value.as_bool() == Some(false)) {
-                    Self::Constant(false)
-                } else if has_complementary_values(&values) {
-                    Self::Constant(false)
-                } else {
-                    let mut values: Vec<_> = values
-                        .into_iter()
-                        .filter(|value| value.as_bool() != Some(true))
-                        .collect();
-                    match values.len() {
-                        0 => Self::Constant(true),
-                        1 => values.remove(0),
-                        _ => Self::And(values),
-                    }
-                }
-            }
-            Self::Or(values) => {
-                let values: Vec<_> = values.iter().map(Self::simplify).collect();
-                if values.iter().any(|value| value.as_bool() == Some(true)) {
-                    Self::Constant(true)
-                } else if has_complementary_values(&values) {
-                    Self::Constant(true)
-                } else {
-                    let mut values: Vec<_> = values
-                        .into_iter()
-                        .filter(|value| value.as_bool() != Some(false))
-                        .collect();
-                    match values.len() {
-                        0 => Self::Constant(false),
-                        1 => values.remove(0),
-                        _ => Self::Or(values),
-                    }
-                }
-            }
+            Self::And(values) => simplify_variadic(values, true),
+            Self::Or(values) => simplify_variadic(values, false),
             Self::Not(value) => match value.simplify() {
                 Self::Constant(value) => Self::Constant(!value),
+                Self::Not(value) => *value,
+                Self::And(values) => {
+                    let negated: Vec<_> = values.iter().map(Self::not).collect();
+                    let refs: Vec<_> = negated.iter().collect();
+                    Self::or(&refs)
+                }
+                Self::Or(values) => {
+                    let negated: Vec<_> = values.iter().map(Self::not).collect();
+                    let refs: Vec<_> = negated.iter().collect();
+                    Self::and(&refs)
+                }
                 value => Self::Not(Box::new(value)),
             },
             Self::Implies(left, right) => match (left.simplify(), right.simplify()) {
@@ -197,6 +174,58 @@ impl BoolExpr {
                 format!("(=> {} {})", left.to_smt2(), right.to_smt2())
             }
         }
+    }
+}
+
+fn simplify_variadic(values: &[BoolExpr], conjunction: bool) -> BoolExpr {
+    let mut flattened = Vec::new();
+
+    for value in values.iter().map(BoolExpr::simplify) {
+        match value {
+            BoolExpr::And(inner) if conjunction => flattened.extend(inner),
+            BoolExpr::Or(inner) if !conjunction => flattened.extend(inner),
+            value => flattened.push(value),
+        }
+    }
+
+    let absorbing = !conjunction;
+    if flattened
+        .iter()
+        .any(|value| value.as_bool() == Some(absorbing))
+        || has_complementary_values(&flattened)
+    {
+        return BoolExpr::Constant(absorbing);
+    }
+
+    let identity = conjunction;
+    let mut unique = Vec::new();
+    for value in flattened {
+        if value.as_bool() != Some(identity) && !unique.contains(&value) {
+            unique.push(value);
+        }
+    }
+
+    // Absorption: a or (a and b) == a; a and (a or b) == a.
+    let absorption_terms = unique.clone();
+    unique.retain(|candidate| {
+        let nested = match candidate {
+            BoolExpr::And(inner) if !conjunction => Some(inner),
+            BoolExpr::Or(inner) if conjunction => Some(inner),
+            _ => None,
+        };
+
+        nested.is_none_or(|inner| {
+            !absorption_terms
+                .iter()
+                .any(|other| other != candidate && inner.contains(other))
+        })
+    });
+
+    match unique.len() {
+        0 => BoolExpr::Constant(identity),
+        1 => unique.remove(0),
+        _ if conjunction => BoolExpr::And(unique),
+        _ => BoolExpr::Or(unique),
     }
 }
 
@@ -300,6 +329,20 @@ mod tests {
 
         assert_eq!(BoolExpr::or(&[&flag, &flag.not()]), BoolExpr::from_bool(true));
         assert_eq!(BoolExpr::and(&[&flag, &flag.not()]), BoolExpr::from_bool(false));
+    }
+
+    #[test]
+    fn simplifies_nested_tautologies_and_absorption() {
+        let a = BoolExpr::new_const("truthy_4_2::a");
+        let b = BoolExpr::new_const("truthy_4_3::b");
+        let left = BoolExpr::or(&[&a.not(), &b]);
+        let right = BoolExpr::or(&[&b.not(), &a]);
+
+        assert_eq!(BoolExpr::or(&[&left, &right]), BoolExpr::from_bool(true));
+        assert_eq!(
+            BoolExpr::or(&[&a, &BoolExpr::and(&[&a, &b])]),
+            a,
+        );
     }
 
     #[test]

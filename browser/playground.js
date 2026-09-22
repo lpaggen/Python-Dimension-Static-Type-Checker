@@ -1,5 +1,7 @@
 import { loadPyodide } from "https://cdn.jsdelivr.net/pyodide/v0.28.3/full/pyodide.mjs";
-import initChecker, { analyze_ir } from "./pkg/pdc_rust_check.js";
+import initChecker, { analyze_ir } from "./pkg/pdc_rust_check.js?v=nested-functions";
+
+const assetVersion = "nested-functions";
 
 const status = document.querySelector("#status");
 const button = document.querySelector("#analyze");
@@ -13,7 +15,9 @@ globalThis.pdcSolveSmt2 = () => "unknown";
 let buildIr;
 
 async function initialize() {
-  await initChecker();
+  await initChecker(
+    new URL(`./pkg/pdc_rust_check_bg.wasm?v=${assetVersion}`, import.meta.url),
+  );
 
   const pyodide = await loadPyodide();
   await pyodide.loadPackage("micropip");
@@ -22,7 +26,7 @@ import micropip
 await micropip.install("protobuf==7.35.1")
   `);
 
-  const archive = await fetch("./frontend.zip").then((response) => {
+  const archive = await fetch(`./frontend.zip?v=${assetVersion}`).then((response) => {
     if (!response.ok) throw new Error(`frontend download failed: ${response.status}`);
     return response.arrayBuffer();
   });

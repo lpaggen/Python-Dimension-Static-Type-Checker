@@ -145,6 +145,17 @@ impl<'ctx> BlockFlow<'ctx> {
                 }
             }
 
+            ExprIR::Call(call) => {
+                // TODO ABSOLUTELY FIX THIS, THIS IS DUMB
+
+                z3::ast::Bool::new_const(format!(
+                        "call_truthy_{}_{}_{}",
+                        program_id,
+                        call.span.lineno,
+                        call.span.col_offset,
+                    ))
+            }
+
             _ => {
                 println!("{:?}", expr);
                 // default to assume accessible branch TODO check
@@ -298,6 +309,18 @@ impl<'ctx> BlockFlow<'ctx> {
                     self.update_successor(contour_id, graph, branch.false_target, &mut queue, &mut queued);
                 }
 
+                Some(Terminator::ForNext(fornext)) => {
+                    println!("{:?}", fornext.iterator);
+                    match &fornext.iterator {
+                        // TODO is this how we want to handle built-ins ? 
+
+                        _ => {
+                            // handle the rest, Name is important, constants, etc.
+                        }
+                    }
+                }
+
+                // dangerous, causes infinite loops ...........
                 _ => {
                     for successor in successors {
                         let successor_key = FlowBlockID {

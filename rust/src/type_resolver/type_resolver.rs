@@ -2091,10 +2091,25 @@ impl<'ctx> TypeResolver<'ctx> {
                         Ok(self.resolve_add(left, right))
                     }
 
-                    Operator::Sub => todo!(),
-                    Operator::Mult => todo!(),
+                    Operator::Sub => {
+                        let left = self.parse_expr(&binop.left, program_id, state)?;
+                        let right = self.parse_expr(&binop.right, program_id, state)?;
+                        Ok(self.resolve_sub(left, right))
+                    }
+
+                    Operator::Mult => {
+                        let left = self.parse_expr(&binop.left, program_id, state)?;
+                        let right = self.parse_expr(&binop.right, program_id, state)?;
+                        Ok(self.resolve_mul(left, right))
+                    }
+
                     Operator::MatMult => todo!(),
-                    Operator::Div => todo!(),
+
+                    Operator::Div => {
+                        let left = self.parse_expr(&binop.left, program_id, state)?;
+                        let right = self.parse_expr(&binop.right, program_id, state)?;
+                        Ok(self.resolve_div(left, right))
+                    }
                     Operator::FloorDiv => todo!(),
                     Operator::Mod => todo!(),
                     Operator::Pow => todo!(),
@@ -2200,6 +2215,124 @@ impl<'ctx> TypeResolver<'ctx> {
             (Type::Float, _) | (_, Type::Float) => Type::Float,
             (Type::Int, _) | (_, Type::Int) => Type::Int,
             (Type::Bool, Type::Bool) => Type::Int, // depending on exact operator semantics
+            _ => Type::Unknown,
+        }
+    }
+
+    // yes, i will make a helper for all of these, for now i don't because the other functions aren't ready
+    fn resolve_mul(&self, left: Type, right: Type) -> Type {
+        if left.is_numeric() && right.is_numeric() {
+            return self.promote_numeric(left, right);
+        }
+
+        match (left, right) {
+            (Type::Tensor(Unresolved), Type::Tensor(Unresolved)) => {
+                Type::Tensor(Unresolved)
+            }
+
+            (Type::Tensor(_a), Type::Tensor(_b)) => {
+                // TODO: tensor elementwise multiplication / broadcasting
+                Type::Unknown
+            }
+
+            (Type::Tensor(_a), scalar) if scalar.is_numeric() => {
+                // TODO: tensor-scalar multiplication
+                Type::Unknown
+            }
+
+            (scalar, Type::Tensor(_b)) if scalar.is_numeric() => {
+                // TODO: scalar-tensor multiplication
+                Type::Unknown
+            }
+
+            (Type::Union(_items), _rhs) => {
+                // TODO: distribute multiplication over union
+                Type::Unknown
+            }
+
+            (_lhs, Type::Union(_items)) => {
+                // TODO: distribute multiplication over union
+                Type::Unknown
+            }
+
+            _ => Type::Unknown,
+        }
+    }
+
+    fn resolve_sub(&self, left: Type, right: Type) -> Type {
+        if left.is_numeric() && right.is_numeric() {
+            return self.promote_numeric(left, right);
+        }
+
+        match (left, right) {
+            (Type::Tensor(Unresolved), Type::Tensor(Unresolved)) => {
+                Type::Tensor(Unresolved)
+            }
+
+            (Type::Tensor(_a), Type::Tensor(_b)) => {
+                // TODO: tensor elementwise subtraction / broadcasting
+                Type::Unknown
+            }
+
+            (Type::Tensor(_a), scalar) if scalar.is_numeric() => {
+                // TODO: tensor-scalar subtraction
+                Type::Unknown
+            }
+
+            (scalar, Type::Tensor(_b)) if scalar.is_numeric() => {
+                // TODO: scalar-tensor subtraction
+                Type::Unknown
+            }
+
+            (Type::Union(_items), _rhs) => {
+                // TODO: distribute subtraction over union
+                Type::Unknown
+            }
+
+            (_lhs, Type::Union(_items)) => {
+                // TODO: distribute subtraction over union
+                Type::Unknown
+            }
+
+            _ => Type::Unknown,
+        }
+    }
+
+    fn resolve_div(&self, left: Type, right: Type) -> Type {
+        if left.is_numeric() && right.is_numeric() {
+            return self.promote_numeric(left, right);
+        }
+
+        match (left, right) {
+            (Type::Tensor(Unresolved), Type::Tensor(Unresolved)) => {
+                Type::Tensor(Unresolved)
+            }
+
+            (Type::Tensor(_a), Type::Tensor(_b)) => {
+                // TODO: tensor elementwise division / broadcasting
+                Type::Unknown
+            }
+
+            (Type::Tensor(_a), scalar) if scalar.is_numeric() => {
+                // TODO: tensor-scalar division
+                Type::Unknown
+            }
+
+            (scalar, Type::Tensor(_b)) if scalar.is_numeric() => {
+                // TODO: scalar-tensor division
+                Type::Unknown
+            }
+
+            (Type::Union(_items), _rhs) => {
+                // TODO: distribute division over union
+                Type::Unknown
+            }
+
+            (_lhs, Type::Union(_items)) => {
+                // TODO: distribute division over union
+                Type::Unknown
+            }
+
             _ => Type::Unknown,
         }
     }

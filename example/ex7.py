@@ -1,25 +1,40 @@
+# ------------------------------------------------------------
+# Error on only one branch with torch.stack
+# ------------------------------------------------------------
+
 import torch
 
-def project(x, w):
-    return torch.matmul(x, w)
+def foo():
+    pass
 
-def chain(x, w1, w2):
-    first = project(x, w1)
-    return project(first, w2)
+flag = foo()
 
-x = torch.tensor([[1, 2, 3]])  # [1,3]
+if flag:
+    stack_a = torch.tensor([
+        [1, 2, 3],
+    ])  # [1,3]
 
-w1 = torch.tensor([
-    [1, 2],
-    [3, 4],
-    [5, 6],
-])  # [3,2]
+    stack_b = torch.tensor([
+        [4, 5, 6],
+    ])  # [1,3]
 
-# WRONG: first has shape [1,2], so this must have first dim 2
-w2 = torch.tensor([
-    [1],
-    [2],
-    [3],
-])  # [3,1]
+else:
+    stack_a = torch.tensor([
+        [1, 2],
+    ])  # [1,2]
 
-result = chain(x, w1, w2)
+    stack_b = torch.tensor([
+        [3, 4, 5],
+    ])  # [1,3]
+
+
+# torch.stack requires equal input shapes.
+#
+# true branch:
+#     [1,3] and [1,3] -> valid
+#
+# false branch:
+#     [1,2] and [1,3] -> invalid
+#
+# FlowUnion reports the mismatch only under not flag.
+stack_result = torch.stack([stack_a, stack_b], dim=0)

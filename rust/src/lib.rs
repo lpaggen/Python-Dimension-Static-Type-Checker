@@ -30,6 +30,11 @@ use pb_decoder::pb_decoder::PBDecoder;
 use type_resolver::type_resolver::TypeResolver;
 
 pub fn analyze_programs(programs: Vec<ProgramIR>) -> Vec<Diagnostic> {
+    let validation_diagnostics = diagnostic::validation::validate_programs(&programs);
+    if !validation_diagnostics.is_empty() {
+        return validation_diagnostics;
+    }
+
     let mut table = ProgramTable::new();
     table.build_tables(programs);
 

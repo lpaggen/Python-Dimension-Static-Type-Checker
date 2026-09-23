@@ -26,6 +26,7 @@ pub enum DiagnosticKind {
     MismatchedAnnotationType,
     UnknownAssignValue,
     UnknownBindingKind,
+    UnsupportedFeature,
 }
 
 impl Diagnostic {

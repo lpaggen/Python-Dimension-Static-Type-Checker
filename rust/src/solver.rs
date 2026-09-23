@@ -1,4 +1,8 @@
-use std::{cell::RefCell, collections::BTreeSet, fmt};
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum IntExpr {
@@ -241,10 +245,7 @@ fn simplify_variadic(values: &[BoolExpr], conjunction: bool) -> BoolExpr {
     }
 }
 
-fn find_consensus_pair(
-    values: &[BoolExpr],
-    conjunction: bool,
-) -> Option<(usize, usize, BoolExpr)> {
+fn find_consensus_pair(values: &[BoolExpr], conjunction: bool) -> Option<(usize, usize, BoolExpr)> {
     for left_index in 0..values.len() {
         for right_index in (left_index + 1)..values.len() {
             let left = term_parts(&values[left_index], conjunction);
@@ -318,7 +319,76 @@ fn smt_variadic(operator: &str, values: &[BoolExpr]) -> String {
 }
 
 fn smt_identifier(name: &str) -> String {
-    format!("pdc_{}", name.as_bytes().iter().map(|byte| format!("{byte:02x}")).collect::<String>())
+    format!(
+        "pdc_{}",
+        name.as_bytes()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>()
+    )
+}
+
+fn check_boolean_assertions(assertions: &[BoolExpr]) -> Option<SatResult> {
+    fn collect(expression: &BoolExpr, variables: &mut BTreeSet<String>) -> bool {
+        match expression {
+            BoolExpr::Constant(_) => true,
+            BoolExpr::Variable(name) => {
+                variables.insert(name.clone());
+                true
+            }
+            BoolExpr::And(values) | BoolExpr::Or(values) => {
+                values.iter().all(|value| collect(value, variables))
+            }
+            BoolExpr::Not(value) => collect(value, variables),
+            BoolExpr::Implies(left, right) => collect(left, variables) && collect(right, variables),
+            BoolExpr::Equal(_, _) => false,
+        }
+    }
+
+    fn evaluate(expression: &BoolExpr, assignment: &BTreeMap<String, bool>) -> bool {
+        match expression {
+            BoolExpr::Constant(value) => *value,
+            BoolExpr::Variable(name) => assignment[name],
+            BoolExpr::And(values) => values.iter().all(|value| evaluate(value, assignment)),
+            BoolExpr::Or(values) => values.iter().any(|value| evaluate(value, assignment)),
+            BoolExpr::Not(value) => !evaluate(value, assignment),
+            BoolExpr::Implies(left, right) => {
+                !evaluate(left, assignment) || evaluate(right, assignment)
+            }
+            BoolExpr::Equal(_, _) => unreachable!("integer equalities are rejected by collect"),
+        }
+    }
+
+    let mut variables = BTreeSet::new();
+    if !assertions
+        .iter()
+        .all(|assertion| collect(assertion, &mut variables))
+    {
+        return None;
+    }
+
+    // Avoid exponential work for unusually branch-heavy programs; those can
+    // still be handled by the host SMT bridge.
+    if variables.len() > 20 {
+        return None;
+    }
+
+    let variables: Vec<_> = variables.into_iter().collect();
+    for bits in 0..(1_u64 << variables.len()) {
+        let assignment: BTreeMap<_, _> = variables
+            .iter()
+            .enumerate()
+            .map(|(index, name)| (name.clone(), bits & (1 << index) != 0))
+            .collect();
+        if assertions
+            .iter()
+            .all(|assertion| evaluate(assertion, &assignment))
+        {
+            return Some(SatResult::Sat);
+        }
+    }
+
+    Some(SatResult::Unsat)
 }
 
 impl fmt::Display for IntExpr {
@@ -348,9 +418,9 @@ impl fmt::Display for BoolExpr {
 
             match expression {
                 BoolExpr::Constant(value) => write!(formatter, "{value}"),
-                BoolExpr::Variable(name) => formatter.write_str(
-                    name.rsplit_once("::").map_or(name, |(_, label)| label),
-                ),
+                BoolExpr::Variable(name) => {
+                    formatter.write_str(name.rsplit_once("::").map_or(name, |(_, label)| label))
+                }
                 BoolExpr::Equal(left, right) => write!(formatter, "{left} == {right}"),
                 BoolExpr::And(values) | BoolExpr::Or(values) => {
                     let operator = if matches!(expression, BoolExpr::And(_)) {
@@ -389,14 +459,20 @@ impl fmt::Display for BoolExpr {
 
 #[cfg(test)]
 mod tests {
-    use super::BoolExpr;
+    use super::{BoolExpr, SatResult, check_boolean_assertions};
 
     #[test]
     fn simplifies_complementary_boolean_values() {
         let flag = BoolExpr::new_const("truthy_4_2::flag");
 
-        assert_eq!(BoolExpr::or(&[&flag, &flag.not()]), BoolExpr::from_bool(true));
-        assert_eq!(BoolExpr::and(&[&flag, &flag.not()]), BoolExpr::from_bool(false));
+        assert_eq!(
+            BoolExpr::or(&[&flag, &flag.not()]),
+            BoolExpr::from_bool(true)
+        );
+        assert_eq!(
+            BoolExpr::and(&[&flag, &flag.not()]),
+            BoolExpr::from_bool(false)
+        );
     }
 
     #[test]
@@ -407,10 +483,7 @@ mod tests {
         let right = BoolExpr::or(&[&b.not(), &a]);
 
         assert_eq!(BoolExpr::or(&[&left, &right]), BoolExpr::from_bool(true));
-        assert_eq!(
-            BoolExpr::or(&[&a, &BoolExpr::and(&[&a, &b])]),
-            a,
-        );
+        assert_eq!(BoolExpr::or(&[&a, &BoolExpr::and(&[&a, &b])]), a,);
     }
 
     #[test]
@@ -434,6 +507,20 @@ mod tests {
 
         assert_eq!(flag.not().to_string(), "not flag");
     }
+
+    #[test]
+    fn solves_boolean_only_assertions_without_an_smt_backend() {
+        let flag = BoolExpr::new_const("truthy_4_2::flag");
+
+        assert_eq!(
+            check_boolean_assertions(&[flag.clone()]),
+            Some(SatResult::Sat)
+        );
+        assert_eq!(
+            check_boolean_assertions(&[flag.clone(), flag.not()]),
+            Some(SatResult::Unsat),
+        );
+    }
 }
 
 pub struct Solver {
@@ -454,7 +541,9 @@ impl Solver {
     }
 
     pub fn push(&self) {
-        self.scopes.borrow_mut().push(self.assertions.borrow().len());
+        self.scopes
+            .borrow_mut()
+            .push(self.assertions.borrow().len());
     }
 
     pub fn pop(&self, count: u32) {
@@ -540,6 +629,10 @@ fn check_assertions(assertions: &[BoolExpr]) -> SatResult {
         return SatResult::Sat;
     }
 
+    if let Some(result) = check_boolean_assertions(&assertions) {
+        return result;
+    }
+
     let mut variables = BTreeSet::new();
     for assertion in &assertions {
         assertion.collect_variables(&mut variables);
@@ -547,7 +640,10 @@ fn check_assertions(assertions: &[BoolExpr]) -> SatResult {
 
     let mut query = String::from("(set-logic QF_LIA)\n");
     for (name, sort) in variables {
-        query.push_str(&format!("(declare-const {} {sort})\n", smt_identifier(&name)));
+        query.push_str(&format!(
+            "(declare-const {} {sort})\n",
+            smt_identifier(&name)
+        ));
     }
     for assertion in &assertions {
         query.push_str(&format!("(assert {})\n", assertion.to_smt2()));

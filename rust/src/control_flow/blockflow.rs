@@ -1,3 +1,4 @@
+use core::panic;
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet, VecDeque},
@@ -266,6 +267,14 @@ impl<'ctx> BlockFlow<'ctx> {
             // this helps later for z3 and for error reporting, we can tell the user why something may fail
             match block.terminator.as_ref() {
                 Some(Terminator::Return(Some(_))) => {}
+
+                Some(Terminator::ForNext(fornext)) => {
+                    panic!("Sorry, loops are unsupported...")
+                }
+
+                Some(Terminator::Match(match_)) => {
+                    panic!("Match isn't currently supported, only if-else...")
+                }
 
                 Some(Terminator::Branch(branch)) => {
                     let z3_guard = self.to_z3_bool(branch.condition, program_id);

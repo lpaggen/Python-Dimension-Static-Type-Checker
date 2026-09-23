@@ -25,6 +25,12 @@ fn main() -> Result<(), Vec<Diagnostic>> {
         Ok(programs) => programs,
         Err(err) => panic!("{}", err),
     };
+
+    let validation_diagnostics =
+        pdc_rust_check::diagnostic::validation::validate_programs(&programs);
+    if !validation_diagnostics.is_empty() {
+        return Err(validation_diagnostics);
+    }
     // println!("decode:          {:?}", start.elapsed());
 
     // let start = Instant::now();
@@ -79,5 +85,10 @@ fn main() -> Result<(), Vec<Diagnostic>> {
 
     // println!("{:?}", cfg.programs.get(&3));
 
-    Ok(())
+    let diagnostics = std::mem::take(&mut analysis_engine.flow.type_resolver.diagnostics);
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
 }

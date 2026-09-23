@@ -86,6 +86,47 @@ impl<'ctx> TypeResolver<'ctx> {
         self.solver.assert(&guard.implies(constraint));
     }
 
+    fn report_unsupported(&mut self, span: &SourceSpan, feature: impl Into<String>) {
+        let feature = feature.into();
+        self.diagnostics.push(Diagnostic::new(
+            Severity::ERROR,
+            span.clone(),
+            DiagnosticKind::UnsupportedFeature,
+            &format!("unsupported feature: {feature}"),
+        ));
+    }
+
+    fn validate_call_keywords(&mut self, call: &CallIR, function: KnownFunction) -> bool {
+        let allowed: &[&str] = match function {
+            KnownFunction::Torch(TorchFunction::Tensor)
+            | KnownFunction::Torch(TorchFunction::Zeros)
+            | KnownFunction::Torch(TorchFunction::Ones)
+            | KnownFunction::Torch(TorchFunction::Empty)
+            | KnownFunction::Torch(TorchFunction::Arange) => &["dtype"],
+            KnownFunction::Torch(TorchFunction::Cat)
+            | KnownFunction::Torch(TorchFunction::Stack) => &["dim"],
+            KnownFunction::Torch(TorchFunction::Relu) => &["input"],
+            _ => &[],
+        };
+
+        let mut valid = true;
+        for keyword in &call.keywords {
+            let name = keyword.arg.as_deref().unwrap_or("**kwargs");
+            if !allowed.contains(&name) {
+                self.report_unsupported(
+                    keyword
+                        .span
+                        .as_ref()
+                        .or(call.span.as_ref())
+                        .expect("call keyword is missing a source span"),
+                    format!("keyword argument `{name}` for this call"),
+                );
+                valid = false;
+            }
+        }
+        valid
+    }
+
     // similar to resolve_external_annotation, not the same return type
     fn resolve_known_function(
         &self,
@@ -1779,6 +1820,21 @@ impl<'ctx> TypeResolver<'ctx> {
             ExprIR::Call(call) => {
                 match &*call.func {
                     ExprIR::Name(_name) => {
+                        if !call.keywords.is_empty() {
+                            for keyword in &call.keywords {
+                                let name = keyword.arg.as_deref().unwrap_or("**kwargs");
+                                self.report_unsupported(
+                                    keyword
+                                        .span
+                                        .as_ref()
+                                        .or(call.span.as_ref())
+                                        .expect("call keyword is missing a source span"),
+                                    format!("keyword argument `{name}` for user-defined calls"),
+                                );
+                            }
+                            return Ok(Type::Unknown);
+                        }
+
                         let callee_ty = self.parse_expr(&call.func, program_id, state)?;
 
                         match callee_ty {
@@ -1879,8 +1935,25 @@ impl<'ctx> TypeResolver<'ctx> {
                         let Some(known_function) =
                             self.resolve_known_function(path.root, &path.attrs)
                         else {
+                            if !call.keywords.is_empty() {
+                                for keyword in &call.keywords {
+                                    let name = keyword.arg.as_deref().unwrap_or("**kwargs");
+                                    self.report_unsupported(
+                                        keyword
+                                            .span
+                                            .as_ref()
+                                            .or(call.span.as_ref())
+                                            .expect("call keyword is missing a source span"),
+                                        format!("keyword argument `{name}` for an unsupported call"),
+                                    );
+                                }
+                            }
                             return Ok(Type::Unknown);
                         };
+
+                        if !self.validate_call_keywords(call, known_function) {
+                            return Ok(Type::Unknown);
+                        }
 
                         match known_function {
                             KnownFunction::Torch(TorchFunction::Tensor) => {
@@ -2009,48 +2082,62 @@ impl<'ctx> TypeResolver<'ctx> {
                         Ok(self.resolve_add(left, right))
                     }
 
-                    Operator::Sub => todo!(),
-                    Operator::Mult => todo!(),
-                    Operator::MatMult => todo!(),
-                    Operator::Div => todo!(),
-                    Operator::FloorDiv => todo!(),
-                    Operator::Mod => todo!(),
-                    Operator::Pow => todo!(),
-                    Operator::LShift => todo!(),
-                    Operator::RShift => todo!(),
-                    Operator::BitXor => todo!(),
-                    Operator::BitAnd => todo!(),
-                    Operator::UAdd => todo!(),
-                    Operator::USub => todo!(),
-                    Operator::Not => todo!(),
-                    Operator::Invert => todo!(),
-                    Operator::And => todo!(),
-                    Operator::Or => todo!(),
-                    Operator::Eq => todo!(),
-                    Operator::NotEq => todo!(),
-                    Operator::Lt => todo!(),
-                    Operator::LtE => todo!(),
-                    Operator::Gt => todo!(),
-                    Operator::GtE => todo!(),
-                    Operator::Is => todo!(),
-                    Operator::IsNot => todo!(),
-                    Operator::In => todo!(),
-                    Operator::NotIn => todo!(),
-                    Operator::AddAssign => todo!(),
-                    Operator::SubAssign => todo!(),
-                    Operator::MultAssign => todo!(),
-                    Operator::MatMultAssign => todo!(),
-                    Operator::DivAssign => todo!(),
-                    Operator::FloorDivAssign => todo!(),
-                    Operator::ModAssign => todo!(),
-                    Operator::PowAssign => todo!(),
-                    Operator::LShiftAssign => todo!(),
-                    Operator::RShiftAssign => todo!(),
-                    Operator::BitOrAssign => todo!(),
-                    Operator::BitXorAssign => todo!(),
-                    Operator::BitAndAssign => todo!(),
-                    Operator::Walrus => todo!(),
-                    Operator::Unknown(_) => todo!(),
+                    Operator::Sub => {
+                        let left = self.parse_expr(&binop.left, program_id, state)?;
+                        let right = self.parse_expr(&binop.right, program_id, state)?;
+                        Ok(self.resolve_sub(left, right))
+                    }
+                    Operator::Div => {
+                        let left = self.parse_expr(&binop.left, program_id, state)?;
+                        let right = self.parse_expr(&binop.right, program_id, state)?;
+                        Ok(self.resolve_div(left, right))
+                    }
+                    Operator::Mult
+                    | Operator::MatMult
+                    | Operator::FloorDiv
+                    | Operator::Mod
+                    | Operator::Pow
+                    | Operator::LShift
+                    | Operator::RShift
+                    | Operator::BitXor
+                    | Operator::BitAnd
+                    | Operator::UAdd
+                    | Operator::USub
+                    | Operator::Not
+                    | Operator::Invert
+                    | Operator::And
+                    | Operator::Or
+                    | Operator::Eq
+                    | Operator::NotEq
+                    | Operator::Lt
+                    | Operator::LtE
+                    | Operator::Gt
+                    | Operator::GtE
+                    | Operator::Is
+                    | Operator::IsNot
+                    | Operator::In
+                    | Operator::NotIn
+                    | Operator::AddAssign
+                    | Operator::SubAssign
+                    | Operator::MultAssign
+                    | Operator::MatMultAssign
+                    | Operator::DivAssign
+                    | Operator::FloorDivAssign
+                    | Operator::ModAssign
+                    | Operator::PowAssign
+                    | Operator::LShiftAssign
+                    | Operator::RShiftAssign
+                    | Operator::BitOrAssign
+                    | Operator::BitXorAssign
+                    | Operator::BitAndAssign
+                    | Operator::Walrus
+                    | Operator::Unknown(_) => {
+                        self.report_unsupported(
+                            &binop.span.clone().unwrap(),
+                            format!("binary operator {:?}", binop.op),
+                        );
+                        Ok(Type::Unknown)
+                    }
                 }
             }
 
@@ -2148,20 +2235,12 @@ impl<'ctx> TypeResolver<'ctx> {
                 Type::Tensor(Unresolved)
             }
 
-            (Type::Tensor(_a), Type::Tensor(_b)) => {
-                // self.resolve_tensor_add(a, b)
-                Type::Unknown
-            }
+            (Type::Tensor(TensorTypeState::Resolved(a)), Type::Tensor(TensorTypeState::Resolved(b)))
+                if a.shape == b.shape => Type::Tensor(TensorTypeState::Resolved(a)),
 
-            (Type::Tensor(_a), scalar) if scalar.is_numeric() => {
-                // self.resolve_tensor_scalar_add(a, scalar)
-                Type::Unknown
-            }
+            (Type::Tensor(tensor), scalar) if scalar.is_numeric() => Type::Tensor(tensor),
 
-            (scalar, Type::Tensor(_b)) if scalar.is_numeric() => {
-                // self.resolve_scalar_tensor_add(scalar, b)
-                Type::Unknown
-            }
+            (scalar, Type::Tensor(tensor)) if scalar.is_numeric() => Type::Tensor(tensor),
 
             (Type::Union(_items), _rhs) => {
                 // self.distribute_binop_over_union(Operator::Add, items, rhs)
@@ -2173,6 +2252,45 @@ impl<'ctx> TypeResolver<'ctx> {
                 Type::Unknown
             }
 
+            _ => Type::Unknown,
+        }
+    }
+
+    fn resolve_sub(&self, left: Type, right: Type) -> Type {
+        if left.is_numeric() && right.is_numeric() {
+            return self.promote_numeric(left, right);
+        }
+
+        match (left, right) {
+            (Type::Tensor(Unresolved), Type::Tensor(Unresolved)) => Type::Tensor(Unresolved),
+            (Type::Tensor(TensorTypeState::Resolved(a)), Type::Tensor(TensorTypeState::Resolved(b)))
+                if a.shape == b.shape => Type::Tensor(TensorTypeState::Resolved(a)),
+            (Type::Tensor(tensor), Type::Bool | Type::Int | Type::Float | Type::Complex)
+            | (Type::Bool | Type::Int | Type::Float | Type::Complex, Type::Tensor(tensor)) => {
+                Type::Tensor(tensor)
+            }
+            _ => Type::Unknown,
+        }
+    }
+
+    fn resolve_div(&self, left: Type, right: Type) -> Type {
+        if left.is_numeric() && right.is_numeric() {
+            return if matches!(left, Type::Complex) || matches!(right, Type::Complex) {
+                Type::Complex
+            } else {
+                // Python's `/` performs true division, including for bools and ints.
+                Type::Float
+            };
+        }
+
+        match (left, right) {
+            (Type::Tensor(Unresolved), Type::Tensor(Unresolved)) => Type::Tensor(Unresolved),
+            (Type::Tensor(TensorTypeState::Resolved(a)), Type::Tensor(TensorTypeState::Resolved(b)))
+                if a.shape == b.shape => Type::Tensor(TensorTypeState::Resolved(a)),
+            (Type::Tensor(tensor), Type::Bool | Type::Int | Type::Float | Type::Complex)
+            | (Type::Bool | Type::Int | Type::Float | Type::Complex, Type::Tensor(tensor)) => {
+                Type::Tensor(tensor)
+            }
             _ => Type::Unknown,
         }
     }

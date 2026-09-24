@@ -16,7 +16,7 @@ pub enum Severity {
     ERROR,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, PartialEq, Eq, Serialize)]
 pub enum DiagnosticKind {
     TypeError,
     ShapeError,

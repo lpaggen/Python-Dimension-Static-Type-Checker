@@ -1,7 +1,7 @@
 import { loadPyodide } from "https://cdn.jsdelivr.net/pyodide/v0.28.3/full/pyodide.mjs";
-import initChecker, { analyze_ir } from "./pkg/pdc_rust_check.js?v=unknown-diagnostics-1";
+import initChecker, { analyze_ir } from "./pkg/pdc_rust_check.js?v=unknown-diagnostics-2";
 
-const assetVersion = "unknown-diagnostics-1";
+const assetVersion = "unknown-diagnostics-2";
 
 const status = document.querySelector("#status");
 const button = document.querySelector("#analyze");

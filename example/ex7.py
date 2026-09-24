@@ -38,3 +38,7 @@ else:
 #
 # FlowUnion reports the mismatch only under not flag.
 stack_result = torch.stack([stack_a, stack_b], dim=0)
+
+# Invalid API usage: the first argument must be a tensor sequence, while the
+# second positional argument is reserved for dim.
+invalid_stack_call = torch.stack(stack_a, stack_b)

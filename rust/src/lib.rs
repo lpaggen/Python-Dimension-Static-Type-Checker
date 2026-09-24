@@ -93,5 +93,14 @@ mod tests {
                     .as_ref()
                     .is_some_and(|span| span.lineno == 40)
         }));
+
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic.message == "the first stack argument must be a list or tuple of tensors"
+                && diagnostic.kind == crate::diagnostic::diagnostic::DiagnosticKind::TypeError
+                && diagnostic
+                    .span
+                    .as_ref()
+                    .is_some_and(|span| span.lineno == 44)
+        }));
     }
 }

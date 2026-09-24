@@ -549,7 +549,7 @@ impl<'ctx> TypeResolver<'ctx> {
     //     }
     // }
 
-    fn require_dims_equal(&self, a: &DimType, b: &DimType, state: &mut FlowState, span: &SourceSpan) -> ConstraintResult {
+    fn require_dims_equal(&mut self, a: &DimType, b: &DimType, state: &mut FlowState, span: &SourceSpan) -> ConstraintResult {
         let equality = match (a, b) {
             (DimType::Known(a), DimType::Known(b)) => {
                 z3::ast::Int::from_i64(*a).eq(z3::ast::Int::from_i64(*b))
@@ -599,13 +599,17 @@ impl<'ctx> TypeResolver<'ctx> {
                     format!(" (when {guard})")
                 };
 
-                println!(
-                    "{}: shape mismatch: dimension {} must equal {}{}",
-                    diagnostic_span,
-                    display_dim(a),
-                    display_dim(b),
-                    condition,
-                );
+                self.diagnostics.push(Diagnostic {
+                    severity: Severity::ERROR,
+                    span: diagnostic_span.clone(),
+                    kind: DiagnosticKind::ShapeError,
+                    message: format!(
+                        "shape mismatch: dimension {} must equal {}{}",
+                        display_dim(a),
+                        display_dim(b),
+                        condition,
+                    ),
+                });
 
                 ConstraintResult::Infeasible
             }
@@ -1474,6 +1478,12 @@ impl<'ctx> TypeResolver<'ctx> {
         span: &SourceSpan
     ) -> ResolveResult {
         if types.is_empty() {
+            self.diagnostics.push(Diagnostic::new(
+                Severity::ERROR,
+                span.clone(),
+                DiagnosticKind::TypeError,
+                "stack expects a non-empty sequence of tensors",
+            ));
             return Ok(Type::Unknown);
         }
 
@@ -1530,6 +1540,12 @@ impl<'ctx> TypeResolver<'ctx> {
                 }
 
                 _ => {
+                    self.diagnostics.push(Diagnostic::new(
+                        Severity::ERROR,
+                        span.clone(),
+                        DiagnosticKind::TypeError,
+                        "every stack input must be a tensor",
+                    ));
                     return Ok(Type::Unknown);
                 }
             }
@@ -1543,6 +1559,14 @@ impl<'ctx> TypeResolver<'ctx> {
         let normalized_dim = if dim < 0 { dim + rank as i64 + 1 } else { dim };
 
         if normalized_dim < 0 || normalized_dim > rank as i64 {
+            self.diagnostics.push(Diagnostic {
+                severity: Severity::ERROR,
+                span: span.clone(),
+                kind: DiagnosticKind::ShapeError,
+                message: format!(
+                    "stack dimension {dim} is out of range for tensors of rank {rank}"
+                ),
+            });
             return Ok(Type::Unknown);
         }
 
@@ -1551,6 +1575,15 @@ impl<'ctx> TypeResolver<'ctx> {
         // Unlike cat, every input tensor must have exactly the same shape.
         for tensor in tensors.iter().skip(1) {
             if tensor.shape.len() != rank {
+                self.diagnostics.push(Diagnostic {
+                    severity: Severity::ERROR,
+                    span: span.clone(),
+                    kind: DiagnosticKind::ShapeError,
+                    message: format!(
+                        "stack expects tensors with equal ranks, but found ranks {rank} and {}",
+                        tensor.shape.len(),
+                    ),
+                });
                 return Ok(Type::Unknown);
             }
 
@@ -1601,10 +1634,22 @@ impl<'ctx> TypeResolver<'ctx> {
         axis_keyword: &str,
     ) -> ResolveResult {
         let Some(tensors_arg) = call.args.first() else {
+            self.diagnostics.push(Diagnostic::new(
+                Severity::ERROR,
+                span.clone(),
+                DiagnosticKind::TypeError,
+                "stack requires a sequence of tensors",
+            ));
             return Ok(Type::Unknown);
         };
 
         if call.args.len() > 2 {
+            self.diagnostics.push(Diagnostic::new(
+                Severity::ERROR,
+                span.clone(),
+                DiagnosticKind::TypeError,
+                "stack accepts at most two positional arguments: tensors and dim",
+            ));
             return Ok(Type::Unknown);
         }
 
@@ -1631,7 +1676,15 @@ impl<'ctx> TypeResolver<'ctx> {
 
             expr => match self.parse_expr(expr, program_id, state)? {
                 Type::List(types) | Type::Tuple(types) => types,
-                _ => return Ok(Type::Unknown),
+                _ => {
+                    self.diagnostics.push(Diagnostic::new(
+                        Severity::ERROR,
+                        span.clone(),
+                        DiagnosticKind::TypeError,
+                        "the first stack argument must be a list or tuple of tensors",
+                    ));
+                    return Ok(Type::Unknown);
+                }
             },
         };
 
@@ -1644,6 +1697,12 @@ impl<'ctx> TypeResolver<'ctx> {
             .map(|kw| &*kw.value);
 
         if positional_dim.is_some() && keyword_dim.is_some() {
+            self.diagnostics.push(Diagnostic::new(
+                Severity::ERROR,
+                span.clone(),
+                DiagnosticKind::TypeError,
+                "stack received dim both positionally and by keyword",
+            ));
             return Ok(Type::Unknown);
         }
 
@@ -1661,7 +1720,15 @@ impl<'ctx> TypeResolver<'ctx> {
                     return Ok(Type::Tensor(TensorTypeState::Unresolved));
                 }
 
-                _ => return Ok(Type::Unknown),
+                _ => {
+                    self.diagnostics.push(Diagnostic::new(
+                        Severity::ERROR,
+                        span.clone(),
+                        DiagnosticKind::TypeError,
+                        "stack dim must be an integer",
+                    ));
+                    return Ok(Type::Unknown);
+                }
             },
         };
 

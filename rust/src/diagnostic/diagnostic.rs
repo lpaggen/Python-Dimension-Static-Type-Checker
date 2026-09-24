@@ -1,3 +1,5 @@
+use std::fmt;
+
 use crate::ir::span_ir::SourceSpan;
 
 #[derive(Debug)]
@@ -37,8 +39,12 @@ impl Diagnostic {
     }
 }
 
-// impl Diagnostic {
-//     pub fn report(&self) -> &str {
-
-//     }
-// }
+impl fmt::Display for Diagnostic {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "{}: {:?}[{:?}]: {}",
+            self.span, self.severity, self.kind, self.message,
+        )
+    }
+}

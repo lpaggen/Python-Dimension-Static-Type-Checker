@@ -83,7 +83,11 @@ fn main() -> Result<(), Vec<Diagnostic>> {
         contracts: Rc::clone(&function_contracts),
     };
 
-    analysis_engine.run(&cfg, &table);
+    let _ = analysis_engine.run(&cfg, &table);
+
+    for diagnostic in &analysis_engine.flow.type_resolver.diagnostics {
+        eprintln!("{diagnostic}");
+    }
     // println!("flow analysis:   {:?}", start.elapsed());
 
     println!("\npipeline took:  {:?}", total_start.elapsed());

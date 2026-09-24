@@ -582,6 +582,17 @@ impl<'ctx> TypeResolver<'ctx> {
         println!("{}: error: {}", diagnostic_span, message);
     }
 
+    fn report_type_error(&mut self, span: &SourceSpan, message: &str) {
+        let diagnostic_span = self.diagnostic_span_override.as_ref().unwrap_or(span);
+
+        self.diagnostics.push(Diagnostic::new(
+            Severity::ERROR,
+            diagnostic_span.clone(),
+            DiagnosticKind::TypeError,
+            message,
+        ));
+    }
+
     fn require_dims_equal(&mut self, a: &DimType, b: &DimType, state: &mut FlowState, span: &SourceSpan) -> ConstraintResult {
         let result = self.check_dims_equal(a, b, state);
 
@@ -1491,6 +1502,7 @@ impl<'ctx> TypeResolver<'ctx> {
         span: &SourceSpan
     ) -> ResolveResult {
         if types.is_empty() {
+            self.report_type_error(span, "stack expects a non-empty sequence of tensors");
             return Ok(Type::Unknown);
         }
 
@@ -1547,6 +1559,7 @@ impl<'ctx> TypeResolver<'ctx> {
                 }
 
                 _ => {
+                    self.report_type_error(span, "every stack input must be a tensor");
                     return Ok(Type::Unknown);
                 }
             }
@@ -1560,6 +1573,10 @@ impl<'ctx> TypeResolver<'ctx> {
         let normalized_dim = if dim < 0 { dim + rank as i64 + 1 } else { dim };
 
         if normalized_dim < 0 || normalized_dim > rank as i64 {
+            self.report_shape_error(
+                span,
+                format!("stack dimension {dim} is out of range for tensors of rank {rank}"),
+            );
             return Ok(Type::Unknown);
         }
 
@@ -1568,6 +1585,13 @@ impl<'ctx> TypeResolver<'ctx> {
         // Unlike cat, every input tensor must have exactly the same shape.
         for tensor in tensors.iter().skip(1) {
             if tensor.shape.len() != rank {
+                self.report_shape_error(
+                    span,
+                    format!(
+                        "stack expects tensors with equal ranks, but found ranks {rank} and {}",
+                        tensor.shape.len(),
+                    ),
+                );
                 return Ok(Type::Unknown);
             }
 
@@ -1617,10 +1641,15 @@ impl<'ctx> TypeResolver<'ctx> {
         span: &SourceSpan
     ) -> ResolveResult {
         let Some(tensors_arg) = call.args.first() else {
+            self.report_type_error(span, "stack requires a sequence of tensors");
             return Ok(Type::Unknown);
         };
 
         if call.args.len() > 2 {
+            self.report_type_error(
+                span,
+                "stack accepts at most two positional arguments: tensors and dim",
+            );
             return Ok(Type::Unknown);
         }
 
@@ -1647,7 +1676,13 @@ impl<'ctx> TypeResolver<'ctx> {
 
             expr => match self.parse_expr(expr, program_id, state)? {
                 Type::List(types) | Type::Tuple(types) => types,
-                _ => return Ok(Type::Unknown),
+                _ => {
+                    self.report_type_error(
+                        span,
+                        "the first stack argument must be a list or tuple of tensors",
+                    );
+                    return Ok(Type::Unknown);
+                }
             },
         };
 
@@ -1660,6 +1695,7 @@ impl<'ctx> TypeResolver<'ctx> {
             .map(|kw| &*kw.value);
 
         if positional_dim.is_some() && keyword_dim.is_some() {
+            self.report_type_error(span, "stack received dim both positionally and by keyword");
             return Ok(Type::Unknown);
         }
 
@@ -1677,7 +1713,10 @@ impl<'ctx> TypeResolver<'ctx> {
                     return Ok(Type::Tensor(TensorTypeState::Unresolved));
                 }
 
-                _ => return Ok(Type::Unknown),
+                _ => {
+                    self.report_type_error(span, "stack dim must be an integer");
+                    return Ok(Type::Unknown);
+                }
             },
         };
 

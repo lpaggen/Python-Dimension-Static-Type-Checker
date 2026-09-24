@@ -8,7 +8,7 @@ use std::{
 use crate::{
     control_flow::{
         block_id::{BlockID, FunctionID}, cfg_analysis_engine::{blocked_function_analysis::BlockedFunctionAnalysis, contour_id::ContourID, flow_block_id::FlowBlockID, functioncontract_table::FunctionContractTable}, cfg_table::CfgTable, class_cfg::ClassCfg, flowstate::FlowState, function_analysis_request::FunctionAnalysisRequest, function_cfg::FunctionCfg, function_contract::{ContractParam, FunctionContract, GuardedReturn}, graph::Graph, module_cfg::ModuleCfg, terminator::Terminator,
-    }, ir::{
+    }, diagnostic::diagnostic::{Diagnostic, DiagnosticKind, Severity}, ir::{
         expr::{ConstantIR, ExprIR},
         operator::Operator,
         stmt::StmtIR,
@@ -390,9 +390,21 @@ impl<'ctx> BlockFlow<'ctx> {
             }
 
             StmtIR::Assign(assign) => {
+                let diagnostic_count = self.type_resolver.diagnostics.len();
                 let value_type = self
                     .type_resolver
                     .parse_expr(&assign.value, program_id, state)?;
+
+                if value_type == Type::Unknown
+                    && self.type_resolver.diagnostics.len() == diagnostic_count
+                {
+                    self.type_resolver.diagnostics.push(Diagnostic::new(
+                        Severity::WARNING,
+                        assign.value.span(),
+                        DiagnosticKind::UnknownAssignValue,
+                        "could not infer the assigned value's type",
+                    ));
+                }
 
                 for target in &assign.targets {
                     if let ExprIR::Name(name) = target {
@@ -418,7 +430,20 @@ impl<'ctx> BlockFlow<'ctx> {
 
             StmtIR::AnnAssign(annassign) => {
                 // println!("{annassign:?}");
+                let diagnostic_count = self.type_resolver.diagnostics.len();
                 let target_type = self.type_resolver.resolve_type(program_id, stmt, state, &annassign.span.clone().unwrap())?;
+
+                if target_type == Type::Unknown
+                    && self.type_resolver.diagnostics.len() == diagnostic_count
+                {
+                    self.type_resolver.diagnostics.push(Diagnostic::new(
+                        Severity::WARNING,
+                        annassign.span.clone().unwrap(),
+                        DiagnosticKind::UnknownAssignValue,
+                        "could not infer the assigned value's type",
+                    ));
+                }
+
                 if let ExprIR::Name(name) = &annassign.target {
                     let symbol_ref = self
                         .symbols

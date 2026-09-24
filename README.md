@@ -173,4 +173,4 @@ flowchart TB
 
 # How to use
 
-No binaries right now, will publish a release if development gets to a point where it makes sense to do so, right now it's still a demo. 
+Build from source (you need Python and Rust and Protobuf), or check it out here: https://lpaggen.github.io/editor.html

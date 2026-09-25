@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::str::FromStr;
 
 use z3::ast::Ast;
 
@@ -2518,7 +2519,33 @@ impl<'ctx> TypeResolver<'ctx> {
                 self.resolve_external_annotation(module, name)
             }
 
-            _ => Type::Unknown,
+            _ => {
+                Type::Unknown
+            },
+        }
+    }
+
+    // !! only for dimension annotations
+    fn dim_is_numeric(c: char) -> Option<z3::ast::Int> {
+        c.to_digit(10).map(|n| z3::ast::Int::from_i64(n as i64))
+    }
+
+    fn dim_is_alpha(c: char) -> Option<z3::ast::Int> {
+        if !c.is_alphabetic() {
+            return None
+        }
+        
+        Some(z3::ast::Int::new_const(c.to_string()))
+    }
+
+    // where @ is the special operator
+    fn dim_is_op(c: char) -> Option<char> {
+        if vec!['+', '-', '*', '/', '%', '@'].contains(&c) {Some(c)} else {None}
+    }
+
+    fn parse_dim_annotation(&self, dim: &String) {
+        for c in dim.chars() {
+            
         }
     }
 
@@ -2542,7 +2569,31 @@ impl<'ctx> TypeResolver<'ctx> {
                 }
             },
 
-            ExprIR::Constant(_) => Type::None,
+            ExprIR::Constant(constant) => {
+                match constant {
+                    ConstantIR::IntegerLit(integer_ir) => todo!(),
+
+                    ConstantIR::FloatLit(float_ir) => todo!(),
+
+                    ConstantIR::StringLit(string_ir) => {
+                        // for now we will assume this can only refer to tensor dimensions
+                        // we need some kind of small parser language maybe
+                        let dim = self.parse_dim_annotation(string_ir.value);
+
+                    },
+
+                    ConstantIR::BooleanLit(boolean_ir) => todo!(),
+
+                    ConstantIR::BytesLit(bytes_ir) => todo!(),
+
+                    ConstantIR::ComplexLit(complex_ir) => todo!(),
+
+                    ConstantIR::NoneLit(none_ir) => todo!(),
+
+                    ConstantIR::EllipsisLit(ellipsis_ir) => todo!(),
+                }
+                Type::None
+            },
 
             ExprIR::BinOpExpr(binop) if matches!(binop.op, Operator::BitOr) => {
                 let left = self.parse_annotation(&binop.left, program_id);
@@ -2579,7 +2630,9 @@ impl<'ctx> TypeResolver<'ctx> {
             }
 
             // _ => self.resolve_annotation_path(root, attrs, program_id)
-            _ => Type::Unknown, // TODO for now, but fix later
+            _ => {
+                Type::Unknown
+            }, // TODO for now, but fix later
         }
     }
 

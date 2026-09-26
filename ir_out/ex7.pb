@@ -89,19 +89,22 @@ I2G
 example/ex7.py
  (2
 example/ex7.py
- (2ç
-ä
+ (2…
+‚
 
 z
-example/ex7.py (ª*§
+example/ex7.py (È*Å
 H2F
 #!
 torch
 example/ex7.py (	stack
-example/ex7.py (
+example/ex7.py (_]
+
 x
-example/ex7.py ( 
+example/ex7.py (
+ 
 w1
-example/ex7.py ("
-example/ex7.py (2
-example/ex7.py (
+example/ex7.py (
+example/ex7.py ("
+example/ex7.py (2
+example/ex7.py (

@@ -13,4 +13,4 @@ w1 = torch.tensor([
     [5, 6],
 ])  # shape: [3, 2]
 
-z = torch.stack(x, w1)
+z = torch.stack([x, w1])

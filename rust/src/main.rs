@@ -39,7 +39,7 @@ fn main() -> Result<(), Vec<Diagnostic>> {
     };
     // println!("decode:          {:?}", start.elapsed());
 
-    // let start = Instant::now();
+    let start = Instant::now();
     let mut table: ProgramTable = ProgramTable::new();
     table.build_tables(programs);
     // println!("program tables:  {:?}", start.elapsed());

@@ -2578,7 +2578,7 @@ impl<'ctx> TypeResolver<'ctx> {
                     ConstantIR::StringLit(string_ir) => {
                         // for now we will assume this can only refer to tensor dimensions
                         // we need some kind of small parser language maybe
-                        let dim = self.parse_dim_annotation(string_ir.value);
+                        let dim = self.parse_dim_annotation(&string_ir.value);
 
                     },
 

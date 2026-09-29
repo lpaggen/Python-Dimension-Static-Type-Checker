@@ -25,6 +25,7 @@ use crate::ir::operator::Operator;
 use crate::ir::span_ir::SourceSpan;
 use crate::ir::stmt::StmtIR;
 use crate::type_resolver::constraint_result::ConstraintResult;
+use crate::type_resolver::dim_parser::DimParser;
 use crate::type_resolver::library::KnownFunction;
 use crate::type_resolver::library::KnownLibrary;
 use crate::type_resolver::library::JaxFunction;
@@ -2525,28 +2526,9 @@ impl<'ctx> TypeResolver<'ctx> {
         }
     }
 
-    // !! only for dimension annotations
-    fn dim_is_numeric(c: char) -> Option<z3::ast::Int> {
-        c.to_digit(10).map(|n| z3::ast::Int::from_i64(n as i64))
-    }
-
-    fn dim_is_alpha(c: char) -> Option<z3::ast::Int> {
-        if !c.is_alphabetic() {
-            return None
-        }
-        
-        Some(z3::ast::Int::new_const(c.to_string()))
-    }
-
-    // where @ is the special operator
-    fn dim_is_op(c: char) -> Option<char> {
-        if vec!['+', '-', '*', '/', '%', '@'].contains(&c) {Some(c)} else {None}
-    }
-
     fn parse_dim_annotation(&self, dim: &String) {
-        for c in dim.chars() {
-            
-        }
+        let mut dim_parser = DimParser::new(dim);
+        println!("{:?}", dim_parser.parse());
     }
 
     pub fn parse_annotation(

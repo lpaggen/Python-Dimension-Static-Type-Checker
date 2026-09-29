@@ -26,6 +26,7 @@ use crate::ir::span_ir::SourceSpan;
 use crate::ir::stmt::StmtIR;
 use crate::type_resolver::constraint_result::ConstraintResult;
 use crate::type_resolver::dim_parser::DimParser;
+use crate::type_resolver::dim_parser::ShapeExpr;
 use crate::type_resolver::library::KnownFunction;
 use crate::type_resolver::library::KnownLibrary;
 use crate::type_resolver::library::JaxFunction;
@@ -2526,9 +2527,17 @@ impl<'ctx> TypeResolver<'ctx> {
         }
     }
 
-    fn parse_dim_annotation(&self, dim: &String) {
+    fn parse_dim_annotation(&self, dim: &String) -> ShapeExpr {
         let mut dim_parser = DimParser::new(dim);
-        println!("{:?}", dim_parser.parse());
+        match dim_parser.parse() {
+            Ok(res) => {
+                res
+            },
+
+            Err(err) => {
+
+            }
+        }
     }
 
     pub fn parse_annotation(
@@ -2643,8 +2652,8 @@ impl<'ctx> TypeResolver<'ctx> {
                     Some(value) => {
                         let value_type = self.parse_expr(value, program_id, state)?;
 
-                        // force annotation == actual ? -> too strict, tensor(unknown) can be ok for a tensor with declared dims
                         // TODO fix in later build
+
                         if value_type == annotation_type {
                             Ok(annotation_type)
                         } else {

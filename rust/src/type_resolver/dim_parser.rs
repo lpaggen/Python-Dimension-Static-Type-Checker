@@ -1,7 +1,3 @@
-use std::{io::Error, string::ParseError};
-
-use crate::type_resolver::dim_ops::DimOp;
-
 use crate::type_resolver::parse_error::DimParseError;
 
 pub struct DimParser<'a> {
@@ -188,6 +184,36 @@ pub enum DimExpr {
     Mul(Box<DimExpr>, Box<DimExpr>),
     Const(i64),
     Symbol(String)
+}
+
+impl DimExpr {
+    pub fn dimexpr_to_z3(expr: &DimExpr) -> z3::ast::Int {
+        match expr {
+            DimExpr::Const(i) => {
+                z3::ast::Int::from_i64(*i)
+            },
+
+            DimExpr::Symbol(s) => {
+                z3::ast::Int::new_const(s.clone())
+            },
+            
+            DimExpr::Add(lhs, rhs) => {
+                DimExpr::dimexpr_to_z3(lhs) + DimExpr::dimexpr_to_z3(rhs)
+            },
+
+            DimExpr::Sub(lhs, rhs) => {
+                DimExpr::dimexpr_to_z3(lhs) - DimExpr::dimexpr_to_z3(rhs)
+            },
+
+            DimExpr::Div(lhs, rhs) => {
+                DimExpr::dimexpr_to_z3(lhs) / DimExpr::dimexpr_to_z3(rhs)
+            },
+
+            DimExpr::Mul(lhs, rhs) => {
+                DimExpr::dimexpr_to_z3(lhs) * DimExpr::dimexpr_to_z3(rhs)
+            },
+        }
+    }
 }
 
 #[derive(Debug)]

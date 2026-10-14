@@ -8,16 +8,19 @@
 ("z*
 example/ex7.py (*! *torchJ
 example/ex7.py (2#J! *torchJ
-example/ex7.py (2Ë
-È
+example/ex7.py (2ôñ
 
 x
-example/ex7.py (Ž*‹
+example/ex7.py (%
+#!
+4*a@4
+example/ex7.py (
+Ž*‹
 I2G
 #!
 torch
-example/ex7.py (	tensor
-example/ex7.py (£ 
+example/ex7.py (tensor
+example/ex7.py (£ 
 ƒ€
  
 
@@ -32,25 +35,31 @@ I2G
 
 example/ex7.py (
 example/ex7.py (
-example/ex7.py ("
-example/ex7.py (2
-example/ex7.py (2ì
-é
+example/ex7.py ("
+example/ex7.py ( 2
+example/ex7.py (2¹¶
 
 w1
 example/ex7.py
  
-(®*«
+(I2G
+#!
+torch
+example/ex7.py
+ 
+(	Tensor
+example/ex7.py
+ 
+(®*«
 I2G
 #!
 torch
 example/ex7.py
- 
-(
-tensor
+ 
+(tensor
 example/ex7.py
- 
-(ÃÀ
+ 
+(ÃÀ
 `^
  
 
@@ -85,9 +94,9 @@ I2G
 example/ex7.py (
 
 example/ex7.py
- ("
+  ("
 example/ex7.py
- (2
+ ( 2
 example/ex7.py
  (2…
 ‚

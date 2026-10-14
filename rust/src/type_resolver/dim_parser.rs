@@ -220,3 +220,8 @@ impl DimExpr {
 pub struct ShapeExpr {
     dims: Vec<DimExpr>,
 }
+
+// pub struct TensorType {
+//     pub shape: Vec<DimType>,
+//     pub dtype: DType, // TODO ensure we don't need Option here
+// }

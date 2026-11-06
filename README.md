@@ -5,6 +5,9 @@
 ![Z3](https://img.shields.io/badge/Z3-SMT%20Solver-green.svg)
 ![Status](https://img.shields.io/badge/status-experimental-orange.svg)
 
+TRY IT ON THE WEB: https://lpaggen.github.io/editor.html
+OR READ THE SHORT REPORT: https://lpaggen.github.io/papers/flowunions.pdf
+
 This project implements Microsoft's Z3 SMT solver (https://www.microsoft.com/en-us/research/project/z3-3/).
 
 I don't speak programming languages theory yet, so I had the latest GPT model give me this explanation of the project: "this project explores whether guarded disjunctive abstract values can provide the precision of path-sensitive symbolic reasoning without requiring whole-program path enumeration."

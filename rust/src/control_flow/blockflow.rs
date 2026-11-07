@@ -147,6 +147,7 @@ impl<'ctx> BlockFlow<'ctx> {
 
             ExprIR::Call(call) => {
                 // TODO ABSOLUTELY FIX THIS, THIS IS DUMB
+                // yeah
 
                 z3::ast::Bool::new_const(format!(
                         "call_truthy_{}_{}_{}",

@@ -85,8 +85,10 @@ fn main() -> Result<(), Vec<Diagnostic>> {
 
     let _ = analysis_engine.run(&cfg, &table);
 
-    for diagnostic in &analysis_engine.flow.type_resolver.diagnostics {
-        eprintln!("{diagnostic}");
+    if std::env::var_os("FLOWUNION_SILENT").is_none() {
+        for diagnostic in &analysis_engine.flow.type_resolver.diagnostics {
+            eprintln!("{diagnostic}");
+        }
     }
     // println!("flow analysis:   {:?}", start.elapsed());
 

@@ -1098,56 +1098,56 @@ impl<'ctx> TypeResolver<'ctx> {
         })))
     }
 
-    fn reshape_type(
-        &mut self,
-        input: Type,
-        shape: Vec<DimType>,
-        state: &mut FlowState,
-        span: &SourceSpan,
-    ) -> ResolveResult {
-        match input {
-            Type::FlowUnion(alternatives) => {
-                let parent_guard = state.guard.clone();
-                let mut results = Vec::new();
+    // fn reshape_type(
+    //     &mut self,
+    //     input: Type,
+    //     shape: Vec<DimType>,
+    //     state: &mut FlowState,
+    //     span: &SourceSpan,
+    // ) -> ResolveResult {
+    //     match input {
+    //         Type::FlowUnion(alternatives) => {
+    //             let parent_guard = state.guard.clone();
+    //             let mut results = Vec::new();
 
-                for alternative in alternatives {
-                    let guard =
-                        z3::ast::Bool::and(&[&parent_guard, &alternative.guard]);
+    //             for alternative in alternatives {
+    //                 let guard =
+    //                     z3::ast::Bool::and(&[&parent_guard, &alternative.guard]);
 
-                    if !self.is_feasible(&guard) {
-                        continue;
-                    }
+    //                 if !self.is_feasible(&guard) {
+    //                     continue;
+    //                 }
 
-                    state.guard = guard.clone();
+    //                 state.guard = guard.clone();
 
-                    let result = self.reshape_type(
-                        alternative.ty,
-                        shape.clone(),
-                        state,
-                        span,
-                    )?;
+    //                 let result = self.reshape_type(
+    //                     alternative.ty,
+    //                     shape.clone(),
+    //                     state,
+    //                     span,
+    //                 )?;
 
-                    match result {
-                        Type::FlowUnion(inner) => results.extend(inner),
-                        ty => results.push(GuardedType { guard, ty }),
-                    }
-                }
+    //                 match result {
+    //                     Type::FlowUnion(inner) => results.extend(inner),
+    //                     ty => results.push(GuardedType { guard, ty }),
+    //                 }
+    //             }
 
-                state.guard = parent_guard;
-                Ok(Type::FlowUnion(results))
-            }
+    //             state.guard = parent_guard;
+    //             Ok(Type::FlowUnion(results))
+    //         }
 
-            Type::Tensor(TensorTypeState::Resolved(tensor)) => {
-                self.reshape_tensor(tensor, shape, state, span)
-            }
+    //         Type::Tensor(TensorTypeState::Resolved(tensor)) => {
+    //             self.reshape_tensor(tensor, shape, state, span)
+    //         }
 
-            Type::Tensor(TensorTypeState::Unresolved) => {
-                Ok(Type::Tensor(TensorTypeState::Unresolved))
-            }
+    //         Type::Tensor(TensorTypeState::Unresolved) => {
+    //             Ok(Type::Tensor(TensorTypeState::Unresolved))
+    //         }
 
-            _ => Ok(Type::Unknown),
-        }
-    }
+    //         _ => Ok(Type::Unknown),
+    //     }
+    // }
 
     fn infer_torch_reshape(
         &mut self,
@@ -1168,7 +1168,7 @@ impl<'ctx> TypeResolver<'ctx> {
         };
 
         // need to distribute over FlowUnion type too, else we have a bug 
-        let tensors = Vec::with_capacity();
+        // let tensors = Vec::with_capacity();
 
         let Ok(Type::Tensor(TensorTypeState::Resolved(input))) = input_type else {
             return match input_type {
